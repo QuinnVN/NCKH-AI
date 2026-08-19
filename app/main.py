@@ -9,14 +9,50 @@ from prompt_toolkit.patch_stdout import patch_stdout
 import uvicorn
 
 server: uvicorn.Server | None = None
-unityws: WebSocket | None = None
+unity_ws: WebSocket | None = None
 
 app = FastAPI()
 session = PromptSession()
 
 def log(str):
-    print_formatted_text(str)
+    print_formatted_text(str)            
+    
+@app.get("/api/health")
+async def health():
+    return {
+        "status": "ok"
+    }
 
+@app.post("/api/telemetry")
+async def telemetry(data: dict[str, Any]):
+    log(data)
+    return {
+        "status": "ok",
+    }
+
+@app.websocket("/ws/ctrl")
+async def commands(ws: WebSocket):
+    global unity_ws
+    
+    await ws.accept()
+    unity_ws = ws
+    
+    log("[Server] Unity connected")
+    
+    try:
+        while True:
+            data = await ws.receive_json()
+            log(f"[Server] Received command: {data}")      
+    except WebSocketDisconnect:
+        log("[Server] Unity disconnected")
+        unity_ws = None   
+
+async def send_command_to_unity(command: dict[str, Any]):
+    if unity_ws is None:
+        log("[Server] No active Unity connection.")
+        return
+    
+    await unity_ws.send_json(command)
 
 async def handleCommands():
     while True:
@@ -39,7 +75,7 @@ async def handleCommands():
                 continue
             
             case "status":
-                if unityws is not None:
+                if unity_ws is not None:
                     log("[Server] Unity is connected.")
                 else:
                     log("[Server] Unity is not connected.")
@@ -50,12 +86,11 @@ async def handleCommands():
                  
                 if server is not None:
                     server.should_exit = True
+                return
             
             case _:
-                log("[Server] Unknown command")
-                continue
-                
-            
+                await send_command_to_unity({"command": command})
+                continue          
             
 async def main():
     global server
@@ -104,42 +139,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-    
-@app.get("/api/health")
-async def health():
-    return {
-        "status": "ok"
-    }
-
-@app.post("/api/telemetry")
-async def telemetry(data: dict[str, Any]):
-    log(data)
-    return {
-        "status": "ok",
-    }
-
-@app.websocket("/ws/ctrl")
-async def commands(ws: WebSocket):
-    global unityws
-    
-    await ws.accept()
-    unityws = ws
-    
-    log("[Server] Unity connected")
-    
-    try:
-        while True:
-            data = await ws.receive_json()
-            log(f"[Server] Received command: {data}")      
-    except WebSocketDisconnect:
-        log("[Server] Unity disconnected")
-        unityws = None   
-
-async def send_command_to_unity(command: dict[str, Any]):
-    if unityws is None:
-        log("[Server] No active Unity connection.")
-        return
-    
-    await unityws.send_json(command)
-
-            
