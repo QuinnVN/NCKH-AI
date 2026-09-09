@@ -1,33 +1,27 @@
 import asyncio
-import base64
-import binascii
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import io
 import json
-import os
-from pathlib import Path
-import re
-import tempfile
 from typing import Any
 from uuid import uuid4
-import wave
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from prompt_toolkit import PromptSession, print_formatted_text
 from prompt_toolkit.patch_stdout import patch_stdout
+from pydantic import BaseModel
 import uvicorn
+
+from app.llm_service import LLMService
+from app.save_recording import decode_defense_recording, write_defense_recording
 
 server: uvicorn.Server | None = None
 unity_ws: WebSocket | None = None
+llm_service: LLMService | None = None
 
 COMMAND_TIMEOUT_SECONDS = 5.0
 VALID_SCENE_IDS = frozenset({"standby", "clinic", "doctor", "lawyer"})
 DEFENSE_RECORDING_EVENT_TYPE = "lawyer.defense_recording"
-MAX_RECORDING_BYTES = 8 * 1024 * 1024
-ROUND_ID_PATTERN = re.compile(r"^[0-9a-fA-F]{32}$")
-BACKEND_ROOT = Path(__file__).resolve().parent.parent
-
 
 @dataclass
 class PendingSceneCommand:
@@ -39,104 +33,22 @@ class PendingSceneCommand:
 pending_scene_commands: dict[str, PendingSceneCommand] = {}
 next_command_sequence = 1
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global llm_service
+
+    llm_service = LLMService()
+    yield
+    await llm_service.close()
+    llm_service = None
+
+
+app = FastAPI(lifespan=lifespan)
 session: PromptSession | None = None
 
 def log(message: Any):
     print_formatted_text(message)
-
-
-def get_recordings_directory() -> Path:
-    configured = os.environ.get("RECORDINGS_DIR", "recordings").strip() or "recordings"
-    directory = Path(configured).expanduser()
-    if not directory.is_absolute():
-        directory = BACKEND_ROOT / directory
-    return directory.resolve()
-
-
-def decode_defense_recording(data: dict[str, Any]) -> tuple[str, bytes]:
-    payload = data.get("payload")
-    if not isinstance(payload, dict):
-        raise ValueError("payload must be an object")
-
-    round_id = payload.get("roundId")
-    if not isinstance(round_id, str) or ROUND_ID_PATTERN.fullmatch(round_id) is None:
-        raise ValueError("payload.roundId must be a 32-character hexadecimal ID")
-
-    audio = payload.get("audio")
-    if not isinstance(audio, dict):
-        raise ValueError("payload.audio must be an object")
-    if audio.get("mimeType") != "audio/wav":
-        raise ValueError("payload.audio.mimeType must be audio/wav")
-    if audio.get("encoding") != "pcm_s16le":
-        raise ValueError("payload.audio.encoding must be pcm_s16le")
-    if type(audio.get("sampleRateHz")) is not int or audio["sampleRateHz"] != 16000:
-        raise ValueError("payload.audio.sampleRateHz must be 16000")
-    if type(audio.get("channels")) is not int or audio["channels"] != 1:
-        raise ValueError("payload.audio.channels must be 1")
-
-    encoded = audio.get("dataBase64")
-    if not isinstance(encoded, str) or not encoded:
-        raise ValueError("payload.audio.dataBase64 must be a non-empty string")
-    maximum_encoded_length = 4 * ((MAX_RECORDING_BYTES + 2) // 3)
-    if len(encoded) > maximum_encoded_length:
-        raise ValueError("recording exceeds the 8 MiB limit")
-
-    try:
-        wav_bytes = base64.b64decode(encoded, validate=True)
-    except (binascii.Error, ValueError) as exception:
-        raise ValueError("payload.audio.dataBase64 is not valid Base64") from exception
-    if len(wav_bytes) > MAX_RECORDING_BYTES:
-        raise ValueError("recording exceeds the 8 MiB limit")
-
-    try:
-        with wave.open(io.BytesIO(wav_bytes), "rb") as recording:
-            channels = recording.getnchannels()
-            sample_width = recording.getsampwidth()
-            sample_rate = recording.getframerate()
-            frame_count = recording.getnframes()
-            compression = recording.getcomptype()
-    except (EOFError, wave.Error) as exception:
-        raise ValueError("recording is not a valid PCM WAV file") from exception
-
-    if compression != "NONE" or sample_width != 2:
-        raise ValueError("recording must use signed 16-bit PCM samples")
-    if channels != audio["channels"]:
-        raise ValueError("WAV channel count does not match payload.audio.channels")
-    if sample_rate != audio["sampleRateHz"]:
-        raise ValueError("WAV sample rate does not match payload.audio.sampleRateHz")
-    if frame_count <= 0:
-        raise ValueError("recording must contain at least one audio frame")
-
-    return round_id.lower(), wav_bytes
-
-
-def write_defense_recording(round_id: str, wav_bytes: bytes) -> Path:
-    directory = get_recordings_directory()
-    directory.mkdir(parents=True, exist_ok=True)
-    destination = directory / f"lawyer-defense-{round_id}.wav"
-    temporary_path: Path | None = None
-
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            prefix=f".{destination.stem}-",
-            suffix=".tmp",
-            dir=directory,
-            delete=False,
-        ) as temporary_file:
-            temporary_path = Path(temporary_file.name)
-            temporary_file.write(wav_bytes)
-            temporary_file.flush()
-            os.fsync(temporary_file.fileno())
-
-        os.replace(temporary_path, destination)
-    except Exception:
-        if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
-        raise
-
-    return destination
 
 
 def get_prompt_session() -> PromptSession:
@@ -296,6 +208,58 @@ async def telemetry(data: dict[str, Any]):
     return {
         "status": "ok",
     }
+    
+class ChatRequest(BaseModel):
+    transcript: str
+    game_id: str
+    conversation: list[dict[str, str]] = []
+
+
+@app.post("/api/ai/respond")
+async def respond(request: ChatRequest):
+    assert llm_service is not None
+
+    system_prompt = get_game_prompt(request.game_id)
+    
+    log(f"[Server] System prompt for game '{request.game_id}': {system_prompt}")
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        *request.conversation,
+        {"role": "user", "content": request.transcript},
+    ]
+    
+    log(f"[Server] Sending request to LLM service: {messages}")
+
+    answer = await llm_service.generate(messages)
+
+    return {
+        "text": answer,
+        "game_id": request.game_id,
+    }
+
+
+def get_game_prompt(game_id: str) -> str:
+    prompts = {
+        "lawyer": (
+            "Bạn là nhân vật trong trò chơi mô phỏng nghề luật sư. "
+            "Trả lời bằng tiếng Việt tự nhiên và ngắn gọn. "
+            "Chỉ sử dụng thông tin có trong kịch bản và bằng chứng được cung cấp."
+        ),
+        "doctor": (
+            "Bạn là bệnh nhân trong trò chơi mô phỏng nghề bác sĩ. "
+            "Trả lời bằng tiếng Việt tự nhiên và ngắn gọn. "
+            "Không tự tạo thêm triệu chứng ngoài kịch bản."
+        ),
+    }
+    
+    stt_prompt = ("This is Vietnamese STT output and may be incomplete, noisy, or incoherent.\n"
+            "Determine whether the player's intent is clear enough to answer.\n"
+            "Do not invent missing meaning. If unclear, return NEED_CLARIFICATION\n"
+            "with one short question. \n")
+    
+
+    return stt_prompt + prompts.get(game_id, "You are a character in a simulation game. Answer in Vietnamese naturally and concisely.")
 
 @app.websocket("/ws/ctrl")
 async def commands(ws: WebSocket):

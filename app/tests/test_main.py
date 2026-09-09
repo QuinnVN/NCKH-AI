@@ -13,6 +13,16 @@ from fastapi import HTTPException
 from app import main
 
 
+class ApiRouteRegistrationTests(unittest.TestCase):
+    def test_required_backend_routes_are_registered_on_served_app(self):
+        registered_routes = {route.path for route in main.app.routes}
+
+        self.assertIn("/api/health", registered_routes)
+        self.assertIn("/api/telemetry", registered_routes)
+        self.assertIn("/api/ai/respond", registered_routes)
+        self.assertIn("/ws/ctrl", registered_routes)
+
+
 def build_wav(
     *,
     sample_rate: int = 16000,
@@ -61,7 +71,6 @@ def build_defense_recording_event(
             },
         },
     }
-
 
 class FakeWebSocket:
     def __init__(self, send_error: Exception | None = None):
