@@ -11,6 +11,7 @@ import wave
 from fastapi import HTTPException
 
 from app import main
+from app import save_recording
 
 
 class ApiRouteRegistrationTests(unittest.TestCase):
@@ -21,6 +22,25 @@ class ApiRouteRegistrationTests(unittest.TestCase):
         self.assertIn("/api/telemetry", registered_routes)
         self.assertIn("/api/ai/respond", registered_routes)
         self.assertIn("/ws/ctrl", registered_routes)
+
+    def test_chat_request_rejects_unbounded_or_injected_fields(self):
+        valid = main.ChatRequest(
+            transcript="hello",
+            game_id="lawyer",
+            conversation=[{"role": "user", "content": "context"}],
+        )
+        self.assertEqual(valid.game_id, "lawyer")
+        with self.assertRaises(ValueError):
+            main.ChatRequest(transcript="", game_id="lawyer")
+        with self.assertRaises(ValueError):
+            main.ChatRequest(transcript="hello", game_id="lawyer", injected="bad")
+
+    def test_optional_token_authentication(self):
+        with patch.dict(os.environ, {"BACKEND_API_TOKEN": "test-token"}):
+            with self.assertRaises(HTTPException) as raised:
+                main._require_http_auth(None)
+            self.assertEqual(raised.exception.status_code, 401)
+            main._require_http_auth("Bearer test-token")
 
 
 def build_wav(
@@ -193,11 +213,44 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(main.handle_unity_acknowledgement(acknowledgement))
         self.assertTrue(await command_task)
 
+    async def test_ack_from_another_connection_is_ignored(self):
+        socket = FakeWebSocket()
+        other_socket = FakeWebSocket()
+        main.unity_ws = socket
+        command_task = asyncio.create_task(main.set_game("doctor", timeout_seconds=0.2))
+        await asyncio.sleep(0)
+        request = socket.sent_messages[0]
+
+        self.assertFalse(
+            main.handle_unity_acknowledgement(
+                {
+                    "commandId": request["commandId"],
+                    "sequence": request["sequence"],
+                    "status": "applied",
+                    "sceneId": "doctor",
+                },
+                source=other_socket,
+            )
+        )
+        self.assertFalse(command_task.done())
+        self.assertTrue(
+            main.handle_unity_acknowledgement(
+                {
+                    "commandId": request["commandId"],
+                    "sequence": request["sequence"],
+                    "status": "applied",
+                    "sceneId": "doctor",
+                },
+                source=socket,
+            )
+        )
+        self.assertTrue(await command_task)
+
     async def test_timeout_removes_request_and_late_ack_is_ignored(self):
         socket = FakeWebSocket()
         main.unity_ws = socket
 
-        self.assertFalse(await main.set_game("lawyer-office", timeout_seconds=0.01))
+        self.assertFalse(await main.set_game("lawyer", timeout_seconds=0.01))
         request = socket.sent_messages[0]
         self.assertFalse(main.pending_scene_commands)
         self.assertTrue(any("timed out after 0.01 seconds" in message for message in self.messages))
@@ -208,7 +261,7 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
                     "commandId": request["commandId"],
                     "sequence": request["sequence"],
                     "status": "applied",
-                    "sceneId": "lawyer-office",
+                    "sceneId": "lawyer",
                 }
             )
         )
@@ -257,10 +310,10 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
 
     def test_relative_recording_directory_resolves_from_backend_root(self):
         with tempfile.TemporaryDirectory() as backend_root:
-            with patch.object(main, "BACKEND_ROOT", Path(backend_root)):
+            with patch.object(save_recording, "BACKEND_ROOT", Path(backend_root)):
                 with patch.dict(os.environ, {"RECORDINGS_DIR": "saved/audio"}):
                     self.assertEqual(
-                        main.get_recordings_directory(),
+                        save_recording.get_recordings_directory(),
                         (Path(backend_root) / "saved" / "audio").resolve(),
                     )
 
@@ -334,7 +387,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_oversized_recording_is_rejected(self):
         event = build_defense_recording_event(build_wav(frame_count=160))
 
-        with patch.object(main, "MAX_RECORDING_BYTES", 64):
+        with patch.object(save_recording, "MAX_RECORDING_BYTES", 64):
             await self.assert_recording_rejected(event)
 
         self.assertFalse(list(self.recordings_directory.iterdir()))
@@ -342,7 +395,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_write_failure_returns_server_error_and_removes_temporary_file(self):
         event = build_defense_recording_event()
 
-        with patch.object(main.os, "replace", side_effect=OSError("disk full")):
+        with patch.object(save_recording.os, "replace", side_effect=OSError("disk full")):
             await self.assert_recording_rejected(event, status_code=500)
 
         self.assertFalse(list(self.recordings_directory.iterdir()))
@@ -351,7 +404,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
         event = build_defense_recording_event()
 
         with patch.object(
-            main.tempfile,
+            save_recording.tempfile,
             "NamedTemporaryFile",
             side_effect=OSError("read-only directory"),
         ):
@@ -368,7 +421,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
         result = await main.telemetry(event)
 
         self.assertEqual(result, {"status": "ok"})
-        self.assertIn(event, self.messages)
+        self.assertTrue(any("scene.ready" in str(message) for message in self.messages))
         self.assertFalse(list(self.recordings_directory.iterdir()))
 
 

@@ -8,13 +8,14 @@ import tempfile
 from typing import Any
 import wave
 
-MAX_RECORDING_BYTES = 8 * 1024 * 1024
+from app.config import BACKEND_ROOT, get_settings
+
+MAX_RECORDING_BYTES = get_settings().max_recording_bytes
 ROUND_ID_PATTERN = re.compile(r"^[0-9a-fA-F]{32}$")
-BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 
 def get_recordings_directory() -> Path:
-    configured = os.environ.get("RECORDINGS_DIR", "recordings").strip() or "recordings"
+    configured = get_settings().recordings_dir
     directory = Path(configured).expanduser()
     if not directory.is_absolute():
         directory = BACKEND_ROOT / directory
