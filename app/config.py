@@ -13,7 +13,7 @@ from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LLM_BASE_URL = "http://127.0.0.1:8080/v1"
-DEFAULT_LLM_MODEL = "local-model"
+DEFAULT_LLM_MODEL = "qwen3-4b"
 
 
 def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
@@ -57,6 +57,8 @@ class Settings:
     llm_write_timeout_seconds: float
     llm_pool_timeout_seconds: float
     llm_max_tokens: int
+    llm_career_max_tokens: int
+    max_career_prompt_chars: int
 
 
 def get_settings() -> Settings:
@@ -103,4 +105,10 @@ def get_settings() -> Settings:
         llm_write_timeout_seconds=10.0,
         llm_pool_timeout_seconds=5.0,
         llm_max_tokens=_env_int("LLM_MAX_TOKENS", 100, minimum=1, maximum=2048),
+        llm_career_max_tokens=_env_int(
+            "LLM_CAREER_MAX_TOKENS", 4096, minimum=256, maximum=8192
+        ),
+        max_career_prompt_chars=_env_int(
+            "MAX_CAREER_PROMPT_CHARS", 32_000, minimum=4_000, maximum=64_000
+        ),
     )

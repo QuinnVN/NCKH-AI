@@ -10,6 +10,7 @@ The backend does not currently perform speech-to-text. Unity (or another client)
 Unity VR client
   ├─ POST /api/telemetry ──► validation ──► atomic WAV file in recordings/
   ├─ POST /api/ai/respond ─► bounded request ─► local OpenAI-compatible LLM
+  ├─ POST /api/ai/career-assessment ─► questionnaire ─► Qwen3-4B JSON result
   └─ WS /ws/ctrl ◄────────── load_scene command / ACK
 
 Operator console ─────────── set_game <scene_id> ─► WS /ws/ctrl ─► Unity
@@ -72,11 +73,15 @@ The request is bounded and rejects unknown fields:
 
 `transcript` and each message are limited to 4,000 characters by default, and `conversation` is limited to 20 messages. The backend adds a game prompt, then sends a non-streaming request to `${LLM_BASE_URL}/chat/completions` using `LLM_MODEL`. Upstream timeouts/unavailability return 503; malformed or rejected upstream responses return 502. Upstream error details and full prompts are not returned to clients or logged.
 
+### `POST /api/ai/career-assessment`
+
+This endpoint accepts normalized questionnaire dimension scores and career criteria, then uses Qwen3-4B thinking mode to return an independent match percentage and Vietnamese evaluation for every requested career. Thinking content is not returned or logged. The request, response, system prompt, validation rules, and JSON Schemas are documented in [`docs/career-assessment-api.md`](docs/career-assessment-api.md).
+
 ## Unity control protocol
 
 Unity opens one authenticated connection to `WS /ws/ctrl`. The token can be supplied as the `Authorization: Bearer <token>` header or the `token=<token>` query parameter. A newer connection replaces the older one, and pending commands belonging to the old connection fail rather than accepting an ACK from the wrong client.
 
-The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, and `lawyer`. The backend sends:
+The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, and `lawyer`. It also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. The backend sends:
 
 ```json
 {
@@ -87,6 +92,20 @@ The operator console accepts `set_game <scene_id>`, where the scene catalog is `
   "issuedAtUtc": "2026-08-31T00:00:00Z"
 }
 ```
+
+A reset uses the same envelope with `type: "reset_scene"`. Unity accepts a specific reset only when that logical game is active; `all` is accepted from any scene. It loads Standby, clears the requested persistent gameplay state, and acknowledges only after Standby is active:
+
+```json
+{
+  "commandId": "<uuid hex>",
+  "sequence": 2,
+  "type": "reset_scene",
+  "sceneId": "all",
+  "issuedAtUtc": "2026-09-10T00:00:00Z"
+}
+```
+
+Successful reset acknowledgements report `sceneId: "standby"` and `phase: "standby"`. A specific inactive target is rejected with `scene_mismatch`. Standby itself is never reset, and reset does not restart the target game.
 
 Unity should acknowledge the same `commandId` and `sequence` with `status: "applied"` and the applied `sceneId`, or `status: "rejected"` plus `errorCode` and `errorMessage`:
 
@@ -119,9 +138,11 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `MAX_CONVERSATION_MESSAGES` | `20` | Maximum conversation history items. |
 | `COMMAND_TIMEOUT_SECONDS` | `5` | Unity command ACK timeout, capped at 60 seconds. |
 | `LLM_BASE_URL` | `http://127.0.0.1:8080/v1` | Separately hosted llama.cpp `llama-server` OpenAI-compatible base URL. |
-| `LLM_MODEL` | `local-model` | Model alias sent upstream; must match the server's `--alias` value. |
+| `LLM_MODEL` | `qwen3-4b` | Model alias sent upstream; must match the server's `--alias` value. |
 | `LLM_READ_TIMEOUT_SECONDS` | `120` | LLM response timeout, capped at 600 seconds. |
 | `LLM_MAX_TOKENS` | `100` | Maximum completion tokens, capped at 2,048. |
+| `LLM_CAREER_MAX_TOKENS` | `4096` | Completion budget for thinking plus career JSON, capped at 8,192. |
+| `MAX_CAREER_PROMPT_CHARS` | `32000` | Maximum size of an individual career-assessment prompt message. |
 
 Invalid numeric environment values fall back to their defaults; bounded values are clamped to safe ranges.
 
@@ -141,7 +162,7 @@ Start the API and operator console from the repository root:
 py -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-For the interactive console (including `set_game`), run:
+For the interactive console (including `set_game` and `reset`), run:
 
 ```powershell
 py -m app.main
@@ -153,13 +174,13 @@ Run the focused tests with:
 py -m unittest discover -s app/tests -p "test_*.py"
 ```
 
-The LLM endpoint requires a separately running llama.cpp `llama-server`; the backend does not download, start, or stop the model server. For example, from a llama.cpp checkout:
+The LLM endpoints require a separately running llama.cpp `llama-server`; the backend does not start or stop the model server. Start the configured Qwen3-4B Q4_K_M model with:
 
 ```powershell
-llama-server.exe -m D:\models\my-model.gguf --host 127.0.0.1 --port 8080 --alias local-model
+.\scripts\run-qwen3-4b.ps1
 ```
 
-The backend sends `LLM_MODEL` (default `local-model`) as the OpenAI-compatible `model` field, so it must match `--alias` (or set both `LLM_MODEL` and the server alias to another value). Verify the server independently before starting the backend:
+The script calls `llama-server` from `PATH` and uses llama.cpp's `-hf` option, so its first run downloads `Qwen/Qwen3-4B-GGUF:Q4_K_M`. The backend sends `LLM_MODEL` (default `qwen3-4b`) as the OpenAI-compatible `model` field, so it must match the server alias. Verify the server independently before starting the backend:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8080/v1/models

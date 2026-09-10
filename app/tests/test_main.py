@@ -21,6 +21,7 @@ class ApiRouteRegistrationTests(unittest.TestCase):
         self.assertIn("/api/health", registered_routes)
         self.assertIn("/api/telemetry", registered_routes)
         self.assertIn("/api/ai/respond", registered_routes)
+        self.assertIn("/api/ai/career-assessment", registered_routes)
         self.assertIn("/ws/ctrl", registered_routes)
 
     def test_chat_request_rejects_unbounded_or_injected_fields(self):
@@ -283,6 +284,144 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(main.handle_unity_acknowledgement("not an object"))
         self.assertFalse(main.handle_unity_acknowledgement({"commandId": "missing-sequence"}))
         self.assertEqual(len(self.messages), 2)
+
+
+class ResetCommandTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        main.unity_ws = None
+        main.pending_scene_commands.clear()
+        main.next_command_sequence = 1
+        self.messages: list[str] = []
+        self.log_patch = patch.object(main, "log", self.messages.append)
+        self.log_patch.start()
+
+    def tearDown(self):
+        main.pending_scene_commands.clear()
+        main.unity_ws = None
+        self.log_patch.stop()
+
+    def test_parse_reset_accepts_gameplay_ids_and_all(self):
+        expected_targets = (main.RESET_ALL_TARGET, "clinic", "doctor", "lawyer")
+        for target in expected_targets:
+            with self.subTest(target=target):
+                self.assertEqual(main.parse_reset_command(f"reset {target.upper()}"), target)
+
+    def test_parse_reset_rejects_standby_invalid_syntax_and_unknown_scene(self):
+        invalid_commands = (
+            "reset",
+            "reset doctor extra",
+            "reset standby",
+            "reset courtroom",
+            "reset_game doctor",
+        )
+        for command in invalid_commands:
+            with self.subTest(command=command):
+                with self.assertRaises(ValueError):
+                    main.parse_reset_command(command)
+
+    async def test_matching_applied_ack_requires_standby(self):
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+
+        command_task = asyncio.create_task(main.reset_game("doctor", timeout_seconds=0.2))
+        await asyncio.sleep(0)
+
+        request = socket.sent_messages[0]
+        self.assertEqual(request["type"], "reset_scene")
+        self.assertEqual(request["sceneId"], "doctor")
+        self.assertEqual(request["sequence"], 1)
+        self.assertTrue(request["issuedAtUtc"].endswith("Z"))
+
+        main.handle_unity_acknowledgement(
+            {
+                "commandId": request["commandId"],
+                "sequence": request["sequence"],
+                "status": "applied",
+                "sceneId": "standby",
+                "phase": "standby",
+            }
+        )
+
+        self.assertTrue(await command_task)
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("returned Unity to standby" in message for message in self.messages))
+
+    async def test_applied_ack_for_non_standby_scene_is_failure(self):
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+        command_task = asyncio.create_task(main.reset_game("all", timeout_seconds=0.2))
+        await asyncio.sleep(0)
+        request = socket.sent_messages[0]
+
+        main.handle_unity_acknowledgement(
+            {
+                "commandId": request["commandId"],
+                "sequence": request["sequence"],
+                "status": "applied",
+                "sceneId": "doctor",
+            }
+        )
+
+        self.assertFalse(await command_task)
+        self.assertTrue(any("instead of 'standby'" in message for message in self.messages))
+
+    async def test_rejected_reset_ack_logs_failure(self):
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+        command_task = asyncio.create_task(main.reset_game("lawyer", timeout_seconds=0.2))
+        await asyncio.sleep(0)
+        request = socket.sent_messages[0]
+
+        main.handle_unity_acknowledgement(
+            {
+                "commandId": request["commandId"],
+                "sequence": request["sequence"],
+                "status": "rejected",
+                "sceneId": "doctor",
+                "errorCode": "scene_mismatch",
+                "errorMessage": "The requested scene is not active.",
+            }
+        )
+
+        self.assertFalse(await command_task)
+        self.assertTrue(any("scene_mismatch" in message for message in self.messages))
+
+    async def test_reset_timeout_removes_pending_request(self):
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+
+        self.assertFalse(await main.reset_game("clinic", timeout_seconds=0.01))
+
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("timed out after 0.01 seconds" in message for message in self.messages))
+
+    async def test_reset_without_connection_reports_error(self):
+        self.assertFalse(await main.reset_game("all"))
+        self.assertFalse(main.pending_scene_commands)
+        self.assertIn("[Server] Cannot reset scene: Unity is not connected.", self.messages)
+
+    async def test_reset_send_failure_is_reported_and_removed(self):
+        main.unity_ws = FakeWebSocket(RuntimeError("socket closed"))
+
+        self.assertFalse(await main.reset_game("doctor"))
+
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("socket closed" in message for message in self.messages))
+
+    async def test_reset_timeout_send_failure_and_missing_connection_cleanup(self):
+        self.assertFalse(await main.reset_game("clinic"))
+        self.assertIn("[Server] Cannot reset scene: Unity is not connected.", self.messages)
+
+        main.unity_ws = FakeWebSocket(RuntimeError("socket closed"))
+        self.assertFalse(await main.reset_game("doctor"))
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("socket closed" in message for message in self.messages))
+
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+        self.assertFalse(await main.reset_game("all", timeout_seconds=0.01))
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("timed out after 0.01 seconds" in message for message in self.messages))
 
 
 class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):

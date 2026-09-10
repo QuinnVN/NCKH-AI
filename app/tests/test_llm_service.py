@@ -60,7 +60,7 @@ class LLMServiceTests(unittest.IsolatedAsyncioTestCase):
             service.client.post.assert_awaited_once_with(
                 "http://127.0.0.1:8080/v1/chat/completions",
                 json={
-                    "model": "local-model",
+                    "model": DEFAULT_LLM_MODEL,
                     "messages": [{"role": "user", "content": "hello"}],
                     "temperature": 0.3,
                     "top_p": 0.9,
@@ -79,6 +79,28 @@ class LLMServiceTests(unittest.IsolatedAsyncioTestCase):
                 await service.generate([{"role": "user", "content": "hello"}])
             self.assertEqual(raised.exception.status_code, 502)
             self.assertEqual(service.last_error, "invalid upstream response")
+        finally:
+            await service.close()
+
+    async def test_generation_options_are_bounded_and_forwarded(self):
+        service = self.make_default_service()
+        response = FakeResponse({"choices": [{"message": {"content": "{}"}}]})
+        service.client.post = AsyncMock(return_value=response)
+        try:
+            await service.generate(
+                [{"role": "user", "content": "career data"}],
+                options={"temperature": 0.6, "top_k": 20, "max_tokens": 512},
+            )
+            payload = service.client.post.await_args.kwargs["json"]
+            self.assertEqual(payload["temperature"], 0.6)
+            self.assertEqual(payload["top_k"], 20)
+            self.assertEqual(payload["max_tokens"], 512)
+
+            with self.assertRaises(LLMServiceError):
+                await service.generate(
+                    [{"role": "user", "content": "career data"}],
+                    options={"messages": []},
+                )
         finally:
             await service.close()
 

@@ -16,6 +16,15 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from pydantic import BaseModel, ConfigDict, Field
 import uvicorn
 
+from app.career_assessment import (
+    CAREER_RESPONSE_FORMAT,
+    CareerAssessmentOutputError,
+    CareerAssessmentRequest,
+    CareerAssessmentResponse,
+    build_assessment_messages,
+    build_repair_messages,
+    parse_assessment_response,
+)
 from app.config import get_settings
 from app.llm_service import LLMService, LLMServiceError
 from app.save_recording import decode_defense_recording, write_defense_recording
@@ -29,6 +38,7 @@ llm_service: LLMService | None = None
 COMMAND_TIMEOUT_SECONDS = get_settings().command_timeout_seconds
 REQUEST_SETTINGS = get_settings()
 VALID_SCENE_IDS = frozenset({"standby", "clinic", "doctor", "lawyer"})
+RESET_ALL_TARGET = "all"
 DEFENSE_RECORDING_EVENT_TYPE = "lawyer.defense_recording"
 ACK_STATUSES = frozenset({"applied", "rejected"})
 
@@ -111,6 +121,25 @@ def parse_set_game_command(command: str) -> str:
     return validate_scene_id(parts[1])
 
 
+def validate_reset_target(scene_id: str) -> str:
+    if not isinstance(scene_id, str):
+        raise ValueError("reset target must be a string")
+    normalized = scene_id.strip().lower()
+    if normalized == RESET_ALL_TARGET:
+        return normalized
+    normalized = validate_scene_id(normalized)
+    if normalized == "standby":
+        raise ValueError("The standby scene cannot be reset.")
+    return normalized
+
+
+def parse_reset_command(command: str) -> str:
+    parts = command.strip().split()
+    if len(parts) != 2 or parts[0].lower() != "reset":
+        raise ValueError("Usage: reset <scene_id|all>")
+    return validate_reset_target(parts[1])
+
+
 def build_set_game_request(scene_id: str) -> dict[str, Any]:
     global next_command_sequence
 
@@ -119,6 +148,21 @@ def build_set_game_request(scene_id: str) -> dict[str, Any]:
         "commandId": uuid4().hex,
         "sequence": next_command_sequence,
         "type": "load_scene",
+        "sceneId": scene_id,
+        "issuedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    next_command_sequence += 1
+    return request
+
+
+def build_reset_request(scene_id: str) -> dict[str, Any]:
+    global next_command_sequence
+
+    scene_id = validate_reset_target(scene_id)
+    request = {
+        "commandId": uuid4().hex,
+        "sequence": next_command_sequence,
+        "type": "reset_scene",
         "sceneId": scene_id,
         "issuedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
@@ -258,6 +302,71 @@ async def set_game(
     return False
 
 
+async def reset_game(
+    scene_id: str,
+    timeout_seconds: float = COMMAND_TIMEOUT_SECONDS,
+) -> bool:
+    try:
+        scene_id = validate_reset_target(scene_id)
+    except ValueError as exception:
+        log(f"[Server] {exception}")
+        return False
+
+    socket = unity_ws
+    if socket is None:
+        log("[Server] Cannot reset scene: Unity is not connected.")
+        return False
+
+    request = build_reset_request(scene_id)
+    command_id = request["commandId"]
+    future = asyncio.get_running_loop().create_future()
+    pending_scene_commands[command_id] = PendingSceneCommand(
+        sequence=request["sequence"],
+        scene_id=scene_id,
+        acknowledgement=future,
+        owner=socket,
+    )
+
+    try:
+        await socket.send_json(request)
+    except Exception as exception:
+        pending_scene_commands.pop(command_id, None)
+        log(f"[Server] Failed to send scene reset to Unity: {exception}")
+        return False
+
+    try:
+        acknowledgement = await asyncio.wait_for(future, timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        log(f"[Server] reset '{scene_id}' timed out after {timeout_seconds:g} seconds.")
+        return False
+    except ConnectionError as exception:
+        log(f"[Server] Scene reset '{scene_id}' was interrupted: {exception}")
+        return False
+    finally:
+        pending_scene_commands.pop(command_id, None)
+
+    status = acknowledgement.get("status")
+    acknowledged_scene_id = acknowledgement.get("sceneId")
+    if isinstance(acknowledged_scene_id, str):
+        acknowledged_scene_id = acknowledged_scene_id.lower()
+
+    if status == "applied" and acknowledged_scene_id == "standby":
+        log(f"[Server] Reset '{scene_id}' and returned Unity to standby.")
+        return True
+
+    if status == "applied":
+        log(
+            f"[Server] Scene reset '{scene_id}' failed: Unity acknowledged "
+            f"scene '{acknowledged_scene_id}' instead of 'standby'."
+        )
+        return False
+
+    error_code = acknowledgement.get("errorCode") or status or "unknown_error"
+    error_message = acknowledgement.get("errorMessage") or "Unity did not apply the scene reset."
+    log(f"[Server] Scene reset '{scene_id}' failed ({error_code}): {error_message}")
+    return False
+
+
 def _authorization_is_valid(authorization: str | None, token: str | None = None) -> bool:
     expected = get_settings().api_token
     if expected is None:
@@ -384,7 +493,7 @@ async def respond(
     messages = [
         {"role": "system", "content": system_prompt},
         *[message.model_dump() for message in request.conversation],
-        {"role": "user", "content": request.transcript},
+        {"role": "user", "content": f"{request.transcript}\n/no_think"},
     ]
 
     try:
@@ -394,6 +503,63 @@ async def respond(
         raise HTTPException(status_code=exception.status_code, detail=str(exception)) from exception
 
     return {"text": answer, "game_id": request.game_id}
+
+
+@app.post("/api/ai/career-assessment", response_model=CareerAssessmentResponse)
+async def assess_careers(
+    request: CareerAssessmentRequest,
+    authorization: str | None = Header(default=None),
+) -> CareerAssessmentResponse:
+    _require_http_auth(authorization)
+    service = llm_service
+    if service is None or not service.configured:
+        raise HTTPException(status_code=503, detail="Language model is not configured.")
+
+    settings = get_settings()
+    generation_options = {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "presence_penalty": 1.5,
+        "max_tokens": settings.llm_career_max_tokens,
+        "response_format": CAREER_RESPONSE_FORMAT,
+    }
+    messages = build_assessment_messages(request)
+
+    try:
+        answer = await service.generate(
+            messages,
+            options=generation_options,
+            max_message_chars=settings.max_career_prompt_chars,
+        )
+    except LLMServiceError as exception:
+        log(f"[Server] Career assessment LLM request failed: {exception}")
+        raise HTTPException(status_code=exception.status_code, detail=str(exception)) from exception
+
+    try:
+        return parse_assessment_response(answer, request)
+    except CareerAssessmentOutputError:
+        log("[Server] Career assessment returned invalid JSON; attempting one repair.")
+
+    repair_options = dict(generation_options)
+    repair_options["temperature"] = 0.2
+    try:
+        repaired_answer = await service.generate(
+            build_repair_messages(request, answer),
+            options=repair_options,
+            max_message_chars=settings.max_career_prompt_chars,
+        )
+        return parse_assessment_response(repaired_answer, request)
+    except LLMServiceError as exception:
+        log(f"[Server] Career assessment repair failed: {exception}")
+        raise HTTPException(status_code=exception.status_code, detail=str(exception)) from exception
+    except CareerAssessmentOutputError as exception:
+        log("[Server] Career assessment repair returned invalid JSON.")
+        raise HTTPException(
+            status_code=502,
+            detail="The language model returned an invalid career assessment.",
+        ) from exception
 
 
 def get_game_prompt(game_id: str) -> str:
@@ -493,11 +659,19 @@ async def handleCommands() -> None:
             return
 
         try:
-            scene_id = parse_set_game_command(command)
+            command_name = command.split(maxsplit=1)[0].lower()
+            if command_name == "reset":
+                scene_id = parse_reset_command(command)
+            else:
+                scene_id = parse_set_game_command(command)
         except ValueError as exception:
             log(f"[Server] {exception}")
             continue
-        await set_game(scene_id)
+
+        if command_name == "reset":
+            await reset_game(scene_id)
+        else:
+            await set_game(scene_id)
 
 
 async def main() -> None:

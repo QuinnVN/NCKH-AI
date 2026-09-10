@@ -36,28 +36,53 @@ class LLMService:
     def configured(self) -> bool:
         return bool(self.base_url and self.model)
 
-    async def generate(self, messages: list[dict[str, str]]) -> str:
+    async def generate(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        options: Mapping[str, Any] | None = None,
+        max_message_chars: int | None = None,
+    ) -> str:
         if not messages:
             raise LLMServiceError("No messages were supplied to the language model.", status_code=422)
+        message_limit = max_message_chars or self.settings.max_message_chars
         if len(messages) > self.settings.max_conversation_messages + 2 or any(
             not self._valid_message(message)
-            or len(message["content"]) > self.settings.max_message_chars
+            or len(message["content"]) > message_limit
             for message in messages
         ):
             raise LLMServiceError("The language-model message contract is invalid.", status_code=422)
+
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.3,
+            "top_p": 0.9,
+            "max_tokens": self.settings.llm_max_tokens,
+            "stream": False,
+        }
+        if options:
+            allowed_options = {
+                "temperature",
+                "top_p",
+                "top_k",
+                "min_p",
+                "presence_penalty",
+                "max_tokens",
+                "response_format",
+            }
+            unknown_options = set(options) - allowed_options
+            if unknown_options:
+                raise LLMServiceError(
+                    "The language-model generation options are invalid.", status_code=422
+                )
+            payload.update(options)
 
         self.request_count += 1
         try:
             response = await self.client.post(
                 f"{self.base_url}/chat/completions",
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": 0.3,
-                    "top_p": 0.9,
-                    "max_tokens": self.settings.llm_max_tokens,
-                    "stream": False,
-                },
+                json=payload,
             )
             response.raise_for_status()
         except httpx.TimeoutException as exception:
