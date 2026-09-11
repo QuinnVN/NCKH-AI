@@ -81,7 +81,7 @@ This endpoint accepts normalized questionnaire dimension scores and career crite
 
 Unity opens one authenticated connection to `WS /ws/ctrl`. The token can be supplied as the `Authorization: Bearer <token>` header or the `token=<token>` query parameter. A newer connection replaces the older one, and pending commands belonging to the old connection fail rather than accepting an ACK from the wrong client.
 
-The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, and `lawyer`. It also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. The backend sends:
+The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, and `lawyer`. It also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. The remaining commands are `status` and `exit`. The backend sends:
 
 ```json
 {
@@ -162,7 +162,7 @@ Start the API and operator console from the repository root:
 py -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-For the interactive console (including `set_game` and `reset`), run:
+For the interactive console (including `set_game`, `reset`, and `test_llm`), run:
 
 ```powershell
 py -m app.main

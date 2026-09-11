@@ -41,6 +41,10 @@ VALID_SCENE_IDS = frozenset({"standby", "clinic", "doctor", "lawyer"})
 RESET_ALL_TARGET = "all"
 DEFENSE_RECORDING_EVENT_TYPE = "lawyer.defense_recording"
 ACK_STATUSES = frozenset({"applied", "rejected"})
+LLM_SMOKE_TEST_PROMPT = (
+    "Trả lời ngắn gọn bằng tiếng Việt để xác nhận mô hình ngôn ngữ đang hoạt động. "
+    "/no_think"
+)
 
 
 @dataclass
@@ -631,6 +635,26 @@ async def commands(
             fail_pending_scene_commands("Unity disconnected.", owner=ws)
 
 
+async def run_llm_smoke_test() -> bool:
+    """Send a fixed prompt to the configured LLM and print its response."""
+
+    service = llm_service
+    if service is None or not service.configured:
+        log("[LLM Test] Failed: language model is not configured.")
+        return False
+
+    try:
+        answer = await service.generate(
+            [{"role": "user", "content": LLM_SMOKE_TEST_PROMPT}]
+        )
+    except LLMServiceError as exception:
+        log(f"[LLM Test] Failed: {exception}")
+        return False
+
+    log(f"[LLM Test] Result: {answer}")
+    return True
+
+
 async def handleCommands() -> None:
     global server
 
@@ -646,8 +670,8 @@ async def handleCommands() -> None:
 
         if not command:
             continue
-        if command == "test":
-            log("Test command executed.")
+        if command == "test_llm":
+            await run_llm_smoke_test()
             continue
         if command == "status":
             log("[Server] Unity is connected." if unity_ws is not None else "[Server] Unity is not connected.")

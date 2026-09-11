@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 import wave
 
 from fastapi import HTTPException
@@ -102,6 +102,76 @@ class FakeWebSocket:
         if self.send_error is not None:
             raise self.send_error
         self.sent_messages.append(data)
+
+
+class LLMConsoleCommandTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.original_llm_service = main.llm_service
+        self.messages: list[str] = []
+        self.log_patch = patch.object(main, "log", self.messages.append)
+        self.log_patch.start()
+
+    def tearDown(self):
+        main.llm_service = self.original_llm_service
+        self.log_patch.stop()
+
+    async def test_smoke_test_sends_fixed_prompt_and_logs_result(self):
+        service = AsyncMock()
+        service.configured = True
+        service.generate.return_value = "Mô hình đang hoạt động."
+        main.llm_service = service
+
+        self.assertTrue(await main.run_llm_smoke_test())
+
+        service.generate.assert_awaited_once_with(
+            [{"role": "user", "content": main.LLM_SMOKE_TEST_PROMPT}]
+        )
+        self.assertEqual(
+            self.messages,
+            ["[LLM Test] Result: Mô hình đang hoạt động."],
+        )
+
+    async def test_smoke_test_reports_unconfigured_service_without_request(self):
+        service = AsyncMock()
+        service.configured = False
+        main.llm_service = service
+
+        self.assertFalse(await main.run_llm_smoke_test())
+
+        service.generate.assert_not_awaited()
+        self.assertEqual(
+            self.messages,
+            ["[LLM Test] Failed: language model is not configured."],
+        )
+
+    async def test_smoke_test_reports_normalized_upstream_error(self):
+        service = AsyncMock()
+        service.configured = True
+        service.generate.side_effect = main.LLMServiceError(
+            "The language model is unavailable."
+        )
+        main.llm_service = service
+
+        self.assertFalse(await main.run_llm_smoke_test())
+
+        self.assertEqual(
+            self.messages,
+            ["[LLM Test] Failed: The language model is unavailable."],
+        )
+
+    async def test_test_llm_command_dispatches_and_console_keeps_running(self):
+        command_session = AsyncMock()
+        command_session.prompt_async.side_effect = ["test_llm", EOFError()]
+        smoke_test = AsyncMock(return_value=False)
+
+        with (
+            patch.object(main, "get_prompt_session", return_value=command_session),
+            patch.object(main, "run_llm_smoke_test", smoke_test),
+        ):
+            await main.handleCommands()
+
+        smoke_test.assert_awaited_once_with()
+        self.assertIn("[Server] Exiting...", self.messages)
 
 
 class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
