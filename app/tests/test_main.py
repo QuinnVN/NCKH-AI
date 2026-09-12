@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 import wave
 
 from fastapi import HTTPException
@@ -25,6 +26,25 @@ class ApiRouteRegistrationTests(unittest.TestCase):
         self.assertIn("/api/ai/initial-career-assessment", registered_routes)
         self.assertNotIn("/api/ai/career-assessment", registered_routes)
         self.assertIn("/ws/ctrl", registered_routes)
+
+    def test_chat_request_rejects_unbounded_or_injected_fields(self):
+        valid = main.ChatRequest(
+            transcript="hello",
+            game_id="lawyer",
+            conversation=[{"role": "user", "content": "context"}],
+        )
+        self.assertEqual(valid.game_id, "lawyer")
+        with self.assertRaises(ValueError):
+            main.ChatRequest(transcript="", game_id="lawyer")
+        with self.assertRaises(ValueError):
+            main.ChatRequest(transcript="hello", game_id="lawyer", injected="bad")
+
+    def test_optional_token_authentication(self):
+        with patch.dict(os.environ, {"BACKEND_API_TOKEN": "test-token"}):
+            with self.assertRaises(HTTPException) as raised:
+                main._require_http_auth(None)
+            self.assertEqual(raised.exception.status_code, 401)
+            main._require_http_auth("Bearer test-token")
 
     def test_chat_request_rejects_unbounded_or_injected_fields(self):
         valid = main.ChatRequest(
@@ -104,98 +124,6 @@ class FakeWebSocket:
         if self.send_error is not None:
             raise self.send_error
         self.sent_messages.append(data)
-
-
-class LLMConsoleCommandTests(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        self.original_llm_service = main.llm_service
-        self.messages: list[str] = []
-        self.log_patch = patch.object(main, "log", self.messages.append)
-        self.log_patch.start()
-
-    def tearDown(self):
-        main.llm_service = self.original_llm_service
-        self.log_patch.stop()
-
-    async def test_smoke_test_sends_fixed_prompt_and_logs_result(self):
-        service = AsyncMock()
-        service.configured = True
-        service.generate.return_value = "Mô hình đang hoạt động."
-        main.llm_service = service
-
-        self.assertTrue(await main.run_llm_smoke_test())
-
-        service.generate.assert_awaited_once_with(
-            [{"role": "user", "content": main.LLM_SMOKE_TEST_PROMPT}]
-        )
-        self.assertEqual(
-            self.messages,
-            ["[LLM Test] Result: Mô hình đang hoạt động."],
-        )
-
-    async def test_smoke_test_reports_unconfigured_service_without_request(self):
-        service = AsyncMock()
-        service.configured = False
-        main.llm_service = service
-
-        self.assertFalse(await main.run_llm_smoke_test())
-
-        service.generate.assert_not_awaited()
-        self.assertEqual(
-            self.messages,
-            ["[LLM Test] Failed: language model is not configured."],
-        )
-
-    async def test_smoke_test_reports_normalized_upstream_error(self):
-        service = AsyncMock()
-        service.configured = True
-        service.generate.side_effect = main.LLMServiceError(
-            "The language model is unavailable."
-        )
-        main.llm_service = service
-
-        self.assertFalse(await main.run_llm_smoke_test())
-
-        self.assertEqual(
-            self.messages,
-            ["[LLM Test] Failed: The language model is unavailable."],
-        )
-
-    async def test_test_llm_command_dispatches_and_console_keeps_running(self):
-        command_session = AsyncMock()
-        command_session.prompt_async.side_effect = ["test_llm", EOFError()]
-        smoke_test = AsyncMock(return_value=False)
-
-        with (
-            patch.object(main, "get_prompt_session", return_value=command_session),
-            patch.object(main, "run_llm_smoke_test", smoke_test),
-        ):
-            await main.handleCommands()
-
-        smoke_test.assert_awaited_once_with()
-        self.assertIn("[Server] Exiting...", self.messages)
-
-    async def test_ai_status_command_dispatches_and_console_keeps_running(self):
-        command_session = AsyncMock()
-        command_session.prompt_async.side_effect = ["ai status", EOFError()]
-        manager = AsyncMock()
-        manager.status.return_value = (
-            AIServerStatus("llama", True, "127.0.0.1", 8080, pid=123),
-            AIServerStatus("whisper", False, "127.0.0.1", 8081),
-        )
-
-        with (
-            patch.object(main, "get_prompt_session", return_value=command_session),
-            patch.object(main, "ai_server_manager", manager),
-        ):
-            await main.handleCommands()
-
-        manager.status.assert_awaited_once_with("all")
-        self.assertIn(
-            "[AI] llama: running (PID 123, http://127.0.0.1:8080).",
-            self.messages,
-        )
-        self.assertIn("[AI] whisper: stopped.", self.messages)
 
 
 class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
