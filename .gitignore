@@ -208,6 +208,16 @@ tempCodeRunnerFile.py
 # Runtime lawyer defense recordings
 /recordings/
 
+# Local model exports and generated runtime files
+/ggml-*.bin
+*.wav
+*.tmp
+/.env.*
+!/.env.example
+
+# Local Python environments used for model conversion
+/phowhisper-convert/
+
 # Ruff stuff:
 .ruff_cache/
 

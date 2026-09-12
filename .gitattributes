@@ -1,0 +1,2 @@
+*.bin filter=lfs diff=lfs merge=lfs -text
+ggml-phowhisper-small.bin filter=lfs diff=lfs merge=lfs -text

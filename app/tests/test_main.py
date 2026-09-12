@@ -5,12 +5,14 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 import wave
 
 from fastapi import HTTPException
 
 from app import main
+from app import save_recording
+from app.ai_servers import AIServerStatus
 
 
 class ApiRouteRegistrationTests(unittest.TestCase):
@@ -20,7 +22,28 @@ class ApiRouteRegistrationTests(unittest.TestCase):
         self.assertIn("/api/health", registered_routes)
         self.assertIn("/api/telemetry", registered_routes)
         self.assertIn("/api/ai/respond", registered_routes)
+        self.assertIn("/api/ai/initial-career-assessment", registered_routes)
+        self.assertNotIn("/api/ai/career-assessment", registered_routes)
         self.assertIn("/ws/ctrl", registered_routes)
+
+    def test_chat_request_rejects_unbounded_or_injected_fields(self):
+        valid = main.ChatRequest(
+            transcript="hello",
+            game_id="lawyer",
+            conversation=[{"role": "user", "content": "context"}],
+        )
+        self.assertEqual(valid.game_id, "lawyer")
+        with self.assertRaises(ValueError):
+            main.ChatRequest(transcript="", game_id="lawyer")
+        with self.assertRaises(ValueError):
+            main.ChatRequest(transcript="hello", game_id="lawyer", injected="bad")
+
+    def test_optional_token_authentication(self):
+        with patch.dict(os.environ, {"BACKEND_API_TOKEN": "test-token"}):
+            with self.assertRaises(HTTPException) as raised:
+                main._require_http_auth(None)
+            self.assertEqual(raised.exception.status_code, 401)
+            main._require_http_auth("Bearer test-token")
 
 
 def build_wav(
@@ -81,6 +104,98 @@ class FakeWebSocket:
         if self.send_error is not None:
             raise self.send_error
         self.sent_messages.append(data)
+
+
+class LLMConsoleCommandTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.original_llm_service = main.llm_service
+        self.messages: list[str] = []
+        self.log_patch = patch.object(main, "log", self.messages.append)
+        self.log_patch.start()
+
+    def tearDown(self):
+        main.llm_service = self.original_llm_service
+        self.log_patch.stop()
+
+    async def test_smoke_test_sends_fixed_prompt_and_logs_result(self):
+        service = AsyncMock()
+        service.configured = True
+        service.generate.return_value = "Mô hình đang hoạt động."
+        main.llm_service = service
+
+        self.assertTrue(await main.run_llm_smoke_test())
+
+        service.generate.assert_awaited_once_with(
+            [{"role": "user", "content": main.LLM_SMOKE_TEST_PROMPT}]
+        )
+        self.assertEqual(
+            self.messages,
+            ["[LLM Test] Result: Mô hình đang hoạt động."],
+        )
+
+    async def test_smoke_test_reports_unconfigured_service_without_request(self):
+        service = AsyncMock()
+        service.configured = False
+        main.llm_service = service
+
+        self.assertFalse(await main.run_llm_smoke_test())
+
+        service.generate.assert_not_awaited()
+        self.assertEqual(
+            self.messages,
+            ["[LLM Test] Failed: language model is not configured."],
+        )
+
+    async def test_smoke_test_reports_normalized_upstream_error(self):
+        service = AsyncMock()
+        service.configured = True
+        service.generate.side_effect = main.LLMServiceError(
+            "The language model is unavailable."
+        )
+        main.llm_service = service
+
+        self.assertFalse(await main.run_llm_smoke_test())
+
+        self.assertEqual(
+            self.messages,
+            ["[LLM Test] Failed: The language model is unavailable."],
+        )
+
+    async def test_test_llm_command_dispatches_and_console_keeps_running(self):
+        command_session = AsyncMock()
+        command_session.prompt_async.side_effect = ["test_llm", EOFError()]
+        smoke_test = AsyncMock(return_value=False)
+
+        with (
+            patch.object(main, "get_prompt_session", return_value=command_session),
+            patch.object(main, "run_llm_smoke_test", smoke_test),
+        ):
+            await main.handleCommands()
+
+        smoke_test.assert_awaited_once_with()
+        self.assertIn("[Server] Exiting...", self.messages)
+
+    async def test_ai_status_command_dispatches_and_console_keeps_running(self):
+        command_session = AsyncMock()
+        command_session.prompt_async.side_effect = ["ai status", EOFError()]
+        manager = AsyncMock()
+        manager.status.return_value = (
+            AIServerStatus("llama", True, "127.0.0.1", 8080, pid=123),
+            AIServerStatus("whisper", False, "127.0.0.1", 8081),
+        )
+
+        with (
+            patch.object(main, "get_prompt_session", return_value=command_session),
+            patch.object(main, "ai_server_manager", manager),
+        ):
+            await main.handleCommands()
+
+        manager.status.assert_awaited_once_with("all")
+        self.assertIn(
+            "[AI] llama: running (PID 123, http://127.0.0.1:8080).",
+            self.messages,
+        )
+        self.assertIn("[AI] whisper: stopped.", self.messages)
 
 
 class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
@@ -193,11 +308,44 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(main.handle_unity_acknowledgement(acknowledgement))
         self.assertTrue(await command_task)
 
+    async def test_ack_from_another_connection_is_ignored(self):
+        socket = FakeWebSocket()
+        other_socket = FakeWebSocket()
+        main.unity_ws = socket
+        command_task = asyncio.create_task(main.set_game("doctor", timeout_seconds=0.2))
+        await asyncio.sleep(0)
+        request = socket.sent_messages[0]
+
+        self.assertFalse(
+            main.handle_unity_acknowledgement(
+                {
+                    "commandId": request["commandId"],
+                    "sequence": request["sequence"],
+                    "status": "applied",
+                    "sceneId": "doctor",
+                },
+                source=other_socket,
+            )
+        )
+        self.assertFalse(command_task.done())
+        self.assertTrue(
+            main.handle_unity_acknowledgement(
+                {
+                    "commandId": request["commandId"],
+                    "sequence": request["sequence"],
+                    "status": "applied",
+                    "sceneId": "doctor",
+                },
+                source=socket,
+            )
+        )
+        self.assertTrue(await command_task)
+
     async def test_timeout_removes_request_and_late_ack_is_ignored(self):
         socket = FakeWebSocket()
         main.unity_ws = socket
 
-        self.assertFalse(await main.set_game("lawyer-office", timeout_seconds=0.01))
+        self.assertFalse(await main.set_game("lawyer", timeout_seconds=0.01))
         request = socket.sent_messages[0]
         self.assertFalse(main.pending_scene_commands)
         self.assertTrue(any("timed out after 0.01 seconds" in message for message in self.messages))
@@ -208,7 +356,7 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
                     "commandId": request["commandId"],
                     "sequence": request["sequence"],
                     "status": "applied",
-                    "sceneId": "lawyer-office",
+                    "sceneId": "lawyer",
                 }
             )
         )
@@ -230,6 +378,144 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(main.handle_unity_acknowledgement("not an object"))
         self.assertFalse(main.handle_unity_acknowledgement({"commandId": "missing-sequence"}))
         self.assertEqual(len(self.messages), 2)
+
+
+class ResetCommandTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        main.unity_ws = None
+        main.pending_scene_commands.clear()
+        main.next_command_sequence = 1
+        self.messages: list[str] = []
+        self.log_patch = patch.object(main, "log", self.messages.append)
+        self.log_patch.start()
+
+    def tearDown(self):
+        main.pending_scene_commands.clear()
+        main.unity_ws = None
+        self.log_patch.stop()
+
+    def test_parse_reset_accepts_gameplay_ids_and_all(self):
+        expected_targets = (main.RESET_ALL_TARGET, "clinic", "doctor", "lawyer")
+        for target in expected_targets:
+            with self.subTest(target=target):
+                self.assertEqual(main.parse_reset_command(f"reset {target.upper()}"), target)
+
+    def test_parse_reset_rejects_standby_invalid_syntax_and_unknown_scene(self):
+        invalid_commands = (
+            "reset",
+            "reset doctor extra",
+            "reset standby",
+            "reset courtroom",
+            "reset_game doctor",
+        )
+        for command in invalid_commands:
+            with self.subTest(command=command):
+                with self.assertRaises(ValueError):
+                    main.parse_reset_command(command)
+
+    async def test_matching_applied_ack_requires_standby(self):
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+
+        command_task = asyncio.create_task(main.reset_game("doctor", timeout_seconds=0.2))
+        await asyncio.sleep(0)
+
+        request = socket.sent_messages[0]
+        self.assertEqual(request["type"], "reset_scene")
+        self.assertEqual(request["sceneId"], "doctor")
+        self.assertEqual(request["sequence"], 1)
+        self.assertTrue(request["issuedAtUtc"].endswith("Z"))
+
+        main.handle_unity_acknowledgement(
+            {
+                "commandId": request["commandId"],
+                "sequence": request["sequence"],
+                "status": "applied",
+                "sceneId": "standby",
+                "phase": "standby",
+            }
+        )
+
+        self.assertTrue(await command_task)
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("returned Unity to standby" in message for message in self.messages))
+
+    async def test_applied_ack_for_non_standby_scene_is_failure(self):
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+        command_task = asyncio.create_task(main.reset_game("all", timeout_seconds=0.2))
+        await asyncio.sleep(0)
+        request = socket.sent_messages[0]
+
+        main.handle_unity_acknowledgement(
+            {
+                "commandId": request["commandId"],
+                "sequence": request["sequence"],
+                "status": "applied",
+                "sceneId": "doctor",
+            }
+        )
+
+        self.assertFalse(await command_task)
+        self.assertTrue(any("instead of 'standby'" in message for message in self.messages))
+
+    async def test_rejected_reset_ack_logs_failure(self):
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+        command_task = asyncio.create_task(main.reset_game("lawyer", timeout_seconds=0.2))
+        await asyncio.sleep(0)
+        request = socket.sent_messages[0]
+
+        main.handle_unity_acknowledgement(
+            {
+                "commandId": request["commandId"],
+                "sequence": request["sequence"],
+                "status": "rejected",
+                "sceneId": "doctor",
+                "errorCode": "scene_mismatch",
+                "errorMessage": "The requested scene is not active.",
+            }
+        )
+
+        self.assertFalse(await command_task)
+        self.assertTrue(any("scene_mismatch" in message for message in self.messages))
+
+    async def test_reset_timeout_removes_pending_request(self):
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+
+        self.assertFalse(await main.reset_game("clinic", timeout_seconds=0.01))
+
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("timed out after 0.01 seconds" in message for message in self.messages))
+
+    async def test_reset_without_connection_reports_error(self):
+        self.assertFalse(await main.reset_game("all"))
+        self.assertFalse(main.pending_scene_commands)
+        self.assertIn("[Server] Cannot reset scene: Unity is not connected.", self.messages)
+
+    async def test_reset_send_failure_is_reported_and_removed(self):
+        main.unity_ws = FakeWebSocket(RuntimeError("socket closed"))
+
+        self.assertFalse(await main.reset_game("doctor"))
+
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("socket closed" in message for message in self.messages))
+
+    async def test_reset_timeout_send_failure_and_missing_connection_cleanup(self):
+        self.assertFalse(await main.reset_game("clinic"))
+        self.assertIn("[Server] Cannot reset scene: Unity is not connected.", self.messages)
+
+        main.unity_ws = FakeWebSocket(RuntimeError("socket closed"))
+        self.assertFalse(await main.reset_game("doctor"))
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("socket closed" in message for message in self.messages))
+
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+        self.assertFalse(await main.reset_game("all", timeout_seconds=0.01))
+        self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(any("timed out after 0.01 seconds" in message for message in self.messages))
 
 
 class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
@@ -257,10 +543,10 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
 
     def test_relative_recording_directory_resolves_from_backend_root(self):
         with tempfile.TemporaryDirectory() as backend_root:
-            with patch.object(main, "BACKEND_ROOT", Path(backend_root)):
+            with patch.object(save_recording, "BACKEND_ROOT", Path(backend_root)):
                 with patch.dict(os.environ, {"RECORDINGS_DIR": "saved/audio"}):
                     self.assertEqual(
-                        main.get_recordings_directory(),
+                        save_recording.get_recordings_directory(),
                         (Path(backend_root) / "saved" / "audio").resolve(),
                     )
 
@@ -334,7 +620,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_oversized_recording_is_rejected(self):
         event = build_defense_recording_event(build_wav(frame_count=160))
 
-        with patch.object(main, "MAX_RECORDING_BYTES", 64):
+        with patch.object(save_recording, "MAX_RECORDING_BYTES", 64):
             await self.assert_recording_rejected(event)
 
         self.assertFalse(list(self.recordings_directory.iterdir()))
@@ -342,7 +628,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_write_failure_returns_server_error_and_removes_temporary_file(self):
         event = build_defense_recording_event()
 
-        with patch.object(main.os, "replace", side_effect=OSError("disk full")):
+        with patch.object(save_recording.os, "replace", side_effect=OSError("disk full")):
             await self.assert_recording_rejected(event, status_code=500)
 
         self.assertFalse(list(self.recordings_directory.iterdir()))
@@ -351,7 +637,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
         event = build_defense_recording_event()
 
         with patch.object(
-            main.tempfile,
+            save_recording.tempfile,
             "NamedTemporaryFile",
             side_effect=OSError("read-only directory"),
         ):
@@ -368,7 +654,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
         result = await main.telemetry(event)
 
         self.assertEqual(result, {"status": "ok"})
-        self.assertIn(event, self.messages)
+        self.assertTrue(any("scene.ready" in str(message) for message in self.messages))
         self.assertFalse(list(self.recordings_directory.iterdir()))
 
 
