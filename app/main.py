@@ -1,7 +1,5 @@
 """FastAPI application for Unity telemetry, control, and AI responses."""
 
-"""FastAPI application for Unity telemetry, control, and AI responses."""
-
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -10,15 +8,11 @@ import json
 import logging
 import re
 from typing import Any, Literal
-import logging
-import re
-from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, Body, FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
-from prompt_toolkit import PromptSession, print_formatted_text
+from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
-from pydantic import BaseModel, ConfigDict, Field
 from pydantic import BaseModel, ConfigDict, Field
 import uvicorn
 
@@ -59,21 +53,16 @@ sales_attempt_store = SalesAttemptStore()
 sales_transcriber = WhisperCppTranscriber()
 sales_processing_tasks: dict[str, asyncio.Task[object]] = {}
 
-COMMAND_TIMEOUT_SECONDS = 5.0
-VALID_SCENE_IDS = frozenset({"standby", "clinic", "doctor", "lawyer"})
+COMMAND_TIMEOUT_SECONDS = get_settings().command_timeout_seconds
+REQUEST_SETTINGS = get_settings()
+VALID_SCENE_IDS = frozenset({"standby", "clinic", "doctor", "lawyer", "sale"})
+RESET_ALL_TARGET = "all"
 DEFENSE_RECORDING_EVENT_TYPE = "lawyer.defense_recording"
 ACK_STATUSES = frozenset({"applied", "rejected"})
 LLM_SMOKE_TEST_PROMPT = (
     "Trả lời ngắn gọn bằng tiếng Việt để xác nhận mô hình ngôn ngữ đang hoạt động. "
     "/no_think"
 )
-
-ACK_STATUSES = frozenset({"applied", "rejected"})
-LLM_SMOKE_TEST_PROMPT = (
-    "Trả lời ngắn gọn bằng tiếng Việt để xác nhận mô hình ngôn ngữ đang hoạt động. "
-    "/no_think"
-)
-
 
 @dataclass
 class PendingSceneCommand:
@@ -133,35 +122,7 @@ def log(message: Any) -> None:
     safe_message = _redact(str(message))
     logger.info(json.dumps({"message": safe_message}, ensure_ascii=False))
     if not logger.handlers and not logging.getLogger().handlers:
-        print_formatted_text(safe_message)
-app = FastAPI(
-    title="Unity VR Backend",
-    description="Telemetry, recording storage, Unity control, and optional LLM responses.",
-    version="0.2.0",
-    lifespan=lifespan,
-)
-
-
-def _redact(value: str) -> str:
-    """Remove high-volume or secret-looking values before they reach logs."""
-
-    if "dataBase64" in value or len(value) > 2000:
-        return "<redacted>"
-    return re.sub(
-        r"Authorization:\s*Bearer\s+\S+",
-        "Authorization: <redacted>",
-        value,
-        flags=re.IGNORECASE,
-    )
-
-
-def log(message: Any) -> None:
-    """Emit one JSON log record while keeping the existing CLI-friendly API."""
-
-    safe_message = _redact(str(message))
-    logger.info(json.dumps({"message": safe_message}, ensure_ascii=False))
-    if not logger.handlers and not logging.getLogger().handlers:
-        print_formatted_text(safe_message)
+        print(safe_message)
 
 
 def get_prompt_session() -> PromptSession:
@@ -484,8 +445,23 @@ async def readiness() -> dict[str, Any]:
 
 
 @app.post("/api/telemetry")
-async def telemetry(data: dict[str, Any]):
-    if data.get("eventType") == DEFENSE_RECORDING_EVENT_TYPE:
+async def telemetry(
+    data: dict[str, Any] = Body(...),
+    authorization: str | None = Header(default=None),
+    background_tasks: BackgroundTasks = None,
+) -> dict[str, str]:
+    _require_http_auth(authorization)
+    settings = get_settings()
+    if _json_size(data) > settings.max_telemetry_bytes:
+        raise HTTPException(status_code=413, detail="Telemetry payload is too large.")
+
+    event_type = data.get("eventType")
+    if event_type is not None and (
+        not isinstance(event_type, str) or len(event_type) > 128
+    ):
+        raise HTTPException(status_code=422, detail="eventType must be a short string.")
+
+    if event_type == DEFENSE_RECORDING_EVENT_TYPE:
         try:
             round_id, wav_bytes = decode_defense_recording(data)
         except ValueError as exception:
@@ -507,15 +483,170 @@ async def telemetry(data: dict[str, Any]):
             f"[Server] Saved defense recording '{round_id}' "
             f"({len(wav_bytes)} bytes) to '{destination}'."
         )
+        return {"status": "ok"}
+
+    if event_type == SALES_RECORDING_EVENT_TYPE:
+        try:
+            payload = data.get("payload")
+            if not isinstance(payload, dict):
+                raise ValueError("payload must be an object")
+            submission = submission_from_sales_telemetry(payload)
+            record, should_process = await sales_attempt_store.accept(submission)
+        except SalesAttemptConflictError as exception:
+            raise HTTPException(status_code=409, detail=str(exception)) from exception
+        except SalesProcessingError as exception:
+            raise HTTPException(status_code=500, detail=str(exception)) from exception
+        except ValueError as exception:
+            log(f"[Server] Rejected sales persuasion recording: {exception}")
+            raise HTTPException(status_code=422, detail=str(exception)) from exception
+        except OSError as exception:
+            raise HTTPException(
+                status_code=500,
+                detail="Unable to store sales recording.",
+            ) from exception
+
+        if should_process or (
+            record.get("assessmentStatus") == "processing"
+            and submission.attempt_id not in sales_processing_tasks
+        ):
+            _schedule_sales_processing(submission.attempt_id, background_tasks)
         return {
-            "status": "ok",
+            "status": "accepted",
+            "attemptId": submission.attempt_id,
+            "assessmentStatus": record.get("assessmentStatus", "processing"),
         }
 
-    log(data)
+    log(f"[Server] Received telemetry event '{event_type or 'unknown'}'.")
+    return {"status": "ok"}
+
+
+def _public_sales_record(record: dict[str, Any]) -> dict[str, Any]:
     return {
-        "status": "ok",
+        key: value
+        for key, value in record.items()
+        if key not in {"requestHash", "audioFile"}
     }
-    
+
+
+async def _queue_sales_processing(attempt_id: str) -> None:
+    current = sales_processing_tasks.get(attempt_id)
+    if current is not None and not current.done():
+        return
+
+    task = asyncio.create_task(
+        process_sales_attempt(
+            attempt_id,
+            store=sales_attempt_store,
+            transcriber=sales_transcriber,
+            assessor=LLMSalesAssessor(llm_service),
+        )
+    )
+    sales_processing_tasks[attempt_id] = task
+
+    def finished(completed: asyncio.Task[object]) -> None:
+        if sales_processing_tasks.get(attempt_id) is completed:
+            sales_processing_tasks.pop(attempt_id, None)
+        try:
+            completed.exception()
+        except asyncio.CancelledError:
+            return
+        except Exception as exception:
+            logger.error(
+                "Sales processing task failed for %s: %s",
+                attempt_id,
+                exception,
+            )
+
+    task.add_done_callback(finished)
+
+
+def _schedule_sales_processing(
+    attempt_id: str,
+    background_tasks: BackgroundTasks | None,
+) -> None:
+    if background_tasks is None:
+        asyncio.create_task(_queue_sales_processing(attempt_id))
+    else:
+        background_tasks.add_task(_queue_sales_processing, attempt_id)
+
+
+async def _resume_sales_processing() -> None:
+    try:
+        attempt_ids = await sales_attempt_store.processing_attempt_ids()
+    except SalesProcessingError as exception:
+        logger.error("Unable to scan sales attempts for recovery: %s", exception)
+        return
+    for attempt_id in attempt_ids:
+        await _queue_sales_processing(attempt_id)
+
+
+@app.post(
+    "/api/sales/persuasion-recordings",
+    response_model=SalesSubmissionResponse,
+    response_model_by_alias=True,
+)
+@app.post(
+    "/api/sales/persuasion-recording",
+    response_model=SalesSubmissionResponse,
+    response_model_by_alias=True,
+    include_in_schema=False,
+)
+async def submit_sales_persuasion_recording(
+    request: SalesPersuasionSubmission,
+    authorization: str | None = Header(default=None),
+    background_tasks: BackgroundTasks = None,
+) -> SalesSubmissionResponse:
+    _require_http_auth(authorization)
+    try:
+        record, should_process = await sales_attempt_store.accept(request)
+    except SalesAttemptConflictError as exception:
+        raise HTTPException(status_code=409, detail=str(exception)) from exception
+    except SalesProcessingError as exception:
+        raise HTTPException(status_code=500, detail=str(exception)) from exception
+    except ValueError as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
+    except OSError as exception:
+        log(f"[Server] Failed to persist sales attempt '{request.attempt_id}': {exception}")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to store sales recording.",
+        ) from exception
+
+    if should_process or (
+        record.get("assessmentStatus") == "processing"
+        and request.attempt_id not in sales_processing_tasks
+    ):
+        _schedule_sales_processing(request.attempt_id, background_tasks)
+    return submission_response(record)
+
+
+@app.get("/api/sales/persuasion-recordings/{attempt_id}")
+async def get_sales_persuasion_recording(
+    attempt_id: str,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_http_auth(authorization)
+    try:
+        record = await sales_attempt_store.get(attempt_id)
+    except SalesProcessingError as exception:
+        raise HTTPException(status_code=500, detail=str(exception)) from exception
+    except ValueError as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
+    if record is None:
+        raise HTTPException(status_code=404, detail="Sales attempt not found.")
+    return _public_sales_record(record)
+
+
+class ConversationMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(
+        min_length=1,
+        max_length=REQUEST_SETTINGS.max_message_chars,
+    )
+
+
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -544,14 +675,79 @@ async def respond(
         {"role": "user", "content": f"{request.transcript}\n/no_think"},
     ]
     
-    log(f"[Server] Sending request to LLM service: {messages}")
+    try:
+        answer = await service.generate(messages)
+    except LLMServiceError as exception:
+        log(f"[Server] LLM request failed: {exception}")
+        raise HTTPException(
+            status_code=exception.status_code,
+            detail=str(exception),
+        ) from exception
 
-    answer = await llm_service.generate(messages)
+    return {"text": answer, "game_id": request.game_id}
 
-    return {
-        "text": answer,
-        "game_id": request.game_id,
+
+@app.post(
+    "/api/ai/initial-career-assessment",
+    response_model=CareerAssessmentResponse,
+)
+async def assess_careers(
+    request: CareerAssessmentRequest,
+    authorization: str | None = Header(default=None),
+) -> CareerAssessmentResponse:
+    _require_http_auth(authorization)
+    service = llm_service
+    if service is None or not service.configured:
+        raise HTTPException(status_code=503, detail="Language model is not configured.")
+
+    settings = get_settings()
+    generation_options = {
+        "temperature": 0.2,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "presence_penalty": 1.5,
+        "max_tokens": settings.llm_career_max_tokens,
+        "response_format": CAREER_RESPONSE_FORMAT,
     }
+
+    try:
+        answer = await service.generate(
+            build_assessment_messages(request),
+            options=generation_options,
+            max_message_chars=settings.max_career_prompt_chars,
+        )
+    except LLMServiceError as exception:
+        log(f"[Server] Career assessment LLM request failed: {exception}")
+        raise HTTPException(
+            status_code=exception.status_code,
+            detail=str(exception),
+        ) from exception
+
+    try:
+        return parse_assessment_response(answer, request)
+    except CareerAssessmentOutputError:
+        log("[Server] Career assessment returned invalid JSON; attempting one repair.")
+
+    try:
+        repaired_answer = await service.generate(
+            build_repair_messages(request, answer),
+            options=generation_options,
+            max_message_chars=settings.max_career_prompt_chars,
+        )
+        return parse_assessment_response(repaired_answer, request)
+    except LLMServiceError as exception:
+        log(f"[Server] Career assessment repair failed: {exception}")
+        raise HTTPException(
+            status_code=exception.status_code,
+            detail=str(exception),
+        ) from exception
+    except CareerAssessmentOutputError as exception:
+        log("[Server] Career assessment repair returned invalid JSON.")
+        raise HTTPException(
+            status_code=502,
+            detail="The language model returned an invalid career assessment.",
+        ) from exception
 
 
 def get_game_prompt(game_id: str) -> str:
@@ -620,10 +816,96 @@ async def commands(
     finally:
         if unity_ws is ws:
             unity_ws = None
-            fail_pending_scene_commands("Unity disconnected.")
+            fail_pending_scene_commands("Unity disconnected.", owner=ws)
 
-async def handleCommands():
-    global unity_ws
+async def run_llm_smoke_test() -> bool:
+    """Send a fixed prompt to the configured LLM and print its response."""
+
+    service = llm_service
+    if service is None or not service.configured:
+        log("[LLM Test] Failed: language model is not configured.")
+        return False
+
+    try:
+        answer = await service.generate(
+            [{"role": "user", "content": LLM_SMOKE_TEST_PROMPT}]
+        )
+    except LLMServiceError as exception:
+        log(f"[LLM Test] Failed: {exception}")
+        return False
+
+    log(f"[LLM Test] Result: {answer}")
+    return True
+
+
+def _server_names(names: tuple[str, ...]) -> str:
+    return " and ".join(names)
+
+
+async def run_ai_server_command(command: str) -> bool:
+    """Run one model-server lifecycle command from the operator console."""
+
+    try:
+        parsed = parse_ai_command(command)
+        if parsed.action == "status":
+            statuses = await ai_server_manager.status(parsed.target)
+            for status in statuses:
+                if status.running:
+                    log(
+                        f"[AI] {status.name}: running (PID {status.pid}, "
+                        f"http://{status.host}:{status.port})."
+                    )
+                elif status.return_code is not None:
+                    log(
+                        f"[AI] {status.name}: stopped "
+                        f"(exit code {status.return_code})."
+                    )
+                else:
+                    log(f"[AI] {status.name}: stopped.")
+            return True
+
+        if parsed.action == "start":
+            started = await ai_server_manager.start(parsed.target)
+            if started:
+                log(f"[AI] Started {_server_names(started)}.")
+            else:
+                log(f"[AI] {parsed.target} is already running.")
+            return True
+
+        if parsed.action == "stop":
+            stopped = await ai_server_manager.stop(parsed.target)
+            if stopped:
+                log(f"[AI] Stopped {_server_names(stopped)}.")
+            else:
+                log(f"[AI] {parsed.target} is not running.")
+            return True
+
+        restarted = await ai_server_manager.restart(parsed.target)
+        log(f"[AI] Restarted {_server_names(restarted)}.")
+        return True
+    except (AIServerError, OSError, ValueError) as exception:
+        log(f"[AI] {exception}")
+        return False
+
+
+async def stop_ai_servers_for_shutdown() -> None:
+    """Stop every managed AI server before the operator process exits."""
+
+    statuses = await ai_server_manager.status("all")
+    if not any(status.running for status in statuses):
+        return
+    log("[AI] Stopping managed AI servers before backend shutdown...")
+    try:
+        stopped = await ai_server_manager.stop("all")
+    except (AIServerError, OSError) as exception:
+        log(f"[AI] Shutdown failed: {exception}")
+        return
+    if stopped:
+        log(f"[AI] Stopped {_server_names(stopped)}.")
+
+
+async def handleCommands() -> None:
+    global server
 
     command_session = get_prompt_session()
     while True:
@@ -631,32 +913,23 @@ async def handleCommands():
             command: str = (await command_session.prompt_async("> ")).strip()
         except (EOFError, KeyboardInterrupt):
             log("[Server] Exiting...")
-            
-            if server is not None:
-                server.should_exit = True
             return
 
         if not command:
             continue
-            
-        match command:
-            case "test":
-                log("Test command executed.")
-                continue
-            
-            case "status":
-                if unity_ws is not None:
-                    log("[Server] Unity is connected.")
-                else:
-                    log("[Server] Unity is not connected.")
-                continue
-            
-            case "exit":
-                log("[Server] Exiting...")
-                 
-                if server is not None:
-                    server.should_exit = True
-                return
+        if command == "test_llm":
+            await run_llm_smoke_test()
+            continue
+        if command == "status":
+            status = "connected" if unity_ws is not None else "not connected"
+            log(f"[Server] Unity is {status}.")
+            continue
+        if command.split(maxsplit=1)[0].lower() == "ai":
+            await run_ai_server_command(command)
+            continue
+        if command == "exit":
+            log("[Server] Exiting...")
+            return
 
         try:
             command_name = command.split(maxsplit=1)[0].lower()
@@ -689,28 +962,24 @@ async def main() -> None:
     )
     server = uvicorn.Server(config)
     server_task = asyncio.create_task(server.serve())
-    
-    while not server.started:
-        await asyncio.sleep(0.05)
-     
-    with patch_stdout():
-        commands_task = asyncio.create_task(handleCommands())
-        
-        #wait until either the server or the commands task is done
-        done, pending = await asyncio.wait(
-            {server_task, commands_task},
-            return_when=asyncio.FIRST_COMPLETED
-        )
-        
-        #if the commands task is done, we want to exit the server
-        if commands_task in done:
-            server.should_exit = True
-        
-        #wait for the server to shutdown gracefully
-        await server_task
-        
-        #stop the commands task if it is still running
-        if not commands_task.done():
+    commands_task: asyncio.Task[None] | None = None
+
+    try:
+        while not server.started:
+            await asyncio.sleep(0.05)
+
+        with patch_stdout():
+            commands_task = asyncio.create_task(handleCommands())
+            done, _ = await asyncio.wait(
+                {server_task, commands_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if commands_task in done:
+                await stop_ai_servers_for_shutdown()
+                server.should_exit = True
+            await server_task
+    finally:
+        if commands_task is not None and not commands_task.done():
             commands_task.cancel()
             try:
                 await commands_task

@@ -11,7 +11,7 @@ Unity VR client
   ├─ POST /api/telemetry ──► validation ──► atomic WAV file in recordings/
   ├─ POST /api/sales/persuasion-recordings ──► atomic WAV + attempt record ──► background STT/assessment
   ├─ POST /api/ai/respond ─► bounded request ─► local OpenAI-compatible LLM
-  ├─ POST /api/ai/initial-career-assessment ─► questionnaire ─► Qwen3-4B percentage result
+  ├─ POST /api/ai/initial-career-assessment ─► categorized questionnaire ─► up to 5 career suggestions
   └─ WS /ws/ctrl ◄────────── load_scene command / ACK
 
 Operator console ─────────── set_game <scene_id> ─► WS /ws/ctrl ─► Unity
@@ -88,7 +88,7 @@ The service requeues attempts left in `processing` when it starts again. A shutd
 
 ### `POST /api/ai/initial-career-assessment`
 
-This endpoint accepts normalized questionnaire dimension scores and career criteria, then uses Qwen3-4B thinking mode to return an independent provisional match percentage and Vietnamese evaluation for every requested career. It accepts up to 28 dimensions and 28 criteria per career, and preserves the request identity and career order. Thinking content is not returned or logged. The request, response, system prompt, validation rules, and JSON Schemas are documented in [`docs/initial-career-assessment-api.md`](docs/initial-career-assessment-api.md).
+This endpoint accepts up to 28 categorized questionnaire dimensions, then uses Qwen3-4B thinking mode to generate 1–5 career suggestions. Interests are the main signal, while abilities, traits, and other dimensions provide supporting information. Each suggestion contains a Vietnamese career name and an independent estimated match percentage. The website does not send candidate careers, and suggestions are not limited to available VR simulations. Thinking content is not returned or logged. The breaking request and response contract, migration checklist, validation rules, and JSON Schemas are documented in [`docs/initial-career-assessment-api.md`](docs/initial-career-assessment-api.md).
 
 ## Unity control protocol
 

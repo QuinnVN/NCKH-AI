@@ -10,10 +10,16 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LLM_BASE_URL = "http://127.0.0.1:8080/v1"
 DEFAULT_LLM_MODEL = "qwen3-4b"
+
+# Keep local configuration out of source control while allowing deployment
+# environments to override it through their own environment variables.
+load_dotenv(BACKEND_ROOT / ".env", override=False)
 
 
 def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
