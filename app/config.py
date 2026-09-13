@@ -66,6 +66,8 @@ class Settings:
     llm_career_max_tokens: int
     max_career_prompt_chars: int
     max_sales_prompt_chars: int
+    sales_retention_days: int
+    sales_diagnostic_token: str | None
     whisper_cpp_bin: str
     phowhisper_model: str
     whisper_timeout_seconds: float
@@ -124,6 +126,8 @@ def get_settings() -> Settings:
         max_sales_prompt_chars=_env_int(
             "MAX_SALES_PROMPT_CHARS", 24_000, minimum=4_000, maximum=64_000
         ),
+        sales_retention_days=_env_int("SALES_RETENTION_DAYS", 30, minimum=1, maximum=3650),
+        sales_diagnostic_token=os.environ.get("SALES_DIAGNOSTIC_TOKEN", "").strip() or None,
         whisper_cpp_bin=os.environ.get("WHISPER_CPP_BIN", "whisper.cpp/build/bin/Release/whisper-cli.exe").strip(),
         phowhisper_model=os.environ.get("PHOWHISPER_MODEL", "ggml-phowhisper-small.bin").strip(),
         whisper_timeout_seconds=_env_float(

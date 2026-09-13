@@ -84,6 +84,7 @@ class SalesPersuasionSubmission(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     attempt_id: str = Field(alias="attemptId", min_length=1, max_length=128)
+    sales_session_id: str | None = Field(default=None, alias="salesSessionId", max_length=128)
     scenario_id: str = Field(alias="scenarioId", min_length=1, max_length=128)
     customer_id: str = Field(alias="customerId", min_length=1, max_length=128)
     selected_shoe_id: str = Field(alias="selectedShoeId", min_length=1, max_length=64)
@@ -98,6 +99,13 @@ class SalesPersuasionSubmission(BaseModel):
     def valid_attempt_id(cls, value: str) -> str:
         if ATTEMPT_ID_PATTERN.fullmatch(value) is None:
             raise ValueError("attemptId has an invalid format")
+        return value
+
+    @field_validator("sales_session_id")
+    @classmethod
+    def valid_sales_session_id(cls, value: str | None) -> str | None:
+        if value is not None and ATTEMPT_ID_PATTERN.fullmatch(value) is None:
+            raise ValueError("salesSessionId has an invalid format")
         return value
 
     @field_validator("scenario_id", "customer_id", "selected_shoe_id", "best_fit_shoe_id")
@@ -125,7 +133,9 @@ def _telemetry_shoe_id(value: Any, field_name: str) -> str:
     return value
 
 
-def submission_from_sales_telemetry(payload: Mapping[str, Any]) -> SalesPersuasionSubmission:
+def submission_from_sales_telemetry(
+    payload: Mapping[str, Any], *, session_id: str | None = None
+) -> SalesPersuasionSubmission:
     """Translate Unity's generic telemetry envelope into the strict contract."""
 
     if not isinstance(payload, Mapping):
@@ -164,6 +174,7 @@ def submission_from_sales_telemetry(payload: Mapping[str, Any]) -> SalesPersuasi
     return SalesPersuasionSubmission.model_validate(
         {
             "attemptId": payload.get("roundId"),
+            "salesSessionId": payload.get("salesSessionId", session_id),
             "scenarioId": payload.get("questionId"),
             "customerId": payload.get("caseId"),
             "selectedShoeId": selected_shoe_id,
@@ -334,6 +345,8 @@ class SalesAttemptStore:
             self.directory.mkdir(parents=True, exist_ok=True)
             existing = self._read(submission.attempt_id)
             if existing is not None:
+                if existing.get("diagnosticsDeleted"):
+                    raise SalesAttemptConflictError("Diagnostics for this attempt were deleted")
                 if existing.get("requestHash") != request_hash:
                     raise SalesAttemptConflictError(
                         "attemptId was already used with a different submission"
@@ -356,6 +369,7 @@ class SalesAttemptStore:
 
             record = {
                 "attemptId": submission.attempt_id,
+                "salesSessionId": submission.sales_session_id,
                 "scenarioId": submission.scenario_id,
                 "customerId": submission.customer_id,
                 "selectedShoeId": submission.selected_shoe_id,
@@ -409,6 +423,8 @@ class SalesAttemptStore:
             record = self._read(attempt_id)
             if record is None:
                 raise SalesProcessingError("not_found", "The sales attempt does not exist.")
+            if record.get("diagnosticsDeleted"):
+                return record
             record.update(changes)
             record["updatedAtUtc"] = _utc_now()
             _atomic_write(
@@ -416,6 +432,40 @@ class SalesAttemptStore:
                 json.dumps(record, ensure_ascii=False, indent=2).encode("utf-8"),
             )
             return record
+
+    async def purge_expired_session_diagnostics(self) -> int:
+        """Apply the Sales retention period to recordings linked to a session."""
+        cutoff = datetime.now(timezone.utc).timestamp() - get_settings().sales_retention_days * 86400
+        expired_sessions = set()
+        async with self._lock:
+            for path in self.directory.glob("sales-persuasion-*.json"):
+                record = self._read(path.stem.removeprefix("sales-persuasion-"))
+                if not record or record.get("diagnosticsDeleted") or not record.get("salesSessionId"):
+                    continue
+                created = datetime.fromisoformat(record["createdAtUtc"].replace("Z", "+00:00")).timestamp()
+                if created < cutoff:
+                    expired_sessions.add(record["salesSessionId"])
+        count = 0
+        for session_id in expired_sessions:
+            count += await self.delete_session_diagnostics(session_id)
+        return count
+
+    async def delete_session_diagnostics(self, session_id: str) -> int:
+        count = 0
+        async with self._lock:
+            for path in self.directory.glob("sales-persuasion-*.json"):
+                attempt_id = path.stem.removeprefix("sales-persuasion-")
+                record = self._read(attempt_id)
+                if record is None or record.get("salesSessionId") != session_id:
+                    continue
+                audio_path = self._audio_path(attempt_id)
+                if audio_path.exists():
+                    audio_path.unlink()
+                    count += 1
+                record.update(transcript=None, diagnosticsDeleted=True, diagnosticsDeletedAtUtc=_utc_now(),
+                    status="diagnostics_deleted", assessmentStatus="diagnostics_deleted", error=None)
+                _atomic_write(path, json.dumps(record, ensure_ascii=False).encode("utf-8"))
+        return count
 
     def audio_path(self, attempt_id: str) -> Path:
         return self._audio_path(attempt_id)

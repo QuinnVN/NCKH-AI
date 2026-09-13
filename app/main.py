@@ -42,6 +42,18 @@ from app.sales_persuasion import (
     submission_from_sales_telemetry,
     submission_response,
 )
+from app.sales_returning_customer import (
+    CompletionRequest,
+    LLMSalesAnalyzer,
+    LLMSalesResponder,
+    ReturningSessionRequest,
+    ReturningSessionStore,
+    ReturningTurnRequest,
+    complete_session,
+    public_session,
+    submit_turn,
+)
+from app.sales_returning_stt import ReturningWhisperTranscriber
 
 
 logger = logging.getLogger("vr_backend")
@@ -52,6 +64,8 @@ ai_server_manager = AIServerManager()
 sales_attempt_store = SalesAttemptStore()
 sales_transcriber = WhisperCppTranscriber()
 sales_processing_tasks: dict[str, asyncio.Task[object]] = {}
+sales_returning_store = ReturningSessionStore()
+sales_returning_transcriber = ReturningWhisperTranscriber()
 
 COMMAND_TIMEOUT_SECONDS = get_settings().command_timeout_seconds
 REQUEST_SETTINGS = get_settings()
@@ -77,13 +91,28 @@ next_command_sequence = 1
 session: PromptSession | None = None
 
 
+async def _sales_retention_loop():
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            await sales_returning_store.purge_expired()
+            await sales_attempt_store.purge_expired_session_diagnostics()
+        except (OSError, ValueError):
+            log("[Sales] Diagnostic retention cleanup failed; retrying next hour.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global llm_service
 
     llm_service = LLMService()
+    await sales_returning_store.purge_expired()
+    await sales_attempt_store.purge_expired_session_diagnostics()
+    retention_task = asyncio.create_task(_sales_retention_loop())
     await _resume_sales_processing()
     yield
+    retention_task.cancel()
+    await asyncio.gather(retention_task, return_exceptions=True)
     tasks = tuple(sales_processing_tasks.values())
     for task in tasks:
         task.cancel()
@@ -490,7 +519,9 @@ async def telemetry(
             payload = data.get("payload")
             if not isinstance(payload, dict):
                 raise ValueError("payload must be an object")
-            submission = submission_from_sales_telemetry(payload)
+            submission = submission_from_sales_telemetry(
+                payload, session_id=data.get("sessionId")
+            )
             record, should_process = await sales_attempt_store.accept(submission)
         except SalesAttemptConflictError as exception:
             raise HTTPException(status_code=409, detail=str(exception)) from exception
@@ -635,6 +666,123 @@ async def get_sales_persuasion_recording(
     if record is None:
         raise HTTPException(status_code=404, detail="Sales attempt not found.")
     return _public_sales_record(record)
+
+
+@app.post("/api/sales/sessions")
+@app.post("/api/sales/session", include_in_schema=False)
+async def create_sales_session(
+    request: ReturningSessionRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_http_auth(authorization)
+    try:
+        session = await sales_returning_store.create_or_resume(request.session_id, request.part1_attempt_id)
+    except ValueError as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
+    except OSError as exception:
+        raise HTTPException(status_code=500, detail="Unable to store sales session.") from exception
+    return public_session(session)
+
+
+@app.get("/api/sales/sessions/{session_id}")
+@app.get("/api/sales/session/{session_id}", include_in_schema=False)
+async def get_sales_session(
+    session_id: str,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_http_auth(authorization)
+    try:
+        await sales_returning_store.purge_expired()
+        session = await sales_returning_store.get(session_id)
+    except ValueError as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
+    if session is None:
+        raise HTTPException(status_code=404, detail="Sales session not found.")
+    return public_session(session)
+
+
+@app.post("/api/sales/sessions/{session_id}/turns")
+@app.post("/api/sales/session/{session_id}/turns", include_in_schema=False)
+async def submit_sales_returning_turn(
+    session_id: str,
+    request: ReturningTurnRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_http_auth(authorization)
+    try:
+        return await submit_turn(
+            session_id,
+            request,
+            store=sales_returning_store,
+            transcriber=sales_returning_transcriber,
+            responder=LLMSalesResponder(llm_service),
+        )
+    except KeyError as exception:
+        raise HTTPException(status_code=404, detail=str(exception)) from exception
+    except ValueError as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
+    except RuntimeError as exception:
+        raise HTTPException(status_code=409, detail="Sales operation cannot proceed.") from exception
+    except OSError as exception:
+        raise HTTPException(status_code=500, detail="Unable to store sales turn.") from exception
+
+
+@app.post("/api/sales/sessions/{session_id}/part1")
+@app.post("/api/sales/session/{session_id}/part1", include_in_schema=False)
+async def associate_sales_part1(
+    session_id: str,
+    request: ReturningSessionRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_http_auth(authorization)
+    if request.part1_attempt_id is None:
+        raise HTTPException(status_code=422, detail="part1AttemptId is required.")
+    try:
+        session = await sales_returning_store.create_or_resume(session_id, request.part1_attempt_id)
+    except ValueError as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
+    except OSError as exception:
+        raise HTTPException(status_code=500, detail="Unable to associate Part 1 attempt.") from exception
+    return public_session(session)
+
+
+@app.post("/api/sales/sessions/{session_id}/complete")
+@app.post("/api/sales/session/{session_id}/complete", include_in_schema=False)
+async def complete_sales_session(
+    session_id: str,
+    request: CompletionRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_http_auth(authorization)
+    try:
+        result = await complete_session(
+            session_id,
+            request,
+            store=sales_returning_store,
+            analyzer=LLMSalesAnalyzer(llm_service),
+        )
+        return public_session(result)
+    except KeyError as exception:
+        raise HTTPException(status_code=404, detail=str(exception)) from exception
+    except RuntimeError as exception:
+        raise HTTPException(status_code=503, detail=str(exception)) from exception
+
+
+@app.delete("/api/sales/sessions/{session_id}/diagnostics")
+@app.delete("/api/sales/session/{session_id}/diagnostics", include_in_schema=False)
+async def delete_sales_diagnostics(
+    session_id: str,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    settings = get_settings()
+    if settings.sales_diagnostic_token is None or authorization != "Bearer " + settings.sales_diagnostic_token:
+        raise HTTPException(status_code=401, detail="Diagnostic authorization required.")
+    try:
+        count = await sales_returning_store.delete_diagnostics(session_id)
+        count += await sales_attempt_store.delete_session_diagnostics(session_id)
+    except ValueError as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
+    return {"status": "deleted", "sessionId": session_id, "deletedFiles": count}
 
 
 class ConversationMessage(BaseModel):
