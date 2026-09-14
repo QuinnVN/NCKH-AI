@@ -10,6 +10,7 @@ httptools==0.8.0
 idna==3.19
 numpy==2.3.5
 prompt_toolkit==3.0.53
+pymongo==4.18.1
 pydantic==2.13.4
 pydantic_core==2.46.4
 python-dotenv==1.2.3
