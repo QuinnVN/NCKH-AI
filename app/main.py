@@ -95,7 +95,7 @@ participant_acknowledged_socket: WebSocket | None = None
 
 COMMAND_TIMEOUT_SECONDS = get_settings().command_timeout_seconds
 REQUEST_SETTINGS = get_settings()
-VALID_SCENE_IDS = frozenset({"standby", "clinic", "doctor", "lawyer", "sale"})
+VALID_SCENE_IDS = frozenset({"standby", "clinic", "doctor", "lawyer", "sale", "tutorial"})
 RESET_ALL_TARGET = "all"
 DEFENSE_RECORDING_EVENT_TYPE = "lawyer.defense_recording"
 ACK_STATUSES = frozenset({"applied", "rejected", "failed"})
