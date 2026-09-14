@@ -63,6 +63,7 @@ from app.sales_returning_customer import (
 from app.sherpa_setup import install_model_bundle, resolve_model_dir
 from app.sherpa_stt import SherpaOnnxTranscriber
 from app.run_results import (
+    FRAGMENT_TYPES,
     GAME_IDS,
     ParticipantManager,
     RunResultStore,
@@ -802,11 +803,13 @@ async def submit_result_fragment(
     """Accept one idempotent Clinic/Doctor/Lawyer/Sales result fragment."""
     _require_http_auth(authorization)
     global active_run_id
-    if data.get("fragmentType"):
+    if data.get("kind") in FRAGMENT_TYPES or data.get("fragmentType"):
         try:
             data = translate_unity_result_fragment(data)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+    elif "kind" in data and data.get("kind") not in {"run.started", "run.aborted"}:
+        raise HTTPException(status_code=422, detail="unknown result fragment kind")
     if isinstance(data.get("runId"), str):
         active_run_id = data["runId"]
     if data.get("kind") == "run.started":

@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app.run_results import (
     ParticipantManager,
@@ -112,6 +113,67 @@ class RunResultTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["status"], "completed")
             self.assertEqual([turn["turnId"] for turn in result["data"]["turns"]], ["t1", "t2"])
             self.assertEqual(result["data"]["part1"]["selectedShoeId"], "a")
+
+    async def test_current_unity_envelopes_post_for_all_games_and_exclude_extra_fields(self):
+        from httpx import ASGITransport, AsyncClient
+        from app import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            original_store = main.run_result_store
+            original_participant = main.participant_manager.active
+            original_activity = main.participant_manager.activity
+            original_active_run = main.active_run_id
+            try:
+                participant, _ = main.participant_manager.assign("Envelope Tester")
+                main.run_result_store = RunResultStore(Path(directory), mongo=FakeMongo(failures=9))
+                async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as client:
+                    async def post(run_id, game_id, kind, payload):
+                        envelope = {"kind": kind, "fragmentId": kind + run_id, "runId": run_id,
+                                    "participantName": participant.name, "participantSessionId": participant.session_id,
+                                    "gameId": game_id, "occurredAtUtc": "2026-09-14T00:00:00Z",
+                                    "startedAtUtc": "2026-09-14T00:00:00Z", "complete": False,
+                                    "requiredFields": ["ignored-by-backend"], "data": payload}
+                        response = await client.post("/api/results/fragments", json=envelope)
+                        self.assertEqual(response.status_code, 200, response.text)
+                        return response
+
+                    patient = {"patientId": "p1", "sicknessName": "flu", "severity": 1, "bedIndex": 0,
+                               "resolution": "cured", "actionableAtUtc": "2026-09-14T00:00:00Z",
+                               "resolvedAtUtc": "2026-09-14T00:00:10Z", "resolutionDurationSeconds": 10,
+                               "scoreDelta": 5, "scoreTotal": 5, "audio": "drop", "diagnostics": "drop"}
+                    await post("clinic-run", "clinic", "clinic.patient_resolved", patient)
+                    await post("clinic-run", "clinic", "clinic.round_finished", {"roundId": "r1", "scoreTotal": 5, "model": "drop"})
+
+                    case = {"roundId": "dr", "caseId": "case1", "patientName": "P", "selectedQuestionsJson": "[]",
+                            "notesJson": "[]", "scoreDelta": 1, "scoreTotal": 1, "remainingTime": 1,
+                            "caseSubmittedAtUtc": "x", "audio": "drop"}
+                    await post("doctor-run", "doctor", "doctor.case_submitted", case)
+                    await post("doctor-run", "doctor", "doctor.round_finished", {"roundId": "dr", "scoreTotal": 1})
+
+                    lawyer = {"roundId": "lr", "caseId": "case", "interviewRestartCount": 0, "transcript": "bào chữa",
+                              "criterionScores": {"evidenceUse": 1}, "rawScore": 1, "restartPenaltyPercent": 0,
+                              "finalScore": 1, "feedbackVi": "tốt", "completionStatus": "completed",
+                              "assessmentContextJson": "must not persist", "provider": "must not persist"}
+                    await post("lawyer-run", "lawyer", "lawyer.defense_completed", lawyer)
+
+                    await post("sales-run", "sale", "sales.part1_recording_uploaded", {"roundId": "a", "cardId": "shoe", "resolution": "{}", "audio": "drop"})
+                    await post("sales-run", "sale", "sales.part2.completed", {"trustState": "lost", "completionReason": "silence_limit",
+                        "emotionalHandling": False, "causeIdentification": False, "solutionSuitability": False,
+                        "trustRebuilding": False, "diagnostic": "drop"})
+                    bad = await client.post("/api/results/fragments", json={"kind": "unknown.result", "runId": "bad", "gameId": "clinic", "data": {}})
+                    self.assertEqual(bad.status_code, 422)
+
+                for run_id in ("clinic-run", "doctor-run", "lawyer-run", "sales-run"):
+                    aggregate = json.loads((Path(directory) / "simulation-results" / f"run-{run_id}.json").read_text(encoding="utf-8"))
+                    serialized = json.dumps(aggregate, ensure_ascii=False)
+                    self.assertNotIn("drop", serialized)
+                    self.assertNotIn("assessmentContextJson", serialized)
+                    self.assertNotIn("provider", serialized)
+            finally:
+                main.run_result_store = original_store
+                main.participant_manager.active = original_participant
+                main.participant_manager.activity = original_activity
+                main.active_run_id = original_active_run
 
 
 if __name__ == "__main__":

@@ -33,6 +33,95 @@ FRAGMENT_TYPES = frozenset({
     "sales.part2.turn_accepted", "sales.part2.completed",
 })
 
+_EVENT_FIELDS: dict[str, frozenset[str]] = {
+    "clinic.patient_resolved": frozenset({"patientId", "sicknessName", "severity", "bedIndex", "resolution", "actionableAtUtc", "resolvedAtUtc", "resolutionDurationSeconds", "scoreDelta", "scoreTotal"}),
+    "clinic.round_finished": frozenset({"roundId", "roundStartedAtUtc", "roundCompletedAtUtc", "scoreTotal", "remainingTime"}),
+    "doctor.case_submitted": frozenset({"roundId", "caseId", "patientName", "selectedQuestionsJson", "notesJson", "scoreDelta", "scoreTotal", "remainingTime", "caseSubmittedAtUtc", "correctCount", "incorrectCount", "unassignedCount", "essentialCorrectCount", "essentialIncorrectCount", "essentialUnassignedCount", "categorizationAccuracyPercent", "essentialCategorizationAccuracyPercent"}),
+    "doctor.round_finished": frozenset({"roundId", "roundStartedAtUtc", "roundCompletedAtUtc", "scoreTotal", "remainingTime"}),
+    "lawyer.defense_completed": frozenset({"roundId", "caseId", "interviewRestartCount", "finalClueSet", "completedEvidenceLinks", "transcript", "criterionScores", "rawScore", "restartPenaltyPercent", "finalScore", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc", "completionStatus"}),
+    "lawyer.defense_recording": frozenset({"roundId", "caseId", "interviewRestartCount", "transcript", "criterionScores", "rawScore", "restartPenaltyPercent", "finalScore", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc", "completionStatus"}),
+    "sales.persuasion_recording": frozenset({"attemptId", "salesSessionId", "scenarioId", "customerId", "selectedShoeId", "bestFitShoeId", "transcript", "score", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc"}),
+    "sales.part1_recording_uploaded": frozenset({"attemptId", "salesSessionId", "scenarioId", "customerId", "selectedShoeId", "bestFitShoeId", "transcript", "score", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc"}),
+    "sales.part2.turn_accepted": frozenset({"turnId", "transcript", "customerReply", "objective", "activeObjective", "objectiveActiveDuringTurn", "turnTimestampUtc"}),
+    "sales.part2.completed": frozenset({"trustState", "emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding", "completionReason", "acceptedTurnCount", "silenceCount", "completedAtUtc"}),
+}
+
+
+def _approved_event_data(event_type: str, value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError("result fragment data must be an object")
+    allowed = _EVENT_FIELDS[event_type]
+    # Deliberately whitelist at the event boundary.  This prevents future
+    # telemetry fields (including audio and processing diagnostics) from being
+    # copied into the research aggregate by a generic recursive filter.
+    return {key: _approved_data(item) for key, item in value.items() if key in allowed}
+
+
+def _event_payload(event_type: str, source: Mapping[str, Any], occurred_at: str) -> dict[str, Any]:
+    """Project raw GameplayTelemetryData into the approved event shape."""
+    if event_type == "clinic.patient_resolved" and isinstance(source.get("patientResults"), list):
+        source = source["patientResults"][0] if source["patientResults"] else {}
+    elif event_type == "clinic.round_finished" and isinstance(source.get("round"), Mapping):
+        source = source["round"]
+    elif event_type == "doctor.case_submitted" and isinstance(source.get("cases"), list):
+        source = source["cases"][0] if source["cases"] else {}
+    elif event_type == "doctor.round_finished" and isinstance(source.get("round"), Mapping):
+        source = source["round"]
+    elif event_type.startswith("lawyer.") and isinstance(source.get("lawyer"), Mapping):
+        source = source["lawyer"]
+    if event_type in {"clinic.patient_resolved", "clinic.round_finished", "doctor.case_submitted", "doctor.round_finished", "lawyer.defense_completed", "lawyer.defense_recording"}:
+        if event_type.startswith("clinic."):
+            allowed = _EVENT_FIELDS[event_type]
+        elif event_type.startswith("doctor."):
+            allowed = _EVENT_FIELDS[event_type]
+        else:
+            allowed = _EVENT_FIELDS[event_type]
+        aliases = {"feedback": "feedbackVi", "patientName": "patientName"}
+        return {aliases.get(key, key): _approved_data(value) for key, value in source.items()
+                if aliases.get(key, key) in allowed}
+    if event_type in {"sales.persuasion_recording", "sales.part1_recording_uploaded"}:
+        nested = source.get("part1") if isinstance(source.get("part1"), Mapping) else source
+        resolution: dict[str, Any] = {}
+        raw_resolution = nested.get("resolution")
+        if isinstance(raw_resolution, str):
+            try:
+                decoded = json.loads(raw_resolution)
+                if isinstance(decoded, Mapping):
+                    resolution = dict(decoded)
+            except json.JSONDecodeError:
+                pass
+        return {key: _approved_data(value) for key, value in {
+            "attemptId": nested.get("attemptId") or nested.get("roundId"),
+            "salesSessionId": nested.get("salesSessionId"),
+            "scenarioId": nested.get("scenarioId") or nested.get("questionId"),
+            "customerId": nested.get("customerId") or nested.get("caseId"),
+            "selectedShoeId": nested.get("selectedShoeId") or nested.get("cardId") or resolution.get("selectedShoe"),
+            "bestFitShoeId": nested.get("bestFitShoeId") or resolution.get("bestFitShoe"),
+            "transcript": nested.get("transcript"), "score": nested.get("score"),
+            "feedbackVi": nested.get("feedbackVi") or nested.get("feedback"),
+            "recordingAtUtc": nested.get("recordingAtUtc"),
+            "assessmentCompletedAtUtc": nested.get("assessmentCompletedAtUtc"),
+        }.items() if value is not None}
+    if event_type == "sales.part2.turn_accepted":
+        nested = source.get("turn") if isinstance(source.get("turn"), Mapping) else source
+        return {key: _approved_data(value) for key, value in {
+            "turnId": nested.get("turnId") or nested.get("roundId"),
+            "transcript": nested.get("transcript"), "customerReply": nested.get("customerReply"),
+            "objective": nested.get("objective"), "activeObjective": nested.get("activeObjective"),
+            "objectiveActiveDuringTurn": nested.get("objectiveActiveDuringTurn"),
+            "turnTimestampUtc": nested.get("turnTimestampUtc") or occurred_at,
+        }.items() if value is not None}
+    if event_type == "sales.part2.completed":
+        source = source.get("part2") if isinstance(source.get("part2"), Mapping) else source
+        return {key: _approved_data(value) for key, value in {
+            "trustState": source.get("trustState"), "emotionalHandling": source.get("emotionalHandling"),
+            "causeIdentification": source.get("causeIdentification"), "solutionSuitability": source.get("solutionSuitability"),
+            "trustRebuilding": source.get("trustRebuilding"), "completionReason": source.get("completionReason"),
+            "acceptedTurnCount": source.get("acceptedTurnCount"), "silenceCount": source.get("silenceCount"),
+            "completedAtUtc": source.get("completedAtUtc") or occurred_at,
+        }.items() if value is not None}
+    return _approved_event_data(event_type, source)
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -73,7 +162,9 @@ def _atomic_json(path: Path, value: Mapping[str, Any]) -> None:
 _FORBIDDEN_AGGREGATE_KEYS = {
     "audio", "audiobytes", "audiofile", "audiopath", "wav", "wavpath",
     "machinepath", "localpath", "requesthash", "rawerror", "exception",
-    "model", "provider", "rubric", "schemaversion", "telemetry",
+    "model", "provider", "rubric", "schemaversion", "telemetry", "diagnostics",
+    "diagnostic", "error", "errors", "stt", "llm", "processingdurationseconds",
+    "activedurationseconds", "clientversion", "retrycount",
 }
 
 
@@ -98,16 +189,22 @@ def _payload_dict(payload: Any) -> dict[str, Any]:
 
 def translate_unity_result_fragment(fragment: Mapping[str, Any]) -> dict[str, Any]:
     """Translate Unity ``ResultFragmentDto`` into the backend store contract."""
+    is_current = "kind" in fragment and "data" in fragment
+    event_key = "kind" if is_current else "fragmentType"
+    payload_key = "data" if is_current else "payload"
     required = ("fragmentId", "runId", "participantName", "participantSessionId",
-                "gameId", "fragmentType", "occurredAtUtc", "payload")
+                "gameId", event_key, "occurredAtUtc", payload_key)
     missing = [key for key in required if key not in fragment]
     if missing:
         raise ValueError("missing ResultFragmentDto fields: " + ", ".join(missing))
-    fragment_type = fragment.get("fragmentType")
+    fragment_type = fragment.get(event_key)
     game_id = fragment.get("gameId")
     if game_id not in GAME_IDS or fragment_type not in FRAGMENT_TYPES:
         raise ValueError("unknown result fragment type")
-    payload = _payload_dict(fragment.get("payload"))
+    raw_payload = fragment.get(payload_key)
+    if not isinstance(raw_payload, Mapping):
+        raise ValueError("result fragment data must be an object")
+    payload = _event_payload(fragment_type, raw_payload, str(fragment["occurredAtUtc"]))
     run_id = fragment["runId"]
     if not isinstance(run_id, str) or RUN_ID.fullmatch(run_id) is None:
         raise ValueError("runId has an invalid format")
