@@ -71,6 +71,7 @@ from app.run_results import (
     project_lawyer_record,
     project_sales_part1,
     project_sales_part2,
+    translate_unity_result_fragment,
 )
 
 
@@ -246,7 +247,7 @@ def build_participant_request() -> dict[str, Any]:
     request = {
         "commandId": uuid4().hex,
         "sequence": next_command_sequence,
-        "type": "set_participant" if participant else "clear_participant",
+        "type": "assign_participant" if participant else "clear_participant",
         "participant": participant,
         "participantName": participant.get("participantName") if participant else None,
         "participantSessionId": participant.get("participantSessionId") if participant else None,
@@ -443,8 +444,12 @@ async def send_participant_assignment(
     expected = participant_manager.snapshot()
     actual = acknowledgement.get("participant")
     if actual is None and acknowledgement.get("participantName") is not None:
-        actual = {"participantName": acknowledgement.get("participantName"),
-                  "participantSessionId": acknowledgement.get("participantSessionId")}
+        acknowledged_name = acknowledgement.get("participantName") or ""
+        acknowledged_session = acknowledgement.get("participantSessionId") or ""
+        actual = None if not acknowledged_name and not acknowledged_session else {
+            "participantName": acknowledged_name,
+            "participantSessionId": acknowledged_session,
+        }
     if actual != expected:
         log("[Server] Unity acknowledged a different participant assignment.")
         participant_acknowledged_socket = None
@@ -509,6 +514,7 @@ async def set_game(
     if socket is None:
         log("[Server] Cannot change scene: Unity is not connected.")
         return False
+    previous_activity = participant_manager.activity
     if scene_id != "standby" and participant_manager.active is not None:
         if active_run_id is not None and not run_result_store.is_synchronized(active_run_id):
             log("[Server] Cannot start a game while a completed result awaits database synchronization.")
@@ -516,7 +522,6 @@ async def set_game(
         if not await ensure_participant_assignment(socket):
             log("[Server] Cannot start a game: Unity has not acknowledged the participant.")
             return False
-        participant_manager.activity = "gameplay"
 
     acknowledgement = await send_scene_command(
         socket,
@@ -530,6 +535,7 @@ async def set_game(
         "load_scene",
         "standby" if scene_id == "standby" else "ready",
     ):
+        participant_manager.activity = previous_activity
         return False
 
     if scene_id == "standby":
@@ -539,6 +545,7 @@ async def set_game(
 
     if unity_ws is not socket:
         log(f"[Server] Cannot start '{scene_id}': Unity reconnected after loading the scene.")
+        participant_manager.activity = previous_activity
         return False
 
     acknowledgement = await send_scene_command(
@@ -553,8 +560,10 @@ async def set_game(
         "start_scene",
         "running",
     ):
+        participant_manager.activity = previous_activity
         return False
 
+    participant_manager.activity = "gameplay"
     log(f"[Server] Scene '{scene_id}' loaded and started.")
     return True
 
@@ -699,6 +708,8 @@ async def telemetry(
             payload = data.get("payload")
             if not isinstance(payload, dict):
                 raise ValueError("payload must be an object")
+            if data.get("runId") is not None and payload.get("runId") is None:
+                payload = {**payload, "runId": data.get("runId")}
             submission = submission_from_lawyer_telemetry(payload)
             record, should_process = await lawyer_attempt_store.accept(submission)
         except LawyerAttemptConflictError as exception:
@@ -724,7 +735,7 @@ async def telemetry(
             participant = participant_manager.active
             if participant is not None:
                 await run_result_store.accept_fragment({
-                    "runId": data.get("runId", submission.round_id), "gameId": "lawyer",
+                    "runId": record.get("runId") or data.get("runId", submission.round_id), "gameId": "lawyer",
                     "fragmentId": f"lawyer:{submission.round_id}", "data": project_lawyer_record(record)
                 }, participant=participant)
         except (ValueError, RuntimeError):
@@ -740,6 +751,8 @@ async def telemetry(
             payload = data.get("payload")
             if not isinstance(payload, dict):
                 raise ValueError("payload must be an object")
+            if data.get("runId") is not None and payload.get("runId") is None:
+                payload = {**payload, "runId": data.get("runId")}
             submission = submission_from_sales_telemetry(
                 payload, session_id=data.get("sessionId")
             )
@@ -766,7 +779,7 @@ async def telemetry(
             participant = participant_manager.active
             if participant is not None:
                 await run_result_store.accept_fragment({
-                    "runId": data.get("runId", submission.attempt_id), "gameId": "sale",
+                    "runId": record.get("runId") or data.get("runId", submission.attempt_id), "gameId": "sale",
                     "fragmentId": f"sale.part1:{submission.attempt_id}", "data": {"part1": project_sales_part1(record)}
                 }, participant=participant)
         except (ValueError, RuntimeError):
@@ -789,6 +802,13 @@ async def submit_result_fragment(
     """Accept one idempotent Clinic/Doctor/Lawyer/Sales result fragment."""
     _require_http_auth(authorization)
     global active_run_id
+    if data.get("fragmentType"):
+        try:
+            data = translate_unity_result_fragment(data)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if isinstance(data.get("runId"), str):
+        active_run_id = data["runId"]
     if data.get("kind") == "run.started":
         participant = participant_manager.active
         if participant is None:
@@ -855,7 +875,7 @@ async def _queue_lawyer_processing(round_id: str) -> None:
         participant = participant_manager.active
         if participant is not None and isinstance(record, dict) and record.get("assessmentStatus") == "completed":
             try:
-                await run_result_store.accept_fragment({"runId": round_id, "gameId": "lawyer",
+                await run_result_store.accept_fragment({"runId": record.get("runId") or round_id, "gameId": "lawyer",
                     "fragmentId": f"lawyer:{round_id}:completed", "data": project_lawyer_record(record)}, participant=participant)
             except (ValueError, RuntimeError):
                 logger.warning("Unable to project completed Lawyer result")
@@ -947,7 +967,7 @@ async def _queue_sales_processing(attempt_id: str) -> None:
         participant = participant_manager.active
         if participant is not None and isinstance(record, dict) and record.get("assessmentStatus") == "completed":
             try:
-                await run_result_store.accept_fragment({"runId": attempt_id, "gameId": "sale",
+                await run_result_store.accept_fragment({"runId": record.get("runId") or attempt_id, "gameId": "sale",
                     "fragmentId": f"sale.part1:{attempt_id}:completed", "data": {"part1": project_sales_part1(record)}}, participant=participant)
             except (ValueError, RuntimeError):
                 logger.warning("Unable to project completed Sales Part 1 result")
@@ -1056,9 +1076,10 @@ async def create_sales_session(
     request: ReturningSessionRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
+    run_id = request.run_id or active_run_id
     _require_http_auth(authorization)
     try:
-        session = await sales_returning_store.create_or_resume(request.session_id, request.part1_attempt_id)
+        session = await sales_returning_store.create_or_resume(request.session_id, request.part1_attempt_id, run_id)
     except ValueError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
     except OSError as exception:
@@ -1074,7 +1095,6 @@ async def get_sales_session(
 ) -> dict[str, Any]:
     _require_http_auth(authorization)
     try:
-        await sales_returning_store.purge_expired()
         session = await sales_returning_store.get(session_id)
     except ValueError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
@@ -1116,11 +1136,12 @@ async def associate_sales_part1(
     request: ReturningSessionRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
+    run_id = request.run_id or active_run_id
     _require_http_auth(authorization)
     if request.part1_attempt_id is None:
         raise HTTPException(status_code=422, detail="part1AttemptId is required.")
     try:
-        session = await sales_returning_store.create_or_resume(session_id, request.part1_attempt_id)
+        session = await sales_returning_store.create_or_resume(session_id, request.part1_attempt_id, run_id)
     except ValueError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
     except OSError as exception:
@@ -1147,7 +1168,7 @@ async def complete_sales_session(
         if participant is not None and result.get("completionStatus") == "completed":
             try:
                 await run_result_store.accept_fragment({
-                    "runId": session_id, "gameId": "sale", "fragmentId": f"sale.part2:{request.completion_id}",
+                    "runId": result.get("runId") or session_id, "gameId": "sale", "fragmentId": f"sale.part2:{request.completion_id}",
                     "data": {"part2": project_sales_part2(result)},
                 }, participant=participant)
             except (ValueError, RuntimeError):

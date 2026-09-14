@@ -25,6 +25,13 @@ from app.config import BACKEND_ROOT, get_settings
 
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 GAME_IDS = frozenset({"clinic", "doctor", "lawyer", "sale"})
+FRAGMENT_TYPES = frozenset({
+    "clinic.patient_resolved", "clinic.round_finished",
+    "doctor.case_submitted", "doctor.round_finished",
+    "lawyer.defense_completed", "lawyer.defense_recording",
+    "sales.persuasion_recording", "sales.part1_recording_uploaded",
+    "sales.part2.turn_accepted", "sales.part2.completed",
+})
 
 
 def utc_now() -> str:
@@ -81,6 +88,108 @@ def _approved_data(value: Any) -> Any:
     if isinstance(value, list):
         return [_approved_data(item) for item in value]
     return value
+
+
+def _payload_dict(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, Mapping):
+        raise ValueError("payload must be an object")
+    return _approved_data(dict(payload))
+
+
+def translate_unity_result_fragment(fragment: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate Unity ``ResultFragmentDto`` into the backend store contract."""
+    required = ("fragmentId", "runId", "participantName", "participantSessionId",
+                "gameId", "fragmentType", "occurredAtUtc", "payload")
+    missing = [key for key in required if key not in fragment]
+    if missing:
+        raise ValueError("missing ResultFragmentDto fields: " + ", ".join(missing))
+    fragment_type = fragment.get("fragmentType")
+    game_id = fragment.get("gameId")
+    if game_id not in GAME_IDS or fragment_type not in FRAGMENT_TYPES:
+        raise ValueError("unknown result fragment type")
+    payload = _payload_dict(fragment.get("payload"))
+    run_id = fragment["runId"]
+    if not isinstance(run_id, str) or RUN_ID.fullmatch(run_id) is None:
+        raise ValueError("runId has an invalid format")
+    if not isinstance(fragment["fragmentId"], str) or not fragment["fragmentId"].strip():
+        raise ValueError("fragmentId is required")
+    if not isinstance(fragment["participantName"], str) or not fragment["participantName"].strip():
+        raise ValueError("participantName is required")
+    if not isinstance(fragment["participantSessionId"], str) or not fragment["participantSessionId"].strip():
+        raise ValueError("participantSessionId is required")
+    if fragment_type.startswith("clinic.") and game_id != "clinic":
+        raise ValueError("clinic fragment has the wrong gameId")
+    if fragment_type.startswith("doctor.") and game_id != "doctor":
+        raise ValueError("doctor fragment has the wrong gameId")
+    if fragment_type.startswith("lawyer.") and game_id != "lawyer":
+        raise ValueError("lawyer fragment has the wrong gameId")
+    if fragment_type.startswith("sales.") and game_id != "sale":
+        raise ValueError("sales fragment has the wrong gameId")
+
+    translated: dict[str, Any] = {
+        "runId": fragment["runId"], "gameId": game_id,
+        "fragmentId": fragment["fragmentId"], "kind": fragment_type,
+        "occurredAtUtc": fragment["occurredAtUtc"],
+        "participantName": fragment["participantName"],
+        "participantSessionId": fragment["participantSessionId"],
+        "data": {},
+    }
+    if fragment_type == "clinic.patient_resolved":
+        translated["data"] = {"patientResults": [payload]}
+    elif fragment_type == "clinic.round_finished":
+        translated["data"] = {"round": payload, "roundCompletedAtUtc": payload.get("roundCompletedAtUtc") or fragment["occurredAtUtc"]}
+        translated["requiredFields"] = ["patientResults", "round"]
+        translated["complete"] = True
+    elif fragment_type == "doctor.case_submitted":
+        translated["data"] = {"cases": [payload]}
+    elif fragment_type == "doctor.round_finished":
+        translated["data"] = {"round": payload, "roundCompletedAtUtc": payload.get("roundCompletedAtUtc") or fragment["occurredAtUtc"]}
+        translated["requiredFields"] = ["cases", "round"]
+        translated["complete"] = True
+    elif fragment_type in {"lawyer.defense_completed", "lawyer.defense_recording"}:
+        translated["data"] = {"lawyer": payload}
+        if fragment_type == "lawyer.defense_completed":
+            translated["requiredFields"] = ["lawyer"]
+            translated["complete"] = True
+    elif fragment_type in {"sales.persuasion_recording", "sales.part1_recording_uploaded"}:
+        translated["data"] = {"part1": payload}
+    elif fragment_type == "sales.part2.turn_accepted":
+        translated["data"] = {"turns": [payload]}
+    elif fragment_type == "sales.part2.completed":
+        translated["data"] = {"part2": payload}
+        translated["requiredFields"] = ["part1", "part2"]
+        translated["complete"] = True
+    return translated
+
+
+def _merge_keyed(current: Any, incoming: Any, key: str) -> list[Any]:
+    values = list(current) if isinstance(current, list) else []
+    by_key = {item.get(key): index for index, item in enumerate(values)
+              if isinstance(item, Mapping) and item.get(key) is not None}
+    for item in incoming if isinstance(incoming, list) else [incoming]:
+        if not isinstance(item, Mapping):
+            continue
+        item_key = item.get(key)
+        if item_key in by_key:
+            values[by_key[item_key]] = dict(item)
+        else:
+            by_key[item_key] = len(values)
+            values.append(dict(item))
+    return values
+
+
+def merge_result_data(current: Mapping[str, Any], incoming: Mapping[str, Any]) -> dict[str, Any]:
+    result = dict(current)
+    for key, value in incoming.items():
+        if key == "patientResults":
+            result[key] = _merge_keyed(result.get(key), value, "patientId")
+        elif key == "cases":
+            result[key] = _merge_keyed(result.get(key), value, "caseId")
+        elif key == "turns":
+            result[key] = _merge_keyed(result.get(key), value, "turnId")
+        else:
+            result[key] = value
+    return result
 
 
 @dataclass(frozen=True)
@@ -270,6 +379,10 @@ class RunResultStore:
                 return self._read(self._path(run_id, ".json")) or draft
             if draft.get("gameId") != game_id:
                 raise ValueError("runId cannot change gameId")
+            if fragment.get("participantName") is not None and fragment.get("participantName") != draft.get("participantName"):
+                raise ValueError("participantName does not match the run snapshot")
+            if fragment.get("participantSessionId") is not None and fragment.get("participantSessionId") != draft.get("participantSessionId"):
+                raise ValueError("participantSessionId does not match the run snapshot")
             if fragment_id in draft.setdefault("fragments", {}):
                 return draft
             data = fragment.get("data", {})
@@ -277,7 +390,7 @@ class RunResultStore:
                 raise ValueError("data must be an object")
             # Fragments are keyed by stable IDs.  Later retries replace nothing;
             # distinct fragments merge shallowly while preserving prior fields.
-            draft["data"].update(_approved_data(dict(data)))
+            draft["data"] = merge_result_data(draft.get("data", {}), _approved_data(dict(data)))
             required = fragment.get("requiredFields", [])
             if required is not None:
                 if not isinstance(required, list) or any(not isinstance(item, str) for item in required):
@@ -285,9 +398,11 @@ class RunResultStore:
                 draft["requiredFields"] = sorted(set(draft.get("requiredFields", [])) | set(required))
             draft["fragments"][fragment_id] = {"kind": fragment.get("kind", "result"),
                                                   "acceptedAtUtc": self.clock()}
+            if fragment.get("complete") is True:
+                draft["completionRequested"] = True
             draft["updatedAtUtc"] = self.clock()
             _atomic_json(self._path(run_id, ".draft.json"), draft)
-            if fragment.get("complete") is True and self._ready_to_finalize(draft):
+            if draft.get("completionRequested") and self._ready_to_finalize(draft):
                 return await self._finalize_unlocked(draft)
             return draft
 
@@ -300,7 +415,32 @@ class RunResultStore:
         # A producer may declare required result/transcript fields in the
         # fragment contract.  Missing values intentionally keep the draft
         # local instead of publishing a partial aggregate.
-        return all(field in data and data[field] is not None for field in required)
+        if not all(field in data and data[field] is not None for field in required):
+            return False
+        if any(field in {"patientResults", "cases", "turns"} and not data[field] for field in required):
+            return False
+        game_id = draft.get("gameId")
+        if game_id == "clinic" and "patientResults" in required:
+            fields = {"patientId", "sicknessName", "severity", "bedIndex", "resolution",
+                      "actionableAtUtc", "resolvedAtUtc", "resolutionDurationSeconds", "scoreDelta", "scoreTotal"}
+            if any(not fields.issubset(set(item)) for item in data["patientResults"] if isinstance(item, Mapping)):
+                return False
+        if game_id == "doctor" and "cases" in required:
+            fields = {"caseId", "selectedQuestionsJson", "notesJson", "scoreDelta", "scoreTotal", "caseSubmittedAtUtc"}
+            if any(not fields.issubset(set(item)) for item in data["cases"] if isinstance(item, Mapping)):
+                return False
+        if game_id == "lawyer" and "lawyer" in required:
+            lawyer = data.get("lawyer")
+            if not isinstance(lawyer, Mapping) or not lawyer.get("transcript") and lawyer.get("completionStatus") != "completed":
+                return False
+            if not isinstance(lawyer.get("criterionScores"), Mapping) or lawyer.get("rawScore") is None or lawyer.get("finalScore") is None:
+                return False
+        if game_id == "sale" and "part2" in required:
+            part2 = data.get("part2")
+            flags = {"emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding"}
+            if not isinstance(part2, Mapping) or not part2.get("trustState") or not part2.get("completionReason") or not flags.issubset(set(part2)):
+                return False
+        return True
 
     async def finalize(self, run_id: str) -> dict[str, Any]:
         async with self._lock:
