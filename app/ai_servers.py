@@ -1,4 +1,4 @@
-"""Lifecycle management for the local llama.cpp and whisper.cpp servers."""
+"""Lifecycle management for the local llama.cpp server."""
 
 from __future__ import annotations
 
@@ -15,14 +15,14 @@ from typing import Literal, Mapping
 from app.config import BACKEND_ROOT
 
 
-AIServerName = Literal["llama", "whisper"]
-AIServerTarget = Literal["all", "llama", "whisper"]
-AICommandAction = Literal["start", "status", "stop", "restart"]
+AIServerName = Literal["llama"]
+AIServerTarget = Literal["all", "llama"]
+AICommandAction = Literal["setup", "start", "status", "stop", "restart"]
 
-SERVER_NAMES: tuple[AIServerName, ...] = ("llama", "whisper")
+SERVER_NAMES: tuple[AIServerName, ...] = ("llama",)
 VALID_ACTIONS = frozenset({"start", "status", "stop", "restart"})
 VALID_TARGETS = frozenset({"all", *SERVER_NAMES})
-AI_COMMAND_USAGE = "Usage: ai <start|status|stop|restart> [all|llama|whisper]"
+AI_COMMAND_USAGE = "Usage: ai setup | ai <start|status|stop|restart> [all|llama]"
 
 
 class AIServerError(RuntimeError):
@@ -32,7 +32,7 @@ class AIServerError(RuntimeError):
 @dataclass(frozen=True)
 class AICommand:
     action: AICommandAction
-    target: AIServerTarget
+    target: AIServerTarget | None
 
 
 @dataclass(frozen=True)
@@ -63,6 +63,8 @@ def parse_ai_command(command: str) -> AICommand:
     """Parse one operator-console AI lifecycle command."""
 
     parts = command.strip().lower().split()
+    if parts == ["ai", "setup"]:
+        return AICommand(action="setup", target=None)
     if len(parts) not in (2, 3) or parts[0] != "ai":
         raise ValueError(AI_COMMAND_USAGE)
 
@@ -127,17 +129,6 @@ class AIServerManager:
         llama_executable = _configured_path(llama_value, self._root)
         llama_prefix = ("serve",) if llama_executable.stem.lower() == "llama" else ()
 
-        whisper_value = self._environment.get(
-            "WHISPER_SERVER_BIN",
-            "whisper.cpp/build/bin/Release/whisper-server.exe",
-        ).strip()
-        whisper_executable = _configured_path(whisper_value, self._root)
-        whisper_model_value = self._environment.get(
-            "WHISPER_SERVER_MODEL",
-            self._environment.get("PHOWHISPER_MODEL", "ggml-phowhisper-small.bin"),
-        ).strip()
-        whisper_model = _configured_path(whisper_model_value, self._root)
-
         return {
             "llama": AIServerSpec(
                 name="llama",
@@ -167,23 +158,6 @@ class AIServerManager:
                 ),
                 host="127.0.0.1",
                 port=8080,
-            ),
-            "whisper": AIServerSpec(
-                name="whisper",
-                executable=whisper_executable,
-                arguments=(
-                    "-m",
-                    str(whisper_model),
-                    "-l",
-                    "vi",
-                    "--host",
-                    "127.0.0.1",
-                    "--port",
-                    "8081",
-                ),
-                host="127.0.0.1",
-                port=8081,
-                required_files=(whisper_model,),
             ),
         }
 
@@ -216,9 +190,8 @@ class AIServerManager:
                 continue
             spec = specs[name]
             if not spec.executable.is_file():
-                variable = "LLAMA_SERVER_BIN" if name == "llama" else "WHISPER_SERVER_BIN"
                 errors.append(
-                    f"{name}: executable not found at '{spec.executable}'. Set {variable} to its path."
+                    f"{name}: executable not found at '{spec.executable}'. Set LLAMA_SERVER_BIN to its path."
                 )
             for required_file in spec.required_files:
                 if not required_file.is_file():

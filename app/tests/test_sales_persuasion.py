@@ -19,7 +19,6 @@ from app.sales_persuasion import (
     SalesAttemptStore,
     SalesPersuasionSubmission,
     SalesProcessingError,
-    WhisperCppTranscriber,
     process_sales_attempt,
 )
 
@@ -113,25 +112,6 @@ class FakeLLM:
     async def generate(self, messages, **kwargs):
         self.messages = messages
         return '{"score": 80, "feedback_vi": "Phản hồi phù hợp."}'
-
-
-class HangingProcess:
-    def __init__(self):
-        self.returncode = None
-        self.killed = False
-        self.waited = False
-        self.started = asyncio.Event()
-
-    async def communicate(self):
-        self.started.set()
-        await asyncio.Event().wait()
-
-    def kill(self):
-        self.killed = True
-        self.returncode = -9
-
-    async def wait(self):
-        self.waited = True
 
 
 class SalesPersuasionTests(unittest.IsolatedAsyncioTestCase):
@@ -289,23 +269,6 @@ class SalesPersuasionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["assessmentStatus"], "failed")
         self.assertIsNone(result["score"])
         self.assertEqual(result["error"]["code"], "assessment_failed")
-
-    async def test_whisper_cancellation_kills_and_waits_for_child_process(self):
-        process = HangingProcess()
-        with patch("app.sales_persuasion._find_whisper_executable", return_value=Path("whisper-cli")), \
-                patch("app.sales_persuasion._resolve_local_path", return_value=Path("model.bin")), \
-                patch.object(
-                    __import__("app.sales_persuasion", fromlist=["asyncio"]).asyncio,
-                    "create_subprocess_exec",
-                    new=AsyncMock(return_value=process),
-                ):
-            task = asyncio.create_task(WhisperCppTranscriber().transcribe(Path("input.wav")))
-            await process.started.wait()
-            task.cancel()
-            with self.assertRaises(asyncio.CancelledError):
-                await task
-        self.assertTrue(process.killed)
-        self.assertTrue(process.waited)
 
     async def test_assessment_prompt_is_bounded_for_large_scenario(self):
         request = SalesPersuasionSubmission.model_validate(submission_data(wav_bytes()))

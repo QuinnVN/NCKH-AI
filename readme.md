@@ -2,7 +2,7 @@
 
 This repository contains the Python backend for a Unity VR training project. It accepts telemetry and recorded voice clips from Unity, exposes an optional OpenAI-compatible LLM response endpoint, and maintains a control WebSocket that lets the backend request a scene change and wait for Unity to acknowledge it.
 
-The sales persuasion endpoint performs speech-to-text with the configured local whisper.cpp/PhoWhisper files. The general `/api/ai/respond` route still accepts a client-provided transcript. The interactive operator console can start and supervise local llama.cpp and whisper.cpp server processes.
+The sales endpoints perform speech-to-text with an embedded sherpa-onnx recognizer and the pinned Vietnamese Zipformer 30M INT8 model. The general `/api/ai/respond` route still accepts a client-provided transcript. The interactive operator console installs the speech model and supervises the local llama.cpp server.
 
 ## Architecture and data flow
 
@@ -17,7 +17,7 @@ Unity VR client
 Operator console ─────────── set_game <scene_id> ─► WS /ws/ctrl ─► Unity
 ```
 
-`app/main.py` owns the FastAPI routes, the single active Unity control connection, command sequencing, and the small operator console. `app/ai_servers.py` owns model-server preflight, startup, status, and shutdown. `app/save_recording.py` validates the recording contract and writes files with a temporary file followed by an atomic replace. `app/llm_service.py` is a bounded, error-normalizing HTTP client. `app/config.py` centralizes environment-driven settings.
+`app/main.py` owns the FastAPI routes, the single active Unity control connection, command sequencing, and the small operator console. `app/ai_servers.py` owns llama.cpp preflight, startup, status, and shutdown. `app/sherpa_stt.py` owns the serialized in-process recognizer, while `app/sherpa_setup.py` verifies and installs its model bundle. `app/save_recording.py` validates the recording contract and writes files with a temporary file followed by an atomic replace. `app/llm_service.py` is a bounded, error-normalizing HTTP client. `app/config.py` centralizes environment-driven settings.
 
 `app/sales_persuasion.py` owns the sales recording contract and attempt store. A successful sales submission means the WAV and its JSON attempt record have been persisted. The response does not wait for transcription or assessment. Reusing an attempt ID with the same payload is idempotent; reusing it with different data returns 409.
 
@@ -82,7 +82,7 @@ The request is bounded and rejects unknown fields:
 
 This endpoint accepts one immutable sales attempt. The JSON body contains `attemptId`, `scenarioId`, `customerId`, `selectedShoeId`, `bestFitShoeId`, `customerNeeds`, `objection`, `availableShoes`, and a mono 16-bit PCM WAV in `audio.dataBase64`. Each shoe has `shoeId`, `name`, `price`, and optional `details`. The selected and best-fit IDs must reference the supplied shoe list. The recording must be 16,000 Hz and is subject to `MAX_RECORDING_BYTES`.
 
-The endpoint returns `status: "accepted"`, the attempt ID, and `assessmentStatus: "processing""` after it persists the audio and attempt association. A background worker checks for silence, transcribes non-silent audio with whisper.cpp, and asks the configured LLM for a score from 0 to 100 plus brief Vietnamese feedback. Silence completes with score 0 and an explanation. STT or model errors complete with `assessmentStatus: "failed""` and an error code, never with a fabricated zero. `GET /api/sales/persuasion-recordings/<attemptId>` reads the stored status and result.
+The endpoint returns `status: "accepted"`, the attempt ID, and `assessmentStatus: "processing"` after it persists the audio and attempt association. A background worker checks for silence, transcribes non-silent audio with Zipformer, and asks the configured LLM for a score from 0 to 100 plus brief Vietnamese feedback. Silence completes with score 0 and an explanation. STT or model errors complete with `assessmentStatus: "failed"` and an error code, never with a fabricated zero. `GET /api/sales/persuasion-recordings/<attemptId>` reads the stored status and result.
 
 The service requeues attempts left in `processing` when it starts again. A shutdown cancels active workers without deleting their durable records, so the next start can resume them.
 
@@ -94,7 +94,7 @@ This endpoint accepts up to 28 categorized questionnaire dimensions, then uses Q
 
 Unity opens one authenticated connection to `WS /ws/ctrl`. The token can be supplied as the `Authorization: Bearer <token>` header or the `token=<token>` query parameter. A newer connection replaces the older one, and pending commands belonging to the old connection fail rather than accepting an ACK from the wrong client.
 
-The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, and `sale`. It also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai start`, `ai status`, `ai stop`, or `ai restart` to manage the local model servers. Each AI command accepts an optional `all`, `llama`, or `whisper` target and defaults to `all`. The remaining commands are `status` and `exit`. The backend sends:
+The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, and `sale`. It also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai setup` to install and initialize speech recognition. Use `ai start`, `ai status`, `ai stop`, or `ai restart` with the optional `all` or `llama` target to manage llama.cpp. The remaining commands are `status` and `exit`. The backend sends:
 
 ```json
 {
@@ -158,13 +158,11 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `MAX_CAREER_PROMPT_CHARS` | `32000` | Maximum size of an individual career-assessment prompt message. |
 | `MAX_SALES_PROMPT_CHARS` | `24000` | Maximum size of an individual sales-assessment prompt message. |
 | `LLAMA_SERVER_BIN` | `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe` | Unified llama.cpp executable used by the operator console. The manager invokes its `serve` subcommand. |
-| `WHISPER_SERVER_BIN` | `whisper.cpp/build/bin/Release/whisper-server.exe` | whisper.cpp HTTP server executable managed by the operator console. |
-| `WHISPER_SERVER_MODEL` | value of `PHOWHISPER_MODEL` | Model loaded by the managed Whisper HTTP server. |
 | `AI_SERVER_START_TIMEOUT_SECONDS` | `180` | Time allowed for each managed server to open its local port. |
 | `AI_SERVER_SHUTDOWN_TIMEOUT_SECONDS` | `15` | Time allowed for a managed server to exit before it is force-closed. |
-| `WHISPER_CPP_BIN` | `whisper.cpp/build/bin/Release/whisper-cli.exe` | Local whisper.cpp executable used for sales transcription. |
-| `PHOWHISPER_MODEL` | `ggml-phowhisper-small.bin` | Local PhoWhisper GGUF model used by whisper.cpp. |
-| `WHISPER_TIMEOUT_SECONDS` | `90` | Maximum time for one local transcription, capped at 600 seconds. |
+| `SHERPA_MODEL_DIR` | `models/sherpa-onnx-zipformer-vi-30M-int8-2026-02-09` | Directory containing the verified encoder, decoder, joiner, and token files. |
+| `SHERPA_NUM_THREADS` | `1` | CPU threads used by the serialized recognizer, capped at 16. |
+| `SHERPA_TIMEOUT_SECONDS` | `20` | Maximum time awaited for one transcription, capped at 600 seconds. |
 
 Invalid numeric environment values fall back to their defaults; bounded values are clamped to safe ranges.
 
@@ -190,23 +188,31 @@ For the interactive console (including `set_game`, `reset`, and `test_llm`), run
 py -m app.main
 ```
 
+On a fresh checkout, install the pinned speech model from the operator console:
+
+```text
+ai setup
+```
+
+For a non-interactive deployment, run `scripts/setup-zipformer.ps1` before starting Uvicorn. Both paths verify the release archive and every installed model file by SHA-256. Repeating setup reports that the model is already installed.
+
 Run the focused tests with:
 
 ```powershell
 py -m unittest discover -s app/tests -p "test_*.py"
 ```
 
-From the interactive console, start both AI servers with:
+From the interactive console, start llama.cpp with:
 
 ```text
 ai start
 ```
 
-This opens llama.cpp and whisper.cpp in separate Windows console windows. `ai start` preflights both executables, the Whisper model, and ports 8080 and 8081 before it starts either process. It then waits for both ports to accept connections. If either process fails during startup, the manager stops every process started by that command. Use `ai status`, `ai stop`, or `ai restart` to inspect or control them. Add `llama` or `whisper` to target one server, for example `ai restart llama`.
+This opens llama.cpp in a separate Windows console window. `ai start` preflights the executable and port 8080, then waits for the port to accept connections. Use `ai status`, `ai stop`, or `ai restart` to inspect or control it. The optional `all` target currently means the managed llama server.
 
 The llama executable path comes from `LLAMA_SERVER_BIN`. If that variable is unset, the manager derives `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe`. The manager uses llama.cpp's `-hf` option, so the first run may download `Qwen/Qwen3-4B-GGUF:Q4_K_M`. The backend sends `LLM_MODEL` (default `qwen3-4b`) as the OpenAI-compatible model field, so it must match the server alias.
 
-`ai stop` sends a stop request only to processes started by the current operator console. It waits for both concurrently and force-closes a process only if it remains alive after 15 seconds. Entering `exit`, pressing Ctrl+C, or ending the backend also runs the same shutdown before the operator process exits. The two server console windows close when their processes exit.
+`ai stop` sends a stop request only to the llama process started by the current operator console. It force-closes the process only if it remains alive after 15 seconds. Entering `exit`, pressing Ctrl+C, or ending the backend also runs the same shutdown before the operator process exits.
 
 Verify llama.cpp independently with:
 
@@ -214,7 +220,7 @@ Verify llama.cpp independently with:
 Invoke-RestMethod http://127.0.0.1:8080/v1/models
 ```
 
-`/api/health/ready` only confirms that the backend has non-empty LLM configuration; it does not probe llama.cpp. A stopped or misconfigured server is detected on the first `/api/ai/respond` request and reported as an upstream failure. The managed Whisper HTTP server is currently standalone. Sales transcription still invokes `WHISPER_CPP_BIN` per request and does not call port 8081.
+`/api/health/ready` requires non-empty LLM configuration and a loaded Zipformer recognizer. It does not probe llama.cpp. A stopped or misconfigured LLM server is detected on the first response request. If the speech model is absent, the backend and operator console still start, readiness returns 503, and `ai setup` can install and initialize it.
 
 ## Security and operational notes
 
@@ -224,8 +230,8 @@ Recording payloads are base64-encoded JSON and therefore consume more memory tha
 
 ## Current limitations and model status
 
-- Sales STT runs as a local subprocess and requires a compatible whisper.cpp executable and GGUF PhoWhisper model. If either is missing, the accepted attempt remains stored and reports a processing failure.
+- Sales STT accepts Vietnamese speech only. It does not identify or reject other spoken languages because research sessions use selected Vietnamese-speaking candidates.
 - The backend currently supports one active Unity control WebSocket. A new connection replaces the previous one.
 - Recording persistence is local filesystem storage; there is no database, object storage, cleanup policy, or cross-process idempotency lock.
 - LLM readiness means that configuration exists, not that the upstream model server has passed a live health check. The first response request verifies availability.
-- `openai-whisper/` is a vendored source tree, `whisper.cpp` is a separate submodule/worktree, and `PhoWhisper-small/` plus `ggml-phowhisper-small.bin` are local model assets. They remain separate from the FastAPI runtime and may be large or untracked; do not assume they are deployable STT components until an explicit integration is added.
+- The Zipformer bundle is not stored in Git. Run `ai setup` or `scripts/setup-zipformer.ps1` on each deployment.

@@ -217,6 +217,8 @@ tempCodeRunnerFile.py
 
 # Local Python environments used for model conversion
 /phowhisper-convert/
+/models/
+/.tmp-zipformer-*
 
 # Ruff stuff:
 .ruff_cache/

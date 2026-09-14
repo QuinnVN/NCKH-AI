@@ -106,7 +106,7 @@ class ReturningCustomerTests(unittest.IsolatedAsyncioTestCase):
     async def test_turn_persists_audio_transcript_and_model_metadata(self):
         result = await submit_turn("session-1", request(), store=self.store, transcriber=FakeTranscriber("Em xin lỗi chị, chị thấy khó chịu từ khi nào?"), responder=FakeResponder())
         self.assertTrue(result["accepted"])
-        self.assertEqual(result["sttProvider"], "whisper.cpp")
+        self.assertEqual(result["sttProvider"], "unknown")
         self.assertTrue((Path(self.temp.name) / "sales-session-session-1-turn-turn-1.wav").exists())
 
     async def test_duplicate_turn_is_idempotent(self):
@@ -120,10 +120,11 @@ class ReturningCustomerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["accepted"])
         self.assertEqual((await self.store.get("session-1"))["silenceCount"], 1)
 
-    async def test_non_vietnamese_does_not_consume_turn(self):
+    async def test_language_rejection_is_removed_for_controlled_candidates(self):
         result = await submit_turn("session-1", request(), store=self.store, transcriber=FakeTranscriber("This is an English response."), responder=FakeResponder())
-        self.assertEqual(result["status"], "nonVietnamese")
-        self.assertEqual((await self.store.get("session-1"))["acceptedTurnCount"], 0)
+        self.assertEqual(result["status"], "accepted")
+        self.assertEqual(result["language"], "vi")
+        self.assertEqual((await self.store.get("session-1"))["acceptedTurnCount"], 1)
 
     async def test_completion_is_idempotent_and_has_only_rubric_flags(self):
         result = await complete_session("session-1", type("Req", (), {"completion_id": "completion-1", "reason": "time_limit"})(), store=self.store, analyzer=FakeAnalyzer())

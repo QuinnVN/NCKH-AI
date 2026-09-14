@@ -444,15 +444,11 @@ async def submit_turn(session_id: str, request: ReturningTurnRequest, *, store: 
                 transcript, language, provider, model, version = metadata.text, metadata.language, metadata.provider, metadata.model, metadata.version
             else:
                 transcript = await asyncio.wait_for(transcriber.transcribe(path), 20)
-                language, provider, model, version = ("vi" if _is_vietnamese(transcript) else "unknown"), "whisper.cpp", Path(get_settings().phowhisper_model).name, "local"
+                language, provider, model, version = "vi", "unknown", "unknown", "unknown"
             transcript = transcript.strip()
             result.update({"transcript": transcript, "language": language, "sttProvider": provider, "sttModel": model, "sttVersion": version})
             if not transcript:
                 raise RuntimeError("transcription_empty")
-            if language not in ("vi", "vie"):
-                result.update({"status": "nonVietnamese", "customerText": "Em có thể nói lại bằng tiếng Việt giúp chị được không?"})
-                _, result = await store.finalize_turn(session_id, request.turn_id, result)
-                return result
             response = await asyncio.wait_for(responder.respond(session, transcript), 20)
             # A policy-breaking promise never advances the active objective.  The
             # next player turn must answer Lan's challenge before it can end
