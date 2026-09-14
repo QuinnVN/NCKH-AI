@@ -17,6 +17,14 @@ Unity VR client
 Operator console ─────────── set_game <scene_id> ─► WS /ws/ctrl ─► Unity
 ```
 
+Participant-linked results are accepted at `POST /api/results/fragments`.
+The operator assigns identity with `user <name>`, queries it with `user`, or
+clears it with `user clear`. A `run.started` fragment creates a run snapshot;
+subsequent fragments use stable `fragmentId` values and `data` fields, and a
+fragment with `complete: true` finalizes one immutable aggregate. Use
+`db sync` to retry unsynchronized aggregates. Local drafts, finalized JSON,
+WAV/processing records, and synchronization sidecars are retained indefinitely.
+
 `app/main.py` owns the FastAPI routes, the single active Unity control connection, command sequencing, and the small operator console. `app/ai_servers.py` owns llama.cpp preflight, startup, status, and shutdown. `app/sherpa_stt.py` owns the serialized in-process recognizer, while `app/sherpa_setup.py` verifies and installs its model bundle. `app/save_recording.py` validates the recording contract and writes files with a temporary file followed by an atomic replace. `app/llm_service.py` is a bounded, error-normalizing HTTP client. `app/config.py` centralizes environment-driven settings.
 
 `app/sales_persuasion.py` owns the sales recording contract and attempt store. `app/lawyer_assessment.py` provides the equivalent durable workflow for the Lawyer closing defense, including bounded case context, four scoring criteria, and the interview-restart penalty. A successful submission means the WAV and JSON attempt record have been persisted; it does not wait for transcription or assessment. Reusing an attempt ID with the same payload is idempotent, while changed immutable data returns 409.
@@ -174,6 +182,9 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `MAX_CAREER_PROMPT_CHARS` | `32000` | Maximum size of an individual career-assessment prompt message. |
 | `MAX_SALES_PROMPT_CHARS` | `24000` | Maximum size of an individual sales-assessment prompt message. |
 | `MAX_LAWYER_PROMPT_CHARS` | `32000` | Maximum size of the bounded Lawyer assessment prompt. |
+| `MONGODB_URI` | unset | Optional MongoDB URI; unset keeps results local-only. |
+| `MONGODB_DATABASE` | `desmap` | MongoDB database for completed aggregates. |
+| `MONGODB_RESULTS_COLLECTION` | `game_results` | MongoDB collection for completed aggregates. |
 | `LAWYER_DIAGNOSTIC_TOKEN` | unset | Token required by the detailed Lawyer diagnostic result endpoint. |
 | `LLAMA_SERVER_BIN` | `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe` | Unified llama.cpp executable used by the operator console. The manager invokes its `serve` subcommand. |
 | `AI_SERVER_START_TIMEOUT_SECONDS` | `180` | Time allowed for each managed server to open its local port. |

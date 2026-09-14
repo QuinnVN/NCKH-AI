@@ -39,12 +39,20 @@ class ReturningSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     session_id: str | None = Field(default=None, alias="sessionId", max_length=128)
     part1_attempt_id: str | None = Field(default=None, alias="part1AttemptId", max_length=128)
+    run_id: str | None = Field(default=None, alias="runId", max_length=128)
 
     @field_validator("session_id", "part1_attempt_id")
     @classmethod
     def valid_id(cls, value: str | None) -> str | None:
         if value is not None and ATTEMPT_ID_PATTERN.fullmatch(value) is None:
             raise ValueError("identifier has an invalid format")
+        return value
+
+    @field_validator("run_id")
+    @classmethod
+    def valid_run_id(cls, value: str | None) -> str | None:
+        if value is not None and ATTEMPT_ID_PATTERN.fullmatch(value) is None:
+            raise ValueError("runId has an invalid format")
         return value
 
 
@@ -179,7 +187,7 @@ class ReturningSessionStore:
         _write(self._session_path(session["sessionId"]), json.dumps(session, ensure_ascii=False).encode())
         return session
 
-    async def create_or_resume(self, session_id: str | None = None, part1_attempt_id: str | None = None) -> dict[str, Any]:
+    async def create_or_resume(self, session_id: str | None = None, part1_attempt_id: str | None = None, run_id: str | None = None) -> dict[str, Any]:
         session_id = session_id or uuid4().hex
         _safe(session_id)
         async with self._lock:
@@ -191,8 +199,13 @@ class ReturningSessionStore:
                 if part1_attempt_id and session.get("part1AttemptId") is None:
                     session["part1AttemptId"] = part1_attempt_id
                     self._save_unlocked(session)
+                if run_id and session.get("runId") not in (None, run_id):
+                    raise ValueError("session is linked to another run")
+                if run_id and session.get("runId") is None:
+                    session["runId"] = run_id
+                    self._save_unlocked(session)
                 return session
-            session = {"sessionId": session_id, "part1AttemptId": part1_attempt_id, "phase": 1, "acceptedTurnCount": 0, "silenceCount": 0, "turnIds": [], "turns": [], "completedTurns": {}, "pendingTurns": {}, "openingComplaint": OPENING_COMPLAINT, "status": "active", "trustState": None, "createdAtUtc": _now(), "updatedAtUtc": _now()}
+            session = {"sessionId": session_id, "runId": run_id, "part1AttemptId": part1_attempt_id, "phase": 1, "acceptedTurnCount": 0, "silenceCount": 0, "turnIds": [], "turns": [], "completedTurns": {}, "pendingTurns": {}, "openingComplaint": OPENING_COMPLAINT, "status": "active", "trustState": None, "createdAtUtc": _now(), "updatedAtUtc": _now()}
             return self._save_unlocked(session)
 
     async def get(self, session_id: str) -> dict[str, Any] | None:

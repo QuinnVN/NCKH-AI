@@ -83,6 +83,7 @@ class SalesPersuasionSubmission(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     attempt_id: str = Field(alias="attemptId", min_length=1, max_length=128)
+    run_id: str | None = Field(default=None, alias="runId", max_length=128)
     sales_session_id: str | None = Field(default=None, alias="salesSessionId", max_length=128)
     scenario_id: str = Field(alias="scenarioId", min_length=1, max_length=128)
     customer_id: str = Field(alias="customerId", min_length=1, max_length=128)
@@ -105,6 +106,13 @@ class SalesPersuasionSubmission(BaseModel):
     def valid_sales_session_id(cls, value: str | None) -> str | None:
         if value is not None and ATTEMPT_ID_PATTERN.fullmatch(value) is None:
             raise ValueError("salesSessionId has an invalid format")
+        return value
+
+    @field_validator("run_id")
+    @classmethod
+    def valid_run_id(cls, value: str | None) -> str | None:
+        if value is not None and ATTEMPT_ID_PATTERN.fullmatch(value) is None:
+            raise ValueError("runId has an invalid format")
         return value
 
     @field_validator("scenario_id", "customer_id", "selected_shoe_id", "best_fit_shoe_id")
@@ -173,6 +181,7 @@ def submission_from_sales_telemetry(
     return SalesPersuasionSubmission.model_validate(
         {
             "attemptId": payload.get("roundId"),
+            "runId": payload.get("runId"),
             "salesSessionId": payload.get("salesSessionId", session_id),
             "scenarioId": payload.get("questionId"),
             "customerId": payload.get("caseId"),
@@ -368,6 +377,7 @@ class SalesAttemptStore:
 
             record = {
                 "attemptId": submission.attempt_id,
+                "runId": submission.run_id,
                 "salesSessionId": submission.sales_session_id,
                 "scenarioId": submission.scenario_id,
                 "customerId": submission.customer_id,

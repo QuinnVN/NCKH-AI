@@ -141,6 +141,7 @@ class LawyerDefenseSubmission(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     round_id: str = Field(alias="roundId", min_length=32, max_length=32)
+    run_id: str | None = Field(default=None, alias="runId", max_length=128)
     case_id: str = Field(alias="caseId", min_length=1, max_length=128)
     interview_restart_count: int = Field(alias="interviewRestartCount", ge=0, le=1000)
     assessment_context: LawyerAssessmentContext = Field(alias="assessmentContext")
@@ -152,6 +153,13 @@ class LawyerDefenseSubmission(BaseModel):
         if ROUND_ID_PATTERN.fullmatch(value) is None:
             raise ValueError("roundId must contain exactly 32 hexadecimal characters")
         return value.lower()
+
+    @field_validator("run_id")
+    @classmethod
+    def valid_run_id(cls, value: str | None) -> str | None:
+        if value is not None and (not value.strip() or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", value)):
+            raise ValueError("runId has an invalid format")
+        return value
 
     @field_validator("case_id")
     @classmethod
@@ -309,6 +317,7 @@ def submission_from_lawyer_telemetry(payload: Mapping[str, Any]) -> LawyerDefens
     return LawyerDefenseSubmission.model_validate(
         {
             "roundId": payload.get("roundId"),
+            "runId": payload.get("runId"),
             "caseId": payload.get("caseId"),
             "interviewRestartCount": payload.get("interviewRestartCount"),
             "assessmentContext": assessment_context,
@@ -386,6 +395,7 @@ class LawyerAttemptStore:
             now = _utc_now()
             record = {
                 "roundId": submission.round_id,
+                "runId": submission.run_id,
                 "caseId": submission.case_id,
                 "interviewRestartCount": submission.interview_restart_count,
                 "assessmentContext": submission.assessment_context.model_dump(
