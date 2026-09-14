@@ -73,6 +73,9 @@ class Settings:
     sherpa_model_dir: str
     sherpa_num_threads: int
     sherpa_timeout_seconds: float
+    mongodb_uri: str | None
+    mongodb_database: str
+    mongodb_results_collection: str
 
 
 def get_settings() -> Settings:
@@ -144,4 +147,7 @@ def get_settings() -> Settings:
         sherpa_timeout_seconds=_env_float(
             "SHERPA_TIMEOUT_SECONDS", 20.0, minimum=1.0, maximum=600.0
         ),
+        mongodb_uri=os.environ.get("MONGODB_URI", "").strip() or None,
+        mongodb_database=os.environ.get("MONGODB_DATABASE", "desmap").strip() or "desmap",
+        mongodb_results_collection=os.environ.get("MONGODB_RESULTS_COLLECTION", "game_results").strip() or "game_results",
     )

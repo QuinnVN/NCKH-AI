@@ -62,6 +62,16 @@ from app.sales_returning_customer import (
 )
 from app.sherpa_setup import install_model_bundle, resolve_model_dir
 from app.sherpa_stt import SherpaOnnxTranscriber
+from app.run_results import (
+    GAME_IDS,
+    ParticipantManager,
+    RunResultStore,
+    build_mongo_store,
+    normalize_participant_name,
+    project_lawyer_record,
+    project_sales_part1,
+    project_sales_part2,
+)
 
 
 logger = logging.getLogger("vr_backend")
@@ -76,6 +86,10 @@ sales_returning_store = ReturningSessionStore()
 sales_returning_transcriber = sales_transcriber
 lawyer_attempt_store = LawyerAttemptStore()
 lawyer_processing_tasks: dict[str, asyncio.Task[object]] = {}
+participant_manager = ParticipantManager()
+run_result_store: RunResultStore = build_mongo_store()
+active_run_id: str | None = None
+participant_acknowledged_socket: WebSocket | None = None
 
 COMMAND_TIMEOUT_SECONDS = get_settings().command_timeout_seconds
 REQUEST_SETTINGS = get_settings()
@@ -105,11 +119,23 @@ session: PromptSession | None = None
 async def _sales_retention_loop():
     while True:
         await asyncio.sleep(3600)
+        # Research recordings and processing records are intentionally retained
+        # indefinitely under the participant-linked result design.
+
+
+async def _result_sync_loop():
+    global active_run_id
+    while True:
+        await asyncio.sleep(1)
         try:
-            await sales_returning_store.purge_expired()
-            await sales_attempt_store.purge_expired_session_diagnostics()
-        except (OSError, ValueError):
-            log("[Sales] Diagnostic retention cleanup failed; retrying next hour.")
+            await run_result_store.retry_due()
+            if active_run_id is not None and run_result_store.is_synchronized(active_run_id):
+                old = participant_manager.clear(force=True)
+                if old:
+                    log(f"[Server] Cleared participant {old.name} ({old.session_id}).")
+                active_run_id = None
+        except Exception as exception:
+            logger.warning("Result synchronization retry failed: %s", str(exception)[:300])
 
 
 @asynccontextmanager
@@ -118,15 +144,16 @@ async def lifespan(app: FastAPI):
 
     llm_service = LLMService()
     await sales_transcriber.initialize()
-    await sales_returning_store.purge_expired()
-    await sales_attempt_store.purge_expired_session_diagnostics()
+    await run_result_store.abort_unfinished()
     retention_task = asyncio.create_task(_sales_retention_loop())
+    result_sync_task = asyncio.create_task(_result_sync_loop())
     if sales_transcriber.ready:
         await _resume_sales_processing()
         await _resume_lawyer_processing()
     yield
     retention_task.cancel()
-    await asyncio.gather(retention_task, return_exceptions=True)
+    result_sync_task.cancel()
+    await asyncio.gather(retention_task, result_sync_task, return_exceptions=True)
     tasks = tuple(sales_processing_tasks.values())
     for task in tasks:
         task.cancel()
@@ -197,6 +224,36 @@ def parse_set_game_command(command: str) -> str:
     if len(parts) != 2 or parts[0].lower() != "set_game":
         raise ValueError("Usage: set_game <scene_id>")
     return validate_scene_id(parts[1])
+
+
+def parse_user_command(command: str) -> str | None:
+    """Return a normalized participant name, ``clear``, or ``None`` for query."""
+    if not isinstance(command, str):
+        raise ValueError("Usage: user [<name>|clear]")
+    head, _, rest = command.strip().partition(" ")
+    if head.lower() != "user":
+        raise ValueError("Usage: user [<name>|clear]")
+    if not rest.strip():
+        return None
+    if rest.strip().lower() == "clear":
+        return "clear"
+    return normalize_participant_name(rest)
+
+
+def build_participant_request() -> dict[str, Any]:
+    global next_command_sequence
+    participant = participant_manager.snapshot()
+    request = {
+        "commandId": uuid4().hex,
+        "sequence": next_command_sequence,
+        "type": "set_participant" if participant else "clear_participant",
+        "participant": participant,
+        "participantName": participant.get("participantName") if participant else None,
+        "participantSessionId": participant.get("participantSessionId") if participant else None,
+        "issuedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    next_command_sequence += 1
+    return request
 
 
 def validate_reset_target(scene_id: str) -> str:
@@ -361,6 +418,47 @@ async def send_scene_command(
     return acknowledgement
 
 
+async def send_participant_assignment(
+    socket: WebSocket, timeout_seconds: float = COMMAND_TIMEOUT_SECONDS
+) -> bool:
+    """Send the current identity after connect/reconnect and await its ACK."""
+    global participant_acknowledged_socket
+    request = build_participant_request()
+    future = asyncio.get_running_loop().create_future()
+    pending_scene_commands[request["commandId"]] = PendingSceneCommand(
+        sequence=request["sequence"], scene_id="standby", acknowledgement=future, owner=socket
+    )
+    try:
+        await socket.send_json(request)
+        acknowledgement = await asyncio.wait_for(future, timeout=timeout_seconds)
+    except (Exception, asyncio.TimeoutError) as exception:
+        log(f"[Server] Participant assignment failed: {exception}")
+        participant_acknowledged_socket = None
+        return False
+    finally:
+        pending_scene_commands.pop(request["commandId"], None)
+    if acknowledgement.get("status") != "applied":
+        participant_acknowledged_socket = None
+        return False
+    expected = participant_manager.snapshot()
+    actual = acknowledgement.get("participant")
+    if actual is None and acknowledgement.get("participantName") is not None:
+        actual = {"participantName": acknowledgement.get("participantName"),
+                  "participantSessionId": acknowledgement.get("participantSessionId")}
+    if actual != expected:
+        log("[Server] Unity acknowledged a different participant assignment.")
+        participant_acknowledged_socket = None
+        return False
+    participant_acknowledged_socket = socket
+    return True
+
+
+async def ensure_participant_assignment(socket: WebSocket) -> bool:
+    if participant_acknowledged_socket is socket:
+        return True
+    return await send_participant_assignment(socket)
+
+
 def scene_command_succeeded(
     acknowledgement: dict[str, Any],
     scene_id: str,
@@ -411,6 +509,14 @@ async def set_game(
     if socket is None:
         log("[Server] Cannot change scene: Unity is not connected.")
         return False
+    if scene_id != "standby" and participant_manager.active is not None:
+        if active_run_id is not None and not run_result_store.is_synchronized(active_run_id):
+            log("[Server] Cannot start a game while a completed result awaits database synchronization.")
+            return False
+        if not await ensure_participant_assignment(socket):
+            log("[Server] Cannot start a game: Unity has not acknowledged the participant.")
+            return False
+        participant_manager.activity = "gameplay"
 
     acknowledgement = await send_scene_command(
         socket,
@@ -427,6 +533,7 @@ async def set_game(
         return False
 
     if scene_id == "standby":
+        participant_manager.activity = "idle"
         log("[Server] Scene changed to 'standby'.")
         return True
 
@@ -501,6 +608,7 @@ async def reset_game(
         acknowledged_scene_id = acknowledged_scene_id.lower()
 
     if status == "applied" and acknowledged_scene_id == "standby":
+        participant_manager.activity = "idle"
         log(f"[Server] Reset '{scene_id}' and returned Unity to standby.")
         return True
 
@@ -612,6 +720,15 @@ async def telemetry(
             and submission.round_id not in lawyer_processing_tasks
         ):
             _schedule_lawyer_processing(submission.round_id, background_tasks)
+        try:
+            participant = participant_manager.active
+            if participant is not None:
+                await run_result_store.accept_fragment({
+                    "runId": data.get("runId", submission.round_id), "gameId": "lawyer",
+                    "fragmentId": f"lawyer:{submission.round_id}", "data": project_lawyer_record(record)
+                }, participant=participant)
+        except (ValueError, RuntimeError):
+            logger.warning("Unable to project Lawyer result into simulation aggregate")
         return {
             "status": "accepted",
             "roundId": submission.round_id,
@@ -645,6 +762,15 @@ async def telemetry(
             and submission.attempt_id not in sales_processing_tasks
         ):
             _schedule_sales_processing(submission.attempt_id, background_tasks)
+        try:
+            participant = participant_manager.active
+            if participant is not None:
+                await run_result_store.accept_fragment({
+                    "runId": data.get("runId", submission.attempt_id), "gameId": "sale",
+                    "fragmentId": f"sale.part1:{submission.attempt_id}", "data": {"part1": project_sales_part1(record)}
+                }, participant=participant)
+        except (ValueError, RuntimeError):
+            logger.warning("Unable to project Sales Part 1 into simulation aggregate")
         return {
             "status": "accepted",
             "attemptId": submission.attempt_id,
@@ -653,6 +779,57 @@ async def telemetry(
 
     log(f"[Server] Received telemetry event '{event_type or 'unknown'}'.")
     return {"status": "ok"}
+
+
+@app.post("/api/results/fragments")
+async def submit_result_fragment(
+    data: dict[str, Any] = Body(...),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Accept one idempotent Clinic/Doctor/Lawyer/Sales result fragment."""
+    _require_http_auth(authorization)
+    global active_run_id
+    if data.get("kind") == "run.started":
+        participant = participant_manager.active
+        if participant is None:
+            raise HTTPException(status_code=409, detail="No active participant.")
+        try:
+            result = await run_result_store.begin(
+                str(data.get("runId")), str(data.get("gameId")), participant,
+                data.get("startedAtUtc"),
+            )
+        except (ValueError, RuntimeError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        active_run_id = result["runId"]
+        participant_manager.activity = "gameplay"
+        return {"status": "accepted", "runId": result["runId"], "participantSessionId": result["participantSessionId"]}
+    if data.get("kind") == "run.aborted":
+        try:
+            await run_result_store.mark_aborted(str(data.get("runId")))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        active_run_id = None
+        participant_manager.activity = "idle"
+        return {"status": "aborted", "runId": data.get("runId")}
+    try:
+        participant = participant_manager.active
+        result = await run_result_store.accept_fragment(data, participant=participant)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if result.get("status") == "completed":
+        participant_manager.activity = "idle"
+        if run_result_store.is_synchronized(result["runId"]):
+            old = participant_manager.clear(force=True)
+            if old:
+                log(f"[Server] Cleared participant {old.name} ({old.session_id}).")
+            active_run_id = None
+    return {"status": result.get("status", "accepted"), "runId": result["runId"],
+            "participantName": result["participantName"],
+            "participantSessionId": result["participantSessionId"]}
 
 
 def _public_sales_record(record: dict[str, Any]) -> dict[str, Any]:
@@ -668,14 +845,23 @@ async def _queue_lawyer_processing(round_id: str) -> None:
     if current is not None and not current.done():
         return
 
-    task = asyncio.create_task(
-        process_lawyer_attempt(
+    async def process_and_project() -> object:
+        record = await process_lawyer_attempt(
             round_id,
             store=lawyer_attempt_store,
             transcriber=sales_transcriber,
             assessor=LLMLawyerAssessor(llm_service),
         )
-    )
+        participant = participant_manager.active
+        if participant is not None and isinstance(record, dict) and record.get("assessmentStatus") == "completed":
+            try:
+                await run_result_store.accept_fragment({"runId": round_id, "gameId": "lawyer",
+                    "fragmentId": f"lawyer:{round_id}:completed", "data": project_lawyer_record(record)}, participant=participant)
+            except (ValueError, RuntimeError):
+                logger.warning("Unable to project completed Lawyer result")
+        return record
+
+    task = asyncio.create_task(process_and_project())
     lawyer_processing_tasks[round_id] = task
 
     def finished(completed: asyncio.Task[object]) -> None:
@@ -751,14 +937,23 @@ async def _queue_sales_processing(attempt_id: str) -> None:
     if current is not None and not current.done():
         return
 
-    task = asyncio.create_task(
-        process_sales_attempt(
+    async def process_and_project() -> object:
+        record = await process_sales_attempt(
             attempt_id,
             store=sales_attempt_store,
             transcriber=sales_transcriber,
             assessor=LLMSalesAssessor(llm_service),
         )
-    )
+        participant = participant_manager.active
+        if participant is not None and isinstance(record, dict) and record.get("assessmentStatus") == "completed":
+            try:
+                await run_result_store.accept_fragment({"runId": attempt_id, "gameId": "sale",
+                    "fragmentId": f"sale.part1:{attempt_id}:completed", "data": {"part1": project_sales_part1(record)}}, participant=participant)
+            except (ValueError, RuntimeError):
+                logger.warning("Unable to project completed Sales Part 1 result")
+        return record
+
+    task = asyncio.create_task(process_and_project())
     sales_processing_tasks[attempt_id] = task
 
     def finished(completed: asyncio.Task[object]) -> None:
@@ -948,6 +1143,15 @@ async def complete_sales_session(
             store=sales_returning_store,
             analyzer=LLMSalesAnalyzer(llm_service),
         )
+        participant = participant_manager.active
+        if participant is not None and result.get("completionStatus") == "completed":
+            try:
+                await run_result_store.accept_fragment({
+                    "runId": session_id, "gameId": "sale", "fragmentId": f"sale.part2:{request.completion_id}",
+                    "data": {"part2": project_sales_part2(result)},
+                }, participant=participant)
+            except (ValueError, RuntimeError):
+                logger.warning("Unable to project completed Sales Part 2 result")
         return public_session(result)
     except KeyError as exception:
         raise HTTPException(status_code=404, detail=str(exception)) from exception
@@ -1115,7 +1319,7 @@ async def commands(
     ws: WebSocket,
     token: str | None = Query(default=None),
 ) -> None:
-    global unity_ws
+    global unity_ws, participant_acknowledged_socket, active_run_id
 
     authorization = ws.headers.get("authorization")
     if not _authorization_is_valid(authorization, token):
@@ -1132,6 +1336,7 @@ async def commands(
             pass
     unity_ws = ws
     log("[Server] Unity connected")
+    assignment_task = asyncio.create_task(send_participant_assignment(ws))
 
     try:
         while True:
@@ -1149,9 +1354,18 @@ async def commands(
     except WebSocketDisconnect:
         log("[Server] Unity disconnected")
     finally:
+        if not assignment_task.done():
+            assignment_task.cancel()
+            await asyncio.gather(assignment_task, return_exceptions=True)
         if unity_ws is ws:
             unity_ws = None
+            if participant_acknowledged_socket is ws:
+                participant_acknowledged_socket = None
             fail_pending_scene_commands("Unity disconnected.", owner=ws)
+            if active_run_id is not None:
+                await run_result_store.mark_aborted(active_run_id)
+                active_run_id = None
+                participant_manager.activity = "idle"
 
 async def run_llm_smoke_test() -> bool:
     """Send a fixed prompt to the configured LLM and print its response."""
@@ -1236,6 +1450,49 @@ async def run_ai_server_command(command: str) -> bool:
         return False
 
 
+async def run_user_command(command: str) -> bool:
+    global participant_acknowledged_socket
+    try:
+        value = parse_user_command(command)
+        if value is None:
+            current = participant_manager.snapshot()
+            log(f"[Server] Active participant: {current['participantName']} ({current['participantSessionId']})." if current else "[Server] No active participant.")
+            return True
+        if value == "clear":
+            old = participant_manager.clear()
+            participant_acknowledged_socket = None
+            if old is None:
+                log("[Server] No active participant to clear.")
+                return True
+            log(f"[Server] Cleared participant {old.name} ({old.session_id}).")
+        else:
+            participant, changed = participant_manager.assign(value)
+            participant_acknowledged_socket = None
+            log(f"[Server] Participant {participant.name} assigned ({participant.session_id})." if changed else "[Server] Participant assignment unchanged.")
+        if unity_ws is not None:
+            await ensure_participant_assignment(unity_ws)
+        return True
+    except (ValueError, RuntimeError) as exception:
+        log(f"[Server] {exception}")
+        return False
+
+
+async def run_db_sync_command() -> bool:
+    global active_run_id
+    try:
+        result = await run_result_store.sync_all()
+        if active_run_id is not None and run_result_store.is_synchronized(active_run_id):
+            old = participant_manager.clear(force=True)
+            if old:
+                log(f"[Server] Cleared participant {old.name} ({old.session_id}).")
+            active_run_id = None
+        log(f"[DB] synchronized={result['synchronized']} failed={result['failed']} remaining={result['remaining']}")
+        return result["failed"] == 0
+    except Exception as exception:
+        log(f"[DB] Synchronization failed: {str(exception)[:500]}")
+        return False
+
+
 async def stop_ai_servers_for_shutdown() -> None:
     """Stop every managed AI server before the operator process exits."""
 
@@ -1270,7 +1527,14 @@ async def handleCommands() -> None:
             continue
         if command == "status":
             status = "connected" if unity_ws is not None else "not connected"
-            log(f"[Server] Unity is {status}.")
+            current = participant_manager.snapshot()
+            log(f"[Server] Unity is {status}; participant={'set' if current else 'none' }.")
+            continue
+        if command.split(maxsplit=1)[0].lower() == "user":
+            await run_user_command(command)
+            continue
+        if command.lower() == "db sync":
+            await run_db_sync_command()
             continue
         if command.split(maxsplit=1)[0].lower() == "ai":
             await run_ai_server_command(command)
@@ -1292,7 +1556,10 @@ async def handleCommands() -> None:
         if command_name == "reset":
             await reset_game(scene_id)
         else:
-            await set_game(scene_id)
+            if scene_id != "standby" and participant_manager.active is None:
+                log("[Server] Cannot start a game: assign a participant with 'user <name>'.")
+            else:
+                await set_game(scene_id)
 
 
 async def _run_backend() -> None:
