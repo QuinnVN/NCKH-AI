@@ -6,7 +6,6 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
-from unittest.mock import AsyncMock, patch
 import wave
 
 from fastapi import HTTPException
@@ -584,6 +583,51 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, {"status": "ok"})
         self.assertTrue(any("scene.ready" in str(message) for message in self.messages))
         self.assertFalse(list(self.recordings_directory.iterdir()))
+
+
+class FakeSetupTranscriber:
+    def __init__(self, *, ready: bool = False) -> None:
+        self.ready = ready
+        self.last_error = None if ready else "Run 'ai setup'."
+
+    async def initialize(self) -> bool:
+        self.ready = True
+        self.last_error = None
+        return True
+
+
+class AISetupCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_setup_installs_initializes_and_resumes_pending_work(self):
+        transcriber = FakeSetupTranscriber()
+        setup_result = type(
+            "SetupResult",
+            (),
+            {"installed": True, "model_dir": Path("models/zipformer")},
+        )()
+        with (
+            patch.object(main, "sales_transcriber", transcriber),
+            patch.object(main, "get_settings", return_value=type("Settings", (), {"sherpa_model_dir": "models/zipformer"})()),
+            patch.object(main, "resolve_model_dir", return_value=Path("models/zipformer")),
+            patch.object(main, "install_model_bundle", return_value=setup_result),
+            patch.object(main, "_resume_sales_processing", new=AsyncMock()) as resume,
+            patch.object(main, "log"),
+        ):
+            succeeded = await main.run_ai_server_command("ai setup")
+
+        self.assertTrue(succeeded)
+        self.assertTrue(transcriber.ready)
+        resume.assert_awaited_once()
+
+    async def test_health_requires_speech_recognition_readiness(self):
+        service = type("LLM", (), {"configured": True, "last_error": None})()
+        with (
+            patch.object(main, "llm_service", service),
+            patch.object(main, "sales_transcriber", FakeSetupTranscriber()),
+        ):
+            result = await main.health()
+
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["sttReady"])
 
 
 if __name__ == "__main__":

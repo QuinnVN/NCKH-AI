@@ -5,7 +5,7 @@ The `sale` scene links Part 1 and Lan's returning-customer conversation with a p
 ## Configuration
 
 - `LLM_BASE_URL` and `LLM_MODEL`: existing local llama.cpp service and model alias. The model must support the supplied JSON response schema and Vietnamese dialogue. Model quality still needs a live evaluation.
-- `WHISPER_CPP_BIN` and `PHOWHISPER_MODEL`: local whisper.cpp CLI and multilingual speech model. Part 2 uses `-l auto` and basic JSON output to distinguish Vietnamese from other languages; token confidence is not collected. The CLI must support `--version`.
+- `SHERPA_MODEL_DIR`, `SHERPA_NUM_THREADS`, and `SHERPA_TIMEOUT_SECONDS`: local sherpa-onnx Zipformer model location and bounded CPU inference settings. The controlled research sessions accept Vietnamese speech only and do not run automatic language identification.
 - `RECORDINGS_DIR`: existing diagnostic storage directory.
 - `SALES_RETENTION_DAYS`: default 30, configurable from 1 to 3650. Cleanup runs at startup, every hour, and on session-state reads. It removes expired Part 2 audio and transcripts, and linked Part 1 diagnostics. Tombstones prevent retries from recreating deleted data.
 - `BACKEND_API_TOKEN`: optional existing gameplay bearer token. When enabled, provide it to the Unity request service at runtime through `BearerToken`; do not serialize credentials into scenes.
@@ -23,7 +23,7 @@ Run one backend worker for this file-backed store. Atomic file replacement prote
 | `POST /api/sales/sessions/{sessionId}/complete` | `completionId` and `reason` (`natural`, `time_limit`, or `turn_limit`). Final states are immutable; retrying returns the existing result. |
 | `DELETE /api/sales/sessions/{sessionId}/diagnostics` | Requires the diagnostic bearer token. Deletes Part 2 and linked Part 1 audio/transcripts and retains a deletion audit. |
 
-Retry a failed turn with the same `turnId` and identical audio. A repeated accepted turn returns its cached response without incrementing counters. Changed audio under an existing ID is rejected. Silence and non-Vietnamese responses do not consume accepted turns. Infrastructure failures return a sanitized failure category, never a failed-performance result. Two valid silences or semantic abuse, escalation, or a maintained unauthorized promise end with lost trust.
+Retry a failed turn with the same `turnId` and identical audio. A repeated accepted turn returns its cached response without incrementing counters. Changed audio under an existing ID is rejected. Silence does not consume an accepted turn. Infrastructure failures return a sanitized failure category, never a failed-performance result. Two valid silences or semantic abuse, escalation, or a maintained unauthorized promise end with lost trust.
 
 Diagnostic records include audio, transcript, phase, retry count, format, processing duration, and available model metadata. The LLM server version is marked unavailable because its API does not provide a verified version. Raw diagnostics stay in the backend store; they must not be copied into general telemetry or logs.
 

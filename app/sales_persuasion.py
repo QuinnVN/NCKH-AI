@@ -1,9 +1,8 @@
 """Contracts, storage, and processing for sales persuasion recordings.
 
 The HTTP handler stores the WAV and an attempt record before it queues any
-speech or language-model work.  The processor is deliberately dependency
-injected so a deployment can use the local whisper.cpp binary and tests can
-use deterministic transcribers and assessors.
+speech or language-model work. The processor accepts an injected transcriber
+so tests can use deterministic substitutes.
 """
 
 from __future__ import annotations
@@ -484,91 +483,6 @@ def is_silent_wav(wav_path: Path) -> bool:
     amplitudes = (abs(int.from_bytes(samples[index:index + 2], "little", signed=True)) for index in range(0, len(samples) - 1, 2))
     peak = max(amplitudes, default=0)
     return peak < 80
-
-
-class WhisperCppTranscriber:
-    """Run a locally configured whisper.cpp executable and read plain text output."""
-
-    async def transcribe(self, wav_path: Path) -> str:
-        settings = get_settings()
-        executable = _find_whisper_executable(settings.whisper_cpp_bin)
-        model = _resolve_local_path(settings.phowhisper_model)
-        if executable is None:
-            raise SalesProcessingError("transcription_unavailable", "The local whisper.cpp executable is not configured.")
-        if model is None:
-            raise SalesProcessingError("transcription_unavailable", "The local PhoWhisper model is not configured.")
-        with tempfile.TemporaryDirectory(prefix="sales-stt-") as temporary:
-            output_prefix = Path(temporary) / "transcript"
-            command = [
-                str(executable), "-m", str(model), "-f", str(wav_path),
-                "-otxt", "-of", str(output_prefix), "-l", "vi", "-nt", "-np",
-            ]
-            process: asyncio.subprocess.Process | None = None
-            try:
-                process = await asyncio.create_subprocess_exec(
-                    *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                )
-                _, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=settings.whisper_timeout_seconds
-                )
-            except asyncio.CancelledError:
-                if process is not None and process.returncode is None:
-                    try:
-                        process.kill()
-                    except OSError:
-                        pass
-                    try:
-                        await process.wait()
-                    except OSError:
-                        pass
-                raise
-            except (OSError, asyncio.TimeoutError) as exception:
-                if isinstance(exception, asyncio.TimeoutError) and process is not None:
-                    try:
-                        process.kill()
-                        await process.wait()
-                    except OSError:
-                        pass
-                raise SalesProcessingError("transcription_failed", "Speech transcription failed.") from exception
-            if process.returncode != 0:
-                raise SalesProcessingError("transcription_failed", "Speech transcription failed.")
-            output_path = output_prefix.with_suffix(".txt")
-            try:
-                text = output_path.read_text(encoding="utf-8").strip()
-            except OSError as exception:
-                raise SalesProcessingError("transcription_failed", "Speech transcription produced no output.") from exception
-            if not text:
-                raise SalesProcessingError("transcription_empty", "Speech transcription returned no text.")
-            return text[: get_settings().max_transcript_chars]
-
-
-def _resolve_local_path(value: str) -> Path | None:
-    if not value:
-        return None
-    path = Path(value).expanduser()
-    if not path.is_absolute():
-        path = BACKEND_ROOT / path
-    return path.resolve() if path.exists() else None
-
-
-def _find_whisper_executable(configured: str) -> Path | None:
-    candidates: list[Path] = []
-    if configured:
-        configured_path = _resolve_local_path(configured)
-        if configured_path is not None:
-            candidates.append(configured_path)
-    binary_names = ("whisper-cli.exe", "main.exe", "whisper-cli", "main")
-    for relative in (
-        "whisper.cpp/build/bin/Release",
-        "whisper.cpp/build/bin",
-        "whisper.cpp/build/examples/main",
-        "whisper.cpp/build",
-    ):
-        for name in binary_names:
-            path = (BACKEND_ROOT / relative / name).resolve()
-            if path.exists():
-                candidates.append(path)
-    return next(iter(candidates), None)
 
 
 class LLMSalesAssessor:

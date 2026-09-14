@@ -40,15 +40,21 @@ class AICommandParserTests(unittest.TestCase):
 
     def test_accepts_each_action_and_target(self):
         for action in ("start", "status", "stop", "restart"):
-            for target in ("all", "llama", "whisper"):
+            for target in ("all", "llama"):
                 with self.subTest(action=action, target=target):
                     parsed = parse_ai_command(f"ai {action} {target}")
                     self.assertEqual((parsed.action, parsed.target), (action, target))
 
     def test_rejects_invalid_syntax(self):
-        for command in ("ai", "ai launch", "ai start both", "ai stop all now"):
+        for command in ("ai", "ai launch", "ai start both", "ai stop all now", "ai setup llama"):
             with self.subTest(command=command), self.assertRaises(ValueError):
                 parse_ai_command(command)
+
+    def test_setup_has_no_target(self):
+        parsed = parse_ai_command("AI SETUP")
+
+        self.assertEqual(parsed.action, "setup")
+        self.assertIsNone(parsed.target)
 
 
 class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
@@ -56,16 +62,9 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         self.llama = self.root / "tools" / "llama.exe"
-        self.whisper = self.root / "whisper" / "whisper-server.exe"
-        self.model = self.root / "models" / "phowhisper.bin"
-        for path in (self.llama, self.whisper, self.model):
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.touch()
-        self.environment = {
-            "LLAMA_SERVER_BIN": str(self.llama),
-            "WHISPER_SERVER_BIN": str(self.whisper),
-            "WHISPER_SERVER_MODEL": str(self.model),
-        }
+        self.llama.parent.mkdir(parents=True, exist_ok=True)
+        self.llama.touch()
+        self.environment = {"LLAMA_SERVER_BIN": str(self.llama)}
         self.manager = AIServerManager(root=self.root, environment=self.environment)
 
     def tearDown(self):
@@ -82,24 +81,19 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
             root=self.root,
             environment={
                 "LLAMA_SERVER_BIN": str(self.root / "missing-llama.exe"),
-                "WHISPER_SERVER_BIN": str(self.root / "missing-whisper.exe"),
-                "WHISPER_SERVER_MODEL": str(self.root / "missing-model.bin"),
             },
         )
 
         with patch.object(manager, "_port_is_available", return_value=True):
             with self.assertRaises(AIServerError) as raised:
-                manager._preflight(("llama", "whisper"))
+                manager._preflight(("llama",))
 
         message = str(raised.exception)
         self.assertIn("llama: executable not found", message)
-        self.assertIn("whisper: executable not found", message)
-        self.assertIn("whisper: required model not found", message)
 
-    async def test_start_all_uses_two_owned_processes_and_console_flags(self):
+    async def test_start_all_uses_owned_llama_process_and_console_flags(self):
         llama_process = FakeProcess(101)
-        whisper_process = FakeProcess(102)
-        process_factory = AsyncMock(side_effect=(llama_process, whisper_process))
+        process_factory = AsyncMock(return_value=llama_process)
 
         with (
             patch.object(self.manager, "_port_is_available", return_value=True),
@@ -111,8 +105,8 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
         ):
             started = await self.manager.start("all")
 
-        self.assertEqual(started, ("llama", "whisper"))
-        self.assertEqual(process_factory.await_count, 2)
+        self.assertEqual(started, ("llama",))
+        self.assertEqual(process_factory.await_count, 1)
         llama_call = process_factory.await_args_list[0]
         self.assertEqual(llama_call.args[:2], (str(self.llama), "serve"))
         if os.name == "nt":
@@ -122,25 +116,17 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_stop_only_signals_owned_processes_and_awaits_them(self):
         llama_process = FakeProcess(201)
-        whisper_process = FakeProcess(202)
-        self.manager._processes = {
-            "llama": llama_process,
-            "whisper": whisper_process,
-        }
+        self.manager._processes = {"llama": llama_process}
 
         stopped = await self.manager.stop("all")
 
-        self.assertEqual(stopped, ("llama", "whisper"))
+        self.assertEqual(stopped, ("llama",))
         self.assertEqual(self.manager._processes, {})
         if os.name == "nt":
             self.assertEqual(llama_process.signals, [signal.CTRL_BREAK_EVENT])
-            self.assertEqual(whisper_process.signals, [signal.CTRL_BREAK_EVENT])
 
-    async def test_partial_launch_failure_rolls_back_new_process(self):
-        llama_process = FakeProcess(301)
-        process_factory = AsyncMock(
-            side_effect=(llama_process, OSError("cannot create whisper process"))
-        )
+    async def test_launch_failure_leaves_no_owned_process(self):
+        process_factory = AsyncMock(side_effect=OSError("cannot create llama process"))
 
         with (
             patch.object(self.manager, "_port_is_available", return_value=True),
@@ -153,7 +139,6 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
                 await self.manager.start("all")
 
         self.assertEqual(self.manager._processes, {})
-        self.assertEqual(llama_process.returncode, 0)
 
 
 if __name__ == "__main__":

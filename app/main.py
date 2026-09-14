@@ -37,7 +37,6 @@ from app.sales_persuasion import (
     SalesProcessingError,
     SalesSubmissionResponse,
     SALES_RECORDING_EVENT_TYPE,
-    WhisperCppTranscriber,
     process_sales_attempt,
     submission_from_sales_telemetry,
     submission_response,
@@ -53,7 +52,8 @@ from app.sales_returning_customer import (
     public_session,
     submit_turn,
 )
-from app.sales_returning_stt import ReturningWhisperTranscriber
+from app.sherpa_setup import install_model_bundle, resolve_model_dir
+from app.sherpa_stt import SherpaOnnxTranscriber
 
 
 logger = logging.getLogger("vr_backend")
@@ -62,10 +62,10 @@ unity_ws: WebSocket | None = None
 llm_service: LLMService | None = None
 ai_server_manager = AIServerManager()
 sales_attempt_store = SalesAttemptStore()
-sales_transcriber = WhisperCppTranscriber()
+sales_transcriber = SherpaOnnxTranscriber()
 sales_processing_tasks: dict[str, asyncio.Task[object]] = {}
 sales_returning_store = ReturningSessionStore()
-sales_returning_transcriber = ReturningWhisperTranscriber()
+sales_returning_transcriber = sales_transcriber
 
 COMMAND_TIMEOUT_SECONDS = get_settings().command_timeout_seconds
 REQUEST_SETTINGS = get_settings()
@@ -106,10 +106,12 @@ async def lifespan(app: FastAPI):
     global llm_service
 
     llm_service = LLMService()
+    await sales_transcriber.initialize()
     await sales_returning_store.purge_expired()
     await sales_attempt_store.purge_expired_session_diagnostics()
     retention_task = asyncio.create_task(_sales_retention_loop())
-    await _resume_sales_processing()
+    if sales_transcriber.ready:
+        await _resume_sales_processing()
     yield
     retention_task.cancel()
     await asyncio.gather(retention_task, return_exceptions=True)
@@ -121,6 +123,7 @@ async def lifespan(app: FastAPI):
     sales_processing_tasks.clear()
     if llm_service is not None:
         await llm_service.close()
+    await sales_transcriber.close()
     llm_service = None
 
 
@@ -456,12 +459,15 @@ def _json_size(data: Any) -> int:
 async def health() -> dict[str, Any]:
     service = llm_service
     llm_configured = service is not None and service.configured
+    stt_ready = sales_transcriber.ready
     return {
         "status": "ok",
-        "ready": llm_configured,
+        "ready": llm_configured and stt_ready,
         "unityConnected": unity_ws is not None,
         "llmConfigured": llm_configured,
         "llmLastError": service.last_error if service is not None else None,
+        "sttReady": stt_ready,
+        "sttLastError": sales_transcriber.last_error,
     }
 
 
@@ -995,6 +1001,19 @@ async def run_ai_server_command(command: str) -> bool:
 
     try:
         parsed = parse_ai_command(command)
+        if parsed.action == "setup":
+            settings = get_settings()
+            result = await asyncio.to_thread(
+                install_model_bundle, resolve_model_dir(settings.sherpa_model_dir)
+            )
+            if not await sales_transcriber.initialize():
+                raise AIServerError(sales_transcriber.last_error or "Speech recognition initialization failed.")
+            await _resume_sales_processing()
+            state = "Installed" if result.installed else "Already installed"
+            log(f"[AI] {state} {result.model_dir}; speech recognition is ready.")
+            return True
+        if parsed.target is None:
+            raise ValueError("AI server target is required.")
         if parsed.action == "status":
             statuses = await ai_server_manager.status(parsed.target)
             for status in statuses:
