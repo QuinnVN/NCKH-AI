@@ -8,18 +8,18 @@ The sales endpoints perform speech-to-text with an embedded sherpa-onnx recogniz
 
 ```text
 Unity VR client
-  ├─ POST /api/telemetry ──► validation ──► atomic WAV file in recordings/
+  ├─ POST /api/telemetry ──► Lawyer WAV + immutable attempt ──► background STT/assessment
   ├─ POST /api/sales/persuasion-recordings ──► atomic WAV + attempt record ──► background STT/assessment
   ├─ POST /api/ai/respond ─► bounded request ─► local OpenAI-compatible LLM
   ├─ POST /api/ai/initial-career-assessment ─► categorized questionnaire ─► up to 5 career suggestions
-  └─ WS /ws/ctrl ◄────────── load_scene command / ACK
+  └─ WS /ws/ctrl ◄────────── load_scene, start_scene commands / ACKs
 
 Operator console ─────────── set_game <scene_id> ─► WS /ws/ctrl ─► Unity
 ```
 
 `app/main.py` owns the FastAPI routes, the single active Unity control connection, command sequencing, and the small operator console. `app/ai_servers.py` owns llama.cpp preflight, startup, status, and shutdown. `app/sherpa_stt.py` owns the serialized in-process recognizer, while `app/sherpa_setup.py` verifies and installs its model bundle. `app/save_recording.py` validates the recording contract and writes files with a temporary file followed by an atomic replace. `app/llm_service.py` is a bounded, error-normalizing HTTP client. `app/config.py` centralizes environment-driven settings.
 
-`app/sales_persuasion.py` owns the sales recording contract and attempt store. A successful sales submission means the WAV and its JSON attempt record have been persisted. The response does not wait for transcription or assessment. Reusing an attempt ID with the same payload is idempotent; reusing it with different data returns 409.
+`app/sales_persuasion.py` owns the sales recording contract and attempt store. `app/lawyer_assessment.py` provides the equivalent durable workflow for the Lawyer closing defense, including bounded case context, four scoring criteria, and the interview-restart penalty. A successful submission means the WAV and JSON attempt record have been persisted; it does not wait for transcription or assessment. Reusing an attempt ID with the same payload is idempotent, while changed immutable data returns 409.
 
 The liveness endpoint is `GET /api/health`. It always reports `status: "ok"` when the process is serving; `ready` and `llmConfigured` indicate whether an LLM service was initialized. `GET /api/health/ready` returns 503 until the LLM is configured. Unity connectivity is reported as `unityConnected`.
 
@@ -43,6 +43,8 @@ Telemetry is a JSON object. Unknown event types are accepted as best effort for 
   "payload": {
     "roundId": "0123456789abcdef0123456789abcdef",
     "caseId": "case-id",
+    "interviewRestartCount": 4,
+    "assessmentContextJson": "{\"caseSummary\":\"...\",\"investigationObjective\":\"...\",\"defenseConclusion\":\"...\",\"orderedEvidence\":[...],\"reasoningCards\":[...],\"sampleAnswers\":[...]}",
     "audio": {
       "fileName": "client-name.wav",
       "mimeType": "audio/wav",
@@ -57,7 +59,9 @@ Telemetry is a JSON object. Unknown event types are accepted as best effort for 
 }
 ```
 
-The recording must be a non-empty PCM WAV with signed 16-bit samples, 16,000 Hz, mono audio, and at most 8 MiB by default. `roundId` must be exactly 32 hexadecimal characters. Files are written as `recordings/lawyer-defense-<lowercase-roundId>.wav` (or `RECORDINGS_DIR`) and the same round ID deterministically replaces the previous file. This makes retries idempotent and leaves no partial `.tmp` file after a successful write. Invalid recording events return 422; storage failures return 500.
+The recording must be a non-empty PCM WAV with signed 16-bit samples, 16,000 Hz, mono audio, and at most 8 MiB by default. `roundId` must be exactly 32 hexadecimal characters. The assessment context contains only the configured case summary, objective, defense conclusion, ordered linked evidence, reasoning cards, and positive sample answers. Files are written atomically as `recordings/lawyer-defense-<lowercase-roundId>.wav` plus a JSON attempt record. An identical retry is idempotent; changing the audio, context, or restart count under the same round ID returns 409. Invalid recording events return 422; storage failures return 500.
+
+The background worker detects silence, transcribes Vietnamese speech, and scores `evidence_use` out of 40, `logical_connections` out of 35, `conclusion_fidelity` out of 15, and `clarity_and_persuasiveness` out of 10. The raw total is preserved. Zero through three interview restarts have no penalty; four or more apply one 50% deduction to the raw total, retaining half points. `GET /api/lawyer/defense-recordings/<roundId>` exposes only gameplay-safe processing status. The diagnostic endpoint at the same path plus `/diagnostic` returns the detailed result only when `X-Diagnostic-Token` matches `LAWYER_DIAGNOSTIC_TOKEN`.
 
 Unity sales uploads use the same telemetry route with `eventType: "sales.persuasion_recording"`. Its payload uses `roundId`, `questionId`, `caseId`, `cardId`, a JSON-string `resolution` containing `selectedShoe`, `bestFitShoe`, `customerNeeds`, `objection`, and `availableShoes`, plus the WAV `audio` object. The adapter validates this envelope and maps it to the sales attempt contract below. Unity audio metadata such as `fileName`, `durationSeconds`, and `endedEarly` is accepted but does not replace WAV validation.
 
@@ -94,7 +98,7 @@ This endpoint accepts up to 28 categorized questionnaire dimensions, then uses Q
 
 Unity opens one authenticated connection to `WS /ws/ctrl`. The token can be supplied as the `Authorization: Bearer <token>` header or the `token=<token>` query parameter. A newer connection replaces the older one, and pending commands belonging to the old connection fail rather than accepting an ACK from the wrong client.
 
-The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, and `sale`. It also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai setup` to install and initialize speech recognition. Use `ai start`, `ai status`, `ai stop`, or `ai restart` with the optional `all` or `llama` target to manage llama.cpp. The remaining commands are `status` and `exit`. The backend sends:
+The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, and `sale`. For a gameplay scene, the backend sends `load_scene`, waits for a `ready` acknowledgement, then sends `start_scene` and waits for a `running` acknowledgement. Standby requires only `load_scene`. The console also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai setup` to install and initialize speech recognition. Use `ai start`, `ai status`, `ai stop`, or `ai restart` with the optional `all` or `llama` target to manage llama.cpp. The remaining commands are `status` and `exit`. The first command is:
 
 ```json
 {
@@ -103,6 +107,18 @@ The operator console accepts `set_game <scene_id>`, where the scene catalog is `
   "type": "load_scene",
   "sceneId": "doctor",
   "issuedAtUtc": "2026-08-31T00:00:00Z"
+}
+```
+
+After Unity acknowledges the gameplay scene with phase `ready`, the backend sends:
+
+```json
+{
+  "commandId": "<new uuid hex>",
+  "sequence": 2,
+  "type": "start_scene",
+  "sceneId": "doctor",
+  "issuedAtUtc": "2026-08-31T00:00:01Z"
 }
 ```
 
@@ -120,7 +136,7 @@ A reset uses the same envelope with `type: "reset_scene"`. Unity accepts a speci
 
 Successful reset acknowledgements report `sceneId: "standby"` and `phase: "standby"`. A specific inactive target is rejected with `scene_mismatch`. Standby itself is never reset, and reset does not restart the target game.
 
-Unity should acknowledge the same `commandId` and `sequence` with `status: "applied"` and the applied `sceneId`, or `status: "rejected"` plus `errorCode` and `errorMessage`:
+Unity should acknowledge the same `commandId` and `sequence` with `status: "applied"` and the applied `sceneId`, or with `status: "rejected"` or `status: "failed"` plus `errorCode` and `errorMessage`:
 
 ```json
 {
@@ -157,6 +173,8 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `LLM_CAREER_MAX_TOKENS` | `4096` | Completion budget for thinking plus career JSON, capped at 8,192. |
 | `MAX_CAREER_PROMPT_CHARS` | `32000` | Maximum size of an individual career-assessment prompt message. |
 | `MAX_SALES_PROMPT_CHARS` | `24000` | Maximum size of an individual sales-assessment prompt message. |
+| `MAX_LAWYER_PROMPT_CHARS` | `32000` | Maximum size of the bounded Lawyer assessment prompt. |
+| `LAWYER_DIAGNOSTIC_TOKEN` | unset | Token required by the detailed Lawyer diagnostic result endpoint. |
 | `LLAMA_SERVER_BIN` | `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe` | Unified llama.cpp executable used by the operator console. The manager invokes its `serve` subcommand. |
 | `AI_SERVER_START_TIMEOUT_SECONDS` | `180` | Time allowed for each managed server to open its local port. |
 | `AI_SERVER_SHUTDOWN_TIMEOUT_SECONDS` | `15` | Time allowed for a managed server to exit before it is force-closed. |

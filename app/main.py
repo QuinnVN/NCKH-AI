@@ -28,7 +28,15 @@ from app.career_assessment import (
 )
 from app.config import get_settings
 from app.llm_service import LLMService, LLMServiceError
-from app.save_recording import decode_defense_recording, write_defense_recording
+from app.lawyer_assessment import (
+    LLMLawyerAssessor,
+    LawyerAttemptConflictError,
+    LawyerAttemptStore,
+    LawyerProcessingError,
+    process_lawyer_attempt,
+    public_lawyer_status,
+    submission_from_lawyer_telemetry,
+)
 from app.sales_persuasion import (
     LLMSalesAssessor,
     SalesAttemptConflictError,
@@ -66,13 +74,16 @@ sales_transcriber = SherpaOnnxTranscriber()
 sales_processing_tasks: dict[str, asyncio.Task[object]] = {}
 sales_returning_store = ReturningSessionStore()
 sales_returning_transcriber = sales_transcriber
+lawyer_attempt_store = LawyerAttemptStore()
+lawyer_processing_tasks: dict[str, asyncio.Task[object]] = {}
 
 COMMAND_TIMEOUT_SECONDS = get_settings().command_timeout_seconds
 REQUEST_SETTINGS = get_settings()
 VALID_SCENE_IDS = frozenset({"standby", "clinic", "doctor", "lawyer", "sale"})
 RESET_ALL_TARGET = "all"
 DEFENSE_RECORDING_EVENT_TYPE = "lawyer.defense_recording"
-ACK_STATUSES = frozenset({"applied", "rejected"})
+ACK_STATUSES = frozenset({"applied", "rejected", "failed"})
+SCENE_COMMAND_TYPES = frozenset({"load_scene", "start_scene"})
 LLM_SMOKE_TEST_PROMPT = (
     "Trả lời ngắn gọn bằng tiếng Việt để xác nhận mô hình ngôn ngữ đang hoạt động. "
     "/no_think"
@@ -112,6 +123,7 @@ async def lifespan(app: FastAPI):
     retention_task = asyncio.create_task(_sales_retention_loop())
     if sales_transcriber.ready:
         await _resume_sales_processing()
+        await _resume_lawyer_processing()
     yield
     retention_task.cancel()
     await asyncio.gather(retention_task, return_exceptions=True)
@@ -121,6 +133,12 @@ async def lifespan(app: FastAPI):
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
     sales_processing_tasks.clear()
+    lawyer_tasks = tuple(lawyer_processing_tasks.values())
+    for task in lawyer_tasks:
+        task.cancel()
+    if lawyer_tasks:
+        await asyncio.gather(*lawyer_tasks, return_exceptions=True)
+    lawyer_processing_tasks.clear()
     if llm_service is not None:
         await llm_service.close()
     await sales_transcriber.close()
@@ -149,10 +167,10 @@ def _redact(value: str) -> str:
 
 
 def log(message: Any) -> None:
-    """Emit one JSON log record while keeping the existing CLI-friendly API."""
+    """Emit one plain-text, CLI-safe log message."""
 
     safe_message = _redact(str(message))
-    logger.info(json.dumps({"message": safe_message}, ensure_ascii=False))
+    logger.info(safe_message)
     if not logger.handlers and not logging.getLogger().handlers:
         print(safe_message)
 
@@ -200,19 +218,25 @@ def parse_reset_command(command: str) -> str:
     return validate_reset_target(parts[1])
 
 
-def build_set_game_request(scene_id: str) -> dict[str, Any]:
+def build_scene_command_request(scene_id: str, command_type: str) -> dict[str, Any]:
     global next_command_sequence
 
     scene_id = validate_scene_id(scene_id)
+    if command_type not in SCENE_COMMAND_TYPES:
+        raise ValueError(f"Unsupported scene command type '{command_type}'.")
     request = {
         "commandId": uuid4().hex,
         "sequence": next_command_sequence,
-        "type": "load_scene",
+        "type": command_type,
         "sceneId": scene_id,
         "issuedAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     next_command_sequence += 1
     return request
+
+
+def build_set_game_request(scene_id: str) -> dict[str, Any]:
+    return build_scene_command_request(scene_id, "load_scene")
 
 
 def build_reset_request(scene_id: str) -> dict[str, Any]:
@@ -297,6 +321,82 @@ def fail_pending_scene_commands(message: str, *, owner: WebSocket | None = None)
             pending.acknowledgement.set_exception(ConnectionError(message))
 
 
+async def send_scene_command(
+    socket: WebSocket,
+    scene_id: str,
+    command_type: str,
+    timeout_seconds: float,
+) -> dict[str, Any] | None:
+    request = build_scene_command_request(scene_id, command_type)
+    command_id = request["commandId"]
+    future = asyncio.get_running_loop().create_future()
+    pending_scene_commands[command_id] = PendingSceneCommand(
+        sequence=request["sequence"],
+        scene_id=scene_id,
+        acknowledgement=future,
+        owner=socket,
+    )
+
+    try:
+        await socket.send_json(request)
+    except Exception as exception:
+        pending_scene_commands.pop(command_id, None)
+        log(f"[Server] Failed to send '{command_type}' to Unity: {exception}")
+        return None
+
+    try:
+        acknowledgement = await asyncio.wait_for(future, timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        log(
+            f"[Server] '{command_type}' for '{scene_id}' timed out after "
+            f"{timeout_seconds:g} seconds."
+        )
+        return None
+    except ConnectionError as exception:
+        log(f"[Server] '{command_type}' for '{scene_id}' was interrupted: {exception}")
+        return None
+    finally:
+        pending_scene_commands.pop(command_id, None)
+
+    return acknowledgement
+
+
+def scene_command_succeeded(
+    acknowledgement: dict[str, Any],
+    scene_id: str,
+    command_type: str,
+    expected_phase: str,
+) -> bool:
+    status = acknowledgement.get("status")
+    acknowledged_scene_id = acknowledgement.get("sceneId")
+    if isinstance(acknowledged_scene_id, str):
+        acknowledged_scene_id = acknowledged_scene_id.lower()
+
+    if status == "applied" and acknowledged_scene_id == scene_id:
+        acknowledged_phase = acknowledgement.get("phase")
+        if isinstance(acknowledged_phase, str):
+            acknowledged_phase = acknowledged_phase.lower()
+        if acknowledged_phase == expected_phase:
+            return True
+        log(
+            f"[Server] '{command_type}' for '{scene_id}' failed: Unity acknowledged "
+            f"phase '{acknowledged_phase}' instead of '{expected_phase}'."
+        )
+        return False
+
+    if status == "applied":
+        log(
+            f"[Server] '{command_type}' for '{scene_id}' failed: Unity acknowledged "
+            f"scene '{acknowledged_scene_id}'."
+        )
+        return False
+
+    error_code = acknowledgement.get("errorCode") or status or "unknown_error"
+    error_message = acknowledgement.get("errorMessage") or "Unity did not apply the command."
+    log(f"[Server] '{command_type}' for '{scene_id}' failed ({error_code}): {error_message}")
+    return False
+
+
 async def set_game(
     scene_id: str,
     timeout_seconds: float = COMMAND_TIMEOUT_SECONDS,
@@ -312,54 +412,44 @@ async def set_game(
         log("[Server] Cannot change scene: Unity is not connected.")
         return False
 
-    request = build_set_game_request(scene_id)
-    command_id = request["commandId"]
-    future = asyncio.get_running_loop().create_future()
-    pending_scene_commands[command_id] = PendingSceneCommand(
-        sequence=request["sequence"],
-        scene_id=scene_id,
-        acknowledgement=future,
-        owner=socket,
+    acknowledgement = await send_scene_command(
+        socket,
+        scene_id,
+        "load_scene",
+        timeout_seconds,
     )
-
-    try:
-        await socket.send_json(request)
-    except Exception as exception:
-        pending_scene_commands.pop(command_id, None)
-        log(f"[Server] Failed to send scene change to Unity: {exception}")
+    if acknowledgement is None or not scene_command_succeeded(
+        acknowledgement,
+        scene_id,
+        "load_scene",
+        "standby" if scene_id == "standby" else "ready",
+    ):
         return False
 
-    try:
-        acknowledgement = await asyncio.wait_for(future, timeout=timeout_seconds)
-    except asyncio.TimeoutError:
-        log(f"[Server] set_game '{scene_id}' timed out after {timeout_seconds:g} seconds.")
-        return False
-    except ConnectionError as exception:
-        log(f"[Server] Scene change to '{scene_id}' was interrupted: {exception}")
-        return False
-    finally:
-        pending_scene_commands.pop(command_id, None)
-
-    status = acknowledgement.get("status")
-    acknowledged_scene_id = acknowledgement.get("sceneId")
-    if isinstance(acknowledged_scene_id, str):
-        acknowledged_scene_id = acknowledged_scene_id.lower()
-
-    if status == "applied" and acknowledged_scene_id == scene_id:
-        log(f"[Server] Scene changed to '{scene_id}'.")
+    if scene_id == "standby":
+        log("[Server] Scene changed to 'standby'.")
         return True
 
-    if status == "applied":
-        log(
-            f"[Server] Scene change to '{scene_id}' failed: Unity acknowledged "
-            f"scene '{acknowledged_scene_id}'."
-        )
+    if unity_ws is not socket:
+        log(f"[Server] Cannot start '{scene_id}': Unity reconnected after loading the scene.")
         return False
 
-    error_code = acknowledgement.get("errorCode") or status or "unknown_error"
-    error_message = acknowledgement.get("errorMessage") or "Unity did not apply the scene change."
-    log(f"[Server] Scene change to '{scene_id}' failed ({error_code}): {error_message}")
-    return False
+    acknowledgement = await send_scene_command(
+        socket,
+        scene_id,
+        "start_scene",
+        timeout_seconds,
+    )
+    if acknowledgement is None or not scene_command_succeeded(
+        acknowledgement,
+        scene_id,
+        "start_scene",
+        "running",
+    ):
+        return False
+
+    log(f"[Server] Scene '{scene_id}' loaded and started.")
+    return True
 
 
 async def reset_game(
@@ -498,27 +588,35 @@ async def telemetry(
 
     if event_type == DEFENSE_RECORDING_EVENT_TYPE:
         try:
-            round_id, wav_bytes = decode_defense_recording(data)
+            payload = data.get("payload")
+            if not isinstance(payload, dict):
+                raise ValueError("payload must be an object")
+            submission = submission_from_lawyer_telemetry(payload)
+            record, should_process = await lawyer_attempt_store.accept(submission)
+        except LawyerAttemptConflictError as exception:
+            raise HTTPException(status_code=409, detail=str(exception)) from exception
+        except LawyerProcessingError as exception:
+            raise HTTPException(status_code=500, detail=str(exception)) from exception
         except ValueError as exception:
             log(f"[Server] Rejected defense recording: {exception}")
             raise HTTPException(status_code=422, detail=str(exception)) from exception
-
-        try:
-            destination = await asyncio.to_thread(
-                write_defense_recording, round_id, wav_bytes
-            )
         except OSError as exception:
-            log(f"[Server] Failed to save defense recording '{round_id}': {exception}")
+            log(f"[Server] Failed to store defense recording: {exception}")
             raise HTTPException(
                 status_code=500,
-                detail="Unable to save defense recording.",
+                detail="Unable to store defense recording.",
             ) from exception
 
-        log(
-            f"[Server] Saved defense recording '{round_id}' "
-            f"({len(wav_bytes)} bytes) to '{destination}'."
-        )
-        return {"status": "ok"}
+        if should_process or (
+            record.get("assessmentStatus") == "processing"
+            and submission.round_id not in lawyer_processing_tasks
+        ):
+            _schedule_lawyer_processing(submission.round_id, background_tasks)
+        return {
+            "status": "accepted",
+            "roundId": submission.round_id,
+            "assessmentStatus": str(record.get("assessmentStatus", "processing")),
+        }
 
     if event_type == SALES_RECORDING_EVENT_TYPE:
         try:
@@ -558,6 +656,89 @@ async def telemetry(
 
 
 def _public_sales_record(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in record.items()
+        if key not in {"requestHash", "audioFile"}
+    }
+
+
+async def _queue_lawyer_processing(round_id: str) -> None:
+    current = lawyer_processing_tasks.get(round_id)
+    if current is not None and not current.done():
+        return
+
+    task = asyncio.create_task(
+        process_lawyer_attempt(
+            round_id,
+            store=lawyer_attempt_store,
+            transcriber=sales_transcriber,
+            assessor=LLMLawyerAssessor(llm_service),
+        )
+    )
+    lawyer_processing_tasks[round_id] = task
+
+    def finished(completed: asyncio.Task[object]) -> None:
+        if lawyer_processing_tasks.get(round_id) is completed:
+            lawyer_processing_tasks.pop(round_id, None)
+        try:
+            completed.exception()
+        except asyncio.CancelledError:
+            return
+        except Exception as exception:
+            logger.error("Lawyer processing task failed for %s: %s", round_id, exception)
+
+    task.add_done_callback(finished)
+
+
+def _schedule_lawyer_processing(
+    round_id: str, background_tasks: BackgroundTasks | None
+) -> None:
+    if background_tasks is None:
+        asyncio.create_task(_queue_lawyer_processing(round_id))
+    else:
+        background_tasks.add_task(_queue_lawyer_processing, round_id)
+
+
+async def _resume_lawyer_processing() -> None:
+    try:
+        round_ids = await lawyer_attempt_store.processing_round_ids()
+    except LawyerProcessingError as exception:
+        logger.error("Unable to scan Lawyer attempts for recovery: %s", exception)
+        return
+    for round_id in round_ids:
+        await _queue_lawyer_processing(round_id)
+
+
+@app.get("/api/lawyer/defense-recordings/{round_id}")
+async def get_lawyer_defense_status(
+    round_id: str,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_http_auth(authorization)
+    try:
+        record = await lawyer_attempt_store.get(round_id)
+    except (ValueError, LawyerProcessingError) as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
+    if record is None:
+        raise HTTPException(status_code=404, detail="Lawyer defense not found.")
+    return public_lawyer_status(record)
+
+
+@app.get("/api/lawyer/defense-recordings/{round_id}/diagnostic")
+async def get_lawyer_defense_diagnostic(
+    round_id: str,
+    x_diagnostic_token: str | None = Header(default=None, alias="X-Diagnostic-Token"),
+) -> dict[str, Any]:
+    configured_token = get_settings().lawyer_diagnostic_token
+    if not configured_token or x_diagnostic_token != configured_token:
+        raise HTTPException(status_code=403, detail="Lawyer diagnostics are unavailable.")
+    try:
+        record = await lawyer_attempt_store.get(round_id)
+    except (ValueError, LawyerProcessingError) as exception:
+        raise HTTPException(status_code=422, detail=str(exception)) from exception
+    if record is None:
+        raise HTTPException(status_code=404, detail="Lawyer defense not found.")
     return {
         key: value
         for key, value in record.items()
@@ -1114,11 +1295,10 @@ async def handleCommands() -> None:
             await set_game(scene_id)
 
 
-async def main() -> None:
+async def _run_backend() -> None:
     global server
 
     settings = get_settings()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     config = uvicorn.Config(
         app,
         host=settings.host,
@@ -1135,16 +1315,15 @@ async def main() -> None:
         while not server.started:
             await asyncio.sleep(0.05)
 
-        with patch_stdout():
-            commands_task = asyncio.create_task(handleCommands())
-            done, _ = await asyncio.wait(
-                {server_task, commands_task},
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            if commands_task in done:
-                await stop_ai_servers_for_shutdown()
-                server.should_exit = True
-            await server_task
+        commands_task = asyncio.create_task(handleCommands())
+        done, _ = await asyncio.wait(
+            {server_task, commands_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if commands_task in done:
+            await stop_ai_servers_for_shutdown()
+            server.should_exit = True
+        await server_task
     finally:
         if commands_task is not None and not commands_task.done():
             commands_task.cancel()
@@ -1159,6 +1338,12 @@ async def main() -> None:
                 await asyncio.shield(server_task)
             except asyncio.CancelledError:
                 pass
+
+
+async def main() -> None:
+    with patch_stdout():
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        await _run_backend()
 
 
 

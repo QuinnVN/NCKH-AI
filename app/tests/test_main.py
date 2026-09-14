@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import io
+import logging
 import os
 from pathlib import Path
 import tempfile
@@ -11,8 +12,69 @@ import wave
 from fastapi import HTTPException
 
 from app import main
+from app import lawyer_assessment
 from app import save_recording
 from app.ai_servers import AIServerStatus
+from app.config import get_settings
+
+
+class ConsoleLoggingTests(unittest.IsolatedAsyncioTestCase):
+    def test_log_emits_plain_text_without_json_wrapper(self):
+        output = io.StringIO()
+        handler = logging.StreamHandler(output)
+        backend_logger = main.logger
+        original_handlers = backend_logger.handlers[:]
+        original_propagate = backend_logger.propagate
+        original_level = backend_logger.level
+        backend_logger.handlers = [handler]
+        backend_logger.propagate = False
+        backend_logger.setLevel(logging.INFO)
+        try:
+            main.log("[Server] Unity connected")
+        finally:
+            backend_logger.handlers = original_handlers
+            backend_logger.propagate = original_propagate
+            backend_logger.setLevel(original_level)
+
+        self.assertEqual(output.getvalue(), "[Server] Unity connected\n")
+
+    async def test_logging_is_configured_inside_prompt_safe_context(self):
+        events: list[str] = []
+
+        class RecordingContext:
+            def __enter__(self):
+                events.append("prompt-safe-enter")
+
+            def __exit__(self, *args):
+                events.append("prompt-safe-exit")
+
+        with (
+            patch.object(main, "patch_stdout", return_value=RecordingContext()),
+            patch.object(
+                main.logging,
+                "basicConfig",
+                side_effect=lambda **kwargs: events.append(
+                    f"logging-configured:{kwargs['format']}"
+                ),
+            ),
+            patch.object(
+                main,
+                "_run_backend",
+                new=AsyncMock(side_effect=lambda: events.append("backend-run")),
+                create=True,
+            ),
+        ):
+            await main.main()
+
+        self.assertEqual(
+            events,
+            [
+                "prompt-safe-enter",
+                "logging-configured:%(message)s",
+                "backend-run",
+                "prompt-safe-exit",
+            ],
+        )
 
 
 class ApiRouteRegistrationTests(unittest.TestCase):
@@ -101,6 +163,22 @@ def build_defense_recording_event(
         "payload": {
             "roundId": round_id,
             "caseId": "placeholder-lawyer-case",
+            "interviewRestartCount": 0,
+            "assessmentContext": {
+                "caseSummary": "Một vụ cháy xảy ra tại phòng CLB.",
+                "investigationObjective": "Xây dựng lời bào chữa dựa trên chứng cứ.",
+                "defenseConclusion": "Chưa đủ chứng cứ để kết luận Minh gây cháy.",
+                "orderedEvidence": [
+                    {"evidenceId": "clue-a", "title": "A", "description": "Dữ kiện A.", "strength": "strong"},
+                    {"evidenceId": "clue-b", "title": "B", "description": "Dữ kiện B.", "strength": "strong"},
+                    {"evidenceId": "clue-c", "title": "C", "description": "Dữ kiện C.", "strength": "strong"},
+                    {"evidenceId": "clue-d", "title": "D", "description": "Dữ kiện D.", "strength": "weak"},
+                ],
+                "reasoningCards": [
+                    {"reasoningId": "reasoning-a", "title": "Suy luận", "description": "Các dữ kiện hỗ trợ kết luận."}
+                ],
+                "sampleAnswers": ["Minh rời phòng trước khi có dấu hiệu cháy."],
+            },
             "audio": {
                 "fileName": "ignored-client-name.wav",
                 "mimeType": "audio/wav",
@@ -159,39 +237,110 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ValueError):
                     main.parse_set_game_command(command)
 
-    async def test_matching_applied_ack_logs_success_only_after_ack(self):
+    async def test_matching_applied_ack_loads_then_starts_gameplay_scenes(self):
+        for scene_id in ("clinic", "doctor"):
+            with self.subTest(scene_id=scene_id):
+                socket = FakeWebSocket()
+                main.unity_ws = socket
+                main.next_command_sequence = 1
+
+                command_task = asyncio.create_task(
+                    main.set_game(scene_id, timeout_seconds=0.2)
+                )
+                await asyncio.sleep(0)
+
+                self.assertEqual(len(socket.sent_messages), 1)
+                request = socket.sent_messages[0]
+                self.assertEqual(request["sequence"], 1)
+                self.assertEqual(request["type"], "load_scene")
+                self.assertEqual(request["sceneId"], scene_id)
+                self.assertTrue(request["commandId"])
+                self.assertTrue(request["issuedAtUtc"].endswith("Z"))
+
+                self.assertTrue(
+                    main.handle_unity_acknowledgement(
+                        {
+                            "commandId": request["commandId"],
+                            "sequence": request["sequence"],
+                            "status": "applied",
+                            "sceneId": scene_id,
+                            "phase": "ready",
+                            "appliedAtUtc": "2026-08-25T00:00:00Z",
+                            "errorCode": "",
+                            "errorMessage": "",
+                        }
+                    )
+                )
+
+                await asyncio.sleep(0)
+                self.assertEqual(len(socket.sent_messages), 2)
+                start_request = socket.sent_messages[1]
+                self.assertEqual(start_request["sequence"], 2)
+                self.assertEqual(start_request["type"], "start_scene")
+                self.assertEqual(start_request["sceneId"], scene_id)
+
+                self.assertTrue(
+                    main.handle_unity_acknowledgement(
+                        {
+                            "commandId": start_request["commandId"],
+                            "sequence": start_request["sequence"],
+                            "status": "applied",
+                            "sceneId": scene_id,
+                            "phase": "running",
+                            "appliedAtUtc": "2026-08-25T00:00:01Z",
+                            "errorCode": "",
+                            "errorMessage": "",
+                        }
+                    )
+                )
+
+                self.assertTrue(await command_task)
+                self.assertIn(
+                    f"[Server] Scene '{scene_id}' loaded and started.",
+                    self.messages,
+                )
+                self.assertFalse(main.pending_scene_commands)
+
+    async def test_failed_acknowledgement_is_accepted_for_pending_command(self):
         socket = FakeWebSocket()
         main.unity_ws = socket
-
-        command_task = asyncio.create_task(main.set_game("doctor", timeout_seconds=0.2))
-        await asyncio.sleep(0)
-
-        self.assertEqual(len(socket.sent_messages), 1)
-        request = socket.sent_messages[0]
-        self.assertEqual(request["sequence"], 1)
-        self.assertEqual(request["type"], "load_scene")
-        self.assertEqual(request["sceneId"], "doctor")
-        self.assertTrue(request["commandId"])
-        self.assertTrue(request["issuedAtUtc"].endswith("Z"))
-        self.assertFalse(any("Scene changed" in message for message in self.messages))
+        future = asyncio.get_running_loop().create_future()
+        main.pending_scene_commands["failed-command"] = main.PendingSceneCommand(
+            sequence=1,
+            scene_id="clinic",
+            acknowledgement=future,
+            owner=socket,
+        )
 
         accepted = main.handle_unity_acknowledgement(
             {
-                "commandId": request["commandId"],
-                "sequence": request["sequence"],
-                "status": "applied",
-                "sceneId": "doctor",
-                "phase": "ready",
-                "appliedAtUtc": "2026-08-25T00:00:00Z",
-                "errorCode": "",
-                "errorMessage": "",
-            }
+                "commandId": "failed-command",
+                "sequence": 1,
+                "status": "failed",
+                "sceneId": "clinic",
+                "errorCode": "scene_load_failed",
+                "errorMessage": "Scene did not become active.",
+            },
+            source=socket,
         )
 
         self.assertTrue(accepted)
-        self.assertTrue(await command_task)
-        self.assertIn("[Server] Scene changed to 'doctor'.", self.messages)
-        self.assertFalse(main.pending_scene_commands)
+        self.assertEqual(future.result()["status"], "failed")
+
+    def test_applied_command_requires_expected_phase(self):
+        self.assertFalse(
+            main.scene_command_succeeded(
+                {
+                    "status": "applied",
+                    "sceneId": "doctor",
+                    "phase": "ready",
+                },
+                "doctor",
+                "start_scene",
+                "running",
+            )
+        )
+        self.assertTrue(any("instead of 'running'" in message for message in self.messages))
 
     async def test_rejected_ack_logs_failure_without_success(self):
         socket = FakeWebSocket()
@@ -226,6 +375,7 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
             "sequence": request["sequence"] + 1,
             "status": "applied",
             "sceneId": "standby",
+            "phase": "standby",
         }
 
         self.assertFalse(main.handle_unity_acknowledgement(acknowledgement))
@@ -239,7 +389,7 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
         socket = FakeWebSocket()
         other_socket = FakeWebSocket()
         main.unity_ws = socket
-        command_task = asyncio.create_task(main.set_game("doctor", timeout_seconds=0.2))
+        command_task = asyncio.create_task(main.set_game("standby", timeout_seconds=0.2))
         await asyncio.sleep(0)
         request = socket.sent_messages[0]
 
@@ -249,7 +399,8 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
                     "commandId": request["commandId"],
                     "sequence": request["sequence"],
                     "status": "applied",
-                    "sceneId": "doctor",
+                    "sceneId": "standby",
+                    "phase": "standby",
                 },
                 source=other_socket,
             )
@@ -261,7 +412,8 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
                     "commandId": request["commandId"],
                     "sequence": request["sequence"],
                     "status": "applied",
-                    "sceneId": "doctor",
+                    "sceneId": "standby",
+                    "phase": "standby",
                 },
                 source=socket,
             )
@@ -457,8 +609,11 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
         self.messages: list[object] = []
         self.log_patch = patch.object(main, "log", self.messages.append)
         self.log_patch.start()
+        self.schedule_patch = patch.object(main, "_schedule_lawyer_processing")
+        self.schedule_patch.start()
 
     def tearDown(self):
+        self.schedule_patch.stop()
         self.log_patch.stop()
         self.environment_patch.stop()
         self.temporary_directory.cleanup()
@@ -485,7 +640,9 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
 
         result = await main.telemetry(event)
 
-        self.assertEqual(result, {"status": "ok"})
+        self.assertEqual(result["status"], "accepted")
+        self.assertEqual(result["roundId"], round_id)
+        self.assertEqual(result["assessmentStatus"], "processing")
         destination = self.recordings_directory / f"lawyer-defense-{round_id}.wav"
         self.assertEqual(destination.read_bytes(), wav_bytes)
         with wave.open(str(destination), "rb") as recording:
@@ -495,17 +652,20 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(recording.getnframes(), 160)
         self.assertFalse(any(encoded_audio in str(message) for message in self.messages))
 
-    async def test_repeated_round_upload_replaces_one_file(self):
+    async def test_changed_round_upload_is_rejected_without_replacing_file(self):
         round_id = "c" * 32
         first_wav = build_wav(fill_byte=1)
         second_wav = build_wav(fill_byte=2)
 
         await main.telemetry(build_defense_recording_event(first_wav, round_id=round_id))
-        await main.telemetry(build_defense_recording_event(second_wav, round_id=round_id))
+        await self.assert_recording_rejected(
+            build_defense_recording_event(second_wav, round_id=round_id),
+            status_code=409,
+        )
 
         recordings = list(self.recordings_directory.glob("*.wav"))
         self.assertEqual(len(recordings), 1)
-        self.assertEqual(recordings[0].read_bytes(), second_wav)
+        self.assertEqual(recordings[0].read_bytes(), first_wav)
         self.assertFalse(list(self.recordings_directory.glob("*.tmp")))
 
     async def test_invalid_contract_and_audio_are_rejected_without_files(self):
@@ -547,7 +707,12 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_oversized_recording_is_rejected(self):
         event = build_defense_recording_event(build_wav(frame_count=160))
 
-        with patch.object(save_recording, "MAX_RECORDING_BYTES", 64):
+        settings = get_settings()
+        with patch.object(
+            lawyer_assessment,
+            "get_settings",
+            return_value=type("Settings", (), {"max_recording_bytes": 64, "recordings_dir": settings.recordings_dir})(),
+        ):
             await self.assert_recording_rejected(event)
 
         self.assertFalse(list(self.recordings_directory.iterdir()))
@@ -555,7 +720,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_write_failure_returns_server_error_and_removes_temporary_file(self):
         event = build_defense_recording_event()
 
-        with patch.object(save_recording.os, "replace", side_effect=OSError("disk full")):
+        with patch.object(lawyer_assessment.os, "replace", side_effect=OSError("disk full")):
             await self.assert_recording_rejected(event, status_code=500)
 
         self.assertFalse(list(self.recordings_directory.iterdir()))
@@ -564,7 +729,7 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
         event = build_defense_recording_event()
 
         with patch.object(
-            save_recording.tempfile,
+            lawyer_assessment.tempfile,
             "NamedTemporaryFile",
             side_effect=OSError("read-only directory"),
         ):
