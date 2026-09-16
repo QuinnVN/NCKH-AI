@@ -208,6 +208,7 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
         main.unity_ws = None
         main.pending_scene_commands.clear()
         main.next_command_sequence = 1
+        self.original_participant_activity = main.participant_manager.activity
         self.messages: list[str] = []
         self.log_patch = patch.object(main, "log", self.messages.append)
         self.log_patch.start()
@@ -215,6 +216,7 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         main.pending_scene_commands.clear()
         main.unity_ws = None
+        main.participant_manager.activity = self.original_participant_activity
         self.log_patch.stop()
 
     def test_parse_set_game_accepts_and_normalizes_catalog_ids(self):
@@ -231,75 +233,81 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
             "set_game doctor extra",
             "load_game doctor",
             "set_game courtroom",
+            "set_game tutorial",
         )
         for command in invalid_commands:
             with self.subTest(command=command):
                 with self.assertRaises(ValueError):
                     main.parse_set_game_command(command)
 
-    async def test_matching_applied_ack_loads_then_starts_gameplay_scenes(self):
-        for scene_id in ("clinic", "doctor"):
-            with self.subTest(scene_id=scene_id):
-                socket = FakeWebSocket()
-                main.unity_ws = socket
-                main.next_command_sequence = 1
+    async def test_ready_or_autostarted_load_ack_starts_gameplay_scenes(self):
+        for scene_id in ("clinic", "doctor", "lawyer"):
+            for load_phase in ("ready", "running"):
+                with self.subTest(scene_id=scene_id, load_phase=load_phase):
+                    await self._assert_load_then_start(scene_id, load_phase)
+        await self._assert_load_then_start("sale", "ready")
 
-                command_task = asyncio.create_task(
-                    main.set_game(scene_id, timeout_seconds=0.2)
-                )
-                await asyncio.sleep(0)
+    async def _assert_load_then_start(self, scene_id: str, load_phase: str):
+        socket = FakeWebSocket()
+        main.unity_ws = socket
+        main.next_command_sequence = 1
 
-                self.assertEqual(len(socket.sent_messages), 1)
-                request = socket.sent_messages[0]
-                self.assertEqual(request["sequence"], 1)
-                self.assertEqual(request["type"], "load_scene")
-                self.assertEqual(request["sceneId"], scene_id)
-                self.assertTrue(request["commandId"])
-                self.assertTrue(request["issuedAtUtc"].endswith("Z"))
+        command_task = asyncio.create_task(
+            main.set_game(scene_id, timeout_seconds=0.2)
+        )
+        await asyncio.sleep(0)
 
-                self.assertTrue(
-                    main.handle_unity_acknowledgement(
-                        {
-                            "commandId": request["commandId"],
-                            "sequence": request["sequence"],
-                            "status": "applied",
-                            "sceneId": scene_id,
-                            "phase": "ready",
-                            "appliedAtUtc": "2026-08-25T00:00:00Z",
-                            "errorCode": "",
-                            "errorMessage": "",
-                        }
-                    )
-                )
+        self.assertEqual(len(socket.sent_messages), 1)
+        request = socket.sent_messages[0]
+        self.assertEqual(request["sequence"], 1)
+        self.assertEqual(request["type"], "load_scene")
+        self.assertEqual(request["sceneId"], scene_id)
+        self.assertTrue(request["commandId"])
+        self.assertTrue(request["issuedAtUtc"].endswith("Z"))
 
-                await asyncio.sleep(0)
-                self.assertEqual(len(socket.sent_messages), 2)
-                start_request = socket.sent_messages[1]
-                self.assertEqual(start_request["sequence"], 2)
-                self.assertEqual(start_request["type"], "start_scene")
-                self.assertEqual(start_request["sceneId"], scene_id)
+        self.assertTrue(
+            main.handle_unity_acknowledgement(
+                {
+                    "commandId": request["commandId"],
+                    "sequence": request["sequence"],
+                    "status": "applied",
+                    "sceneId": scene_id,
+                    "phase": load_phase,
+                    "appliedAtUtc": "2026-08-25T00:00:00Z",
+                    "errorCode": "",
+                    "errorMessage": "",
+                }
+            )
+        )
 
-                self.assertTrue(
-                    main.handle_unity_acknowledgement(
-                        {
-                            "commandId": start_request["commandId"],
-                            "sequence": start_request["sequence"],
-                            "status": "applied",
-                            "sceneId": scene_id,
-                            "phase": "running",
-                            "appliedAtUtc": "2026-08-25T00:00:01Z",
-                            "errorCode": "",
-                            "errorMessage": "",
-                        }
-                    )
-                )
+        await asyncio.sleep(0)
+        self.assertEqual(len(socket.sent_messages), 2)
+        start_request = socket.sent_messages[1]
+        self.assertEqual(start_request["sequence"], 2)
+        self.assertEqual(start_request["type"], "start_scene")
+        self.assertEqual(start_request["sceneId"], scene_id)
 
-                self.assertTrue(await command_task)
-                self.assertIn(
-                    f"[Server] Scene '{scene_id}' loaded and started.",
-                    self.messages,
-                )
-                self.assertFalse(main.pending_scene_commands)
+        self.assertTrue(
+            main.handle_unity_acknowledgement(
+                {
+                    "commandId": start_request["commandId"],
+                    "sequence": start_request["sequence"],
+                    "status": "applied",
+                    "sceneId": scene_id,
+                    "phase": "running",
+                    "appliedAtUtc": "2026-08-25T00:00:01Z",
+                    "errorCode": "",
+                    "errorMessage": "",
+                }
+            )
+        )
+
+        self.assertTrue(await command_task)
+        self.assertIn(
+            f"[Server] Scene '{scene_id}' loaded and started.",
+            self.messages,
+        )
+        self.assertFalse(main.pending_scene_commands)
 
     async def test_failed_acknowledgement_is_accepted_for_pending_command(self):
         socket = FakeWebSocket()
@@ -748,6 +756,70 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, {"status": "ok"})
         self.assertTrue(any("scene.ready" in str(message) for message in self.messages))
         self.assertFalse(list(self.recordings_directory.iterdir()))
+
+
+class LawyerResultProjectionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_completed_background_assessment_finalizes_and_syncs_result(self):
+        class RecordingMongo:
+            def __init__(self):
+                self.documents: dict[str, dict] = {}
+
+            def upsert(self, aggregate):
+                self.documents[aggregate["runId"]] = dict(aggregate)
+
+        round_id = "a" * 32
+        run_id = "lawyer-background-run"
+        record = {
+            "roundId": round_id,
+            "runId": run_id,
+            "caseId": "case-1",
+            "interviewRestartCount": 0,
+            "assessmentContext": {"orderedEvidence": []},
+            "completedEvidenceLinks": [],
+            "transcript": "Lời bào chữa hoàn chỉnh.",
+            "criteria": {
+                "evidenceUse": 30,
+                "logicalConnections": 25,
+                "conclusionFidelity": 12,
+                "clarityAndPersuasiveness": 8,
+            },
+            "rawScore": 75,
+            "restartPenaltyPercent": 0,
+            "finalScore": 75,
+            "feedbackVi": "Tốt.",
+            "createdAtUtc": "2026-09-15T00:00:00Z",
+            "updatedAtUtc": "2026-09-15T00:01:00Z",
+            "assessmentStatus": "completed",
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            mongo = RecordingMongo()
+            store = main.RunResultStore(Path(directory), mongo=mongo)
+            original_store = main.run_result_store
+            original_participant = main.participant_manager.active
+            original_activity = main.participant_manager.activity
+            try:
+                main.participant_manager.activity = "idle"
+                main.participant_manager.assign("Lawyer Tester")
+                main.run_result_store = store
+                with patch.object(
+                    main, "process_lawyer_attempt", new=AsyncMock(return_value=record)
+                ):
+                    await main._queue_lawyer_processing(round_id)
+                    await main.lawyer_processing_tasks[round_id]
+
+                result_path = (
+                    Path(directory)
+                    / "simulation-results"
+                    / f"run-{run_id}.json"
+                )
+                self.assertTrue(result_path.exists())
+                self.assertEqual(mongo.documents[run_id]["status"], "completed")
+            finally:
+                main.lawyer_processing_tasks.pop(round_id, None)
+                main.run_result_store = original_store
+                main.participant_manager.active = original_participant
+                main.participant_manager.activity = original_activity
 
 
 class FakeSetupTranscriber:

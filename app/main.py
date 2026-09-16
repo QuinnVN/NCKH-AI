@@ -534,7 +534,7 @@ async def set_game(
         acknowledgement,
         scene_id,
         "load_scene",
-        "standby" if scene_id == "standby" else "ready",
+        "standby" if scene_id == "standby" or scene_id == "tutorial" else "running" if scene_id == "doctor" or scene_id == "clinic" or scene_id == "sale" else "ready",
     ):
         participant_manager.activity = previous_activity
         return False

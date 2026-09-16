@@ -1,6 +1,18 @@
-# Career guidance
+# Unity VR backend
 
-This context describes the language used when questionnaire results produce career guidance for a participant.
+This context describes the domain language shared by the Unity VR training backend.
+
+## Speech recognition
+
+**Speech stream**:
+A single participant utterance sent live from Unity for Vietnamese transcription. The current deployment permits one active speech stream.
+_Avoid_: Recording upload, conversation
+
+**Final transcript**:
+The Vietnamese text recognized from a completed speech stream. It is produced once after the participant ends the utterance, rather than revised while the participant speaks.
+_Avoid_: Partial transcript, live caption
+
+## Career guidance
 
 ## Language
 
