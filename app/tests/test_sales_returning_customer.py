@@ -109,6 +109,32 @@ class ReturningCustomerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["sttProvider"], "unknown")
         self.assertTrue((Path(self.temp.name) / "sales-session-session-1-turn-turn-1.wav").exists())
 
+    async def test_customer_response_uses_configured_llm_timeout(self):
+        observed_timeouts = []
+        original_wait_for = asyncio.wait_for
+
+        async def track_timeout(awaitable, timeout):
+            observed_timeouts.append(timeout)
+            return await original_wait_for(awaitable, timeout)
+
+        with (
+            patch.dict(os.environ, {"LLM_READ_TIMEOUT_SECONDS": "120"}),
+            patch(
+                "app.sales_returning_customer.asyncio.wait_for",
+                side_effect=track_timeout,
+            ),
+        ):
+            result = await submit_turn(
+                "session-1",
+                request(),
+                store=self.store,
+                transcriber=FakeTranscriber("Em xin loi chi."),
+                responder=FakeResponder(),
+            )
+
+        self.assertEqual(result["status"], "accepted")
+        self.assertEqual(observed_timeouts, [20, 120])
+
     async def test_duplicate_turn_is_idempotent(self):
         first = await submit_turn("session-1", request(), store=self.store, transcriber=FakeTranscriber("Xin lỗi chị."), responder=FakeResponder())
         second = await submit_turn("session-1", request(), store=self.store, transcriber=FakeTranscriber("Khác."), responder=FakeResponder())

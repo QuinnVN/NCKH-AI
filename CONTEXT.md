@@ -35,3 +35,17 @@ _Avoid_: Success probability, confidence score
 **Simulation**:
 A playable VR experience related to an occupation. Simulation availability does not limit which careers may be suggested.
 _Avoid_: Career, job
+
+## Sales training
+
+**Sales simulation**:
+The sales gameplay within the Unity VR training system. It includes an initial sales interaction and a returning-customer conversation.
+_Avoid_: Sale game, sales game, Unity VR training system
+
+**Returning-customer conversation**:
+The second part of the sales simulation, in which the participant responds to Lan, a dissatisfied returning customer.
+_Avoid_: Sale Part 2, difficult-customer game
+
+**Customer speech**:
+Synthesized Vietnamese audio through which Lan delivers a customer reply during the returning-customer conversation. The corresponding customer text remains the authoritative reply.
+_Avoid_: TTS response, voice output, audio reply

@@ -453,16 +453,25 @@ async def submit_turn(session_id: str, request: ReturningTurnRequest, *, store: 
                 _, result = await store.finalize_turn(session_id, request.turn_id, result, silent_mutation)
                 return result
             if hasattr(transcriber, "transcribe_with_metadata"):
-                metadata = await asyncio.wait_for(transcriber.transcribe_with_metadata(path), 20)
+                metadata = await asyncio.wait_for(
+                    transcriber.transcribe_with_metadata(path),
+                    get_settings().sherpa_timeout_seconds,
+                )
                 transcript, language, provider, model, version = metadata.text, metadata.language, metadata.provider, metadata.model, metadata.version
             else:
-                transcript = await asyncio.wait_for(transcriber.transcribe(path), 20)
+                transcript = await asyncio.wait_for(
+                    transcriber.transcribe(path),
+                    get_settings().sherpa_timeout_seconds,
+                )
                 language, provider, model, version = "vi", "unknown", "unknown", "unknown"
             transcript = transcript.strip()
             result.update({"transcript": transcript, "language": language, "sttProvider": provider, "sttModel": model, "sttVersion": version})
             if not transcript:
                 raise RuntimeError("transcription_empty")
-            response = await asyncio.wait_for(responder.respond(session, transcript), 20)
+            response = await asyncio.wait_for(
+                responder.respond(session, transcript),
+                get_settings().llm_read_timeout_seconds,
+            )
             # A policy-breaking promise never advances the active objective.  The
             # next player turn must answer Lan's challenge before it can end
             # deterministically, even if a model proposed another phase.
@@ -523,7 +532,9 @@ async def complete_session(session_id: str, request: CompletionRequest, *, store
         session.update({"completionId": request.completion_id, "completionStatus": "processing"})
         await store.save(session)
         try:
-            analysis = await asyncio.wait_for(analyzer.analyze(session), 20)
+            analysis = await asyncio.wait_for(
+                analyzer.analyze(session), get_settings().llm_read_timeout_seconds
+            )
             if analysis.trust_state == "restored" and not all((analysis.emotional_handling, analysis.cause_identification, analysis.solution_suitability, analysis.trust_rebuilding)):
                 raise RuntimeError("analyzer_invalid")
         except Exception as exc:

@@ -21,6 +21,7 @@ from app.sales_persuasion import (
     SalesProcessingError,
     process_sales_attempt,
 )
+from app.run_results import ParticipantManager, RunResultStore
 
 
 def wav_bytes(*, amplitude: int = 0, frames: int = 160) -> bytes:
@@ -181,6 +182,74 @@ class SalesPersuasionTests(unittest.IsolatedAsyncioTestCase):
             main.sales_attempt_store = previous_store
             main.sales_transcriber = previous_transcriber
             main.llm_service = previous_service
+
+    async def test_unity_sales_telemetry_accepts_blank_optional_run_id(self):
+        previous_store = main.sales_attempt_store
+        previous_transcriber = main.sales_transcriber
+        previous_service = main.llm_service
+        event = unity_sales_event(wav_bytes())
+        event["runId"] = ""
+        event["payload"]["runId"] = ""
+        main.sales_attempt_store = self.store
+        main.sales_transcriber = FakeTranscriber()
+        main.llm_service = None
+        try:
+            async with AsyncClient(
+                transport=ASGITransport(app=main.app), base_url="http://testserver"
+            ) as client:
+                response = await client.post("/api/telemetry", json=event)
+
+            self.assertEqual(response.status_code, 200, response.text)
+            record = await self.store.get(event["payload"]["roundId"])
+            self.assertIsNotNone(record)
+            self.assertIsNone(record["runId"])
+        finally:
+            for task in tuple(main.sales_processing_tasks.values()):
+                task.cancel()
+            if main.sales_processing_tasks:
+                await asyncio.gather(
+                    *main.sales_processing_tasks.values(), return_exceptions=True
+                )
+            main.sales_processing_tasks.clear()
+            main.sales_attempt_store = previous_store
+            main.sales_transcriber = previous_transcriber
+            main.llm_service = previous_service
+
+    async def test_blank_telemetry_run_id_projects_into_active_sales_run(self):
+        previous_results = main.run_result_store
+        previous_participants = main.participant_manager
+        previous_active_run_id = main.active_run_id
+        previous_attempts = main.sales_attempt_store
+        event = unity_sales_event(wav_bytes())
+        event["runId"] = ""
+        event["payload"]["runId"] = ""
+        run_id = "sale-run-active"
+        main.run_result_store = RunResultStore(Path(self.directory.name))
+        main.sales_attempt_store = self.store
+        main.participant_manager = ParticipantManager()
+        participant, _ = main.participant_manager.assign("Nguyen Van A")
+        main.active_run_id = run_id
+        await main.run_result_store.begin(run_id, "sale", participant)
+        try:
+            with (
+                patch.object(main, "_schedule_sales_processing"),
+                patch.object(main.logger, "warning") as warning,
+            ):
+                result = await main.telemetry(event)
+
+            self.assertEqual(result["status"], "accepted")
+            warning.assert_not_called()
+            draft = main.run_result_store._read(
+                main.run_result_store._path(run_id, ".draft.json")
+            )
+            self.assertEqual(
+                draft["data"]["part1"]["attemptId"], event["payload"]["roundId"]
+            )
+        finally:
+            main.run_result_store = previous_results
+            main.participant_manager = previous_participants
+            main.active_run_id = previous_active_run_id
+            main.sales_attempt_store = previous_attempts
 
     async def test_processing_attempts_are_discoverable_for_restart_recovery(self):
         request = SalesPersuasionSubmission.model_validate(submission_data(wav_bytes()))

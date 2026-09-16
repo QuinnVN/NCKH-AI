@@ -534,7 +534,7 @@ async def set_game(
         acknowledgement,
         scene_id,
         "load_scene",
-        "standby" if scene_id == "standby" or scene_id == "tutorial" else "running" if scene_id == "doctor" or scene_id == "clinic" or scene_id == "sale" else "ready",
+        "standby" if scene_id == "standby" else "running" if scene_id == "doctor" or scene_id == "clinic" or scene_id == "sale" else "ready",
     ):
         participant_manager.activity = previous_activity
         return False
@@ -752,8 +752,14 @@ async def telemetry(
             payload = data.get("payload")
             if not isinstance(payload, dict):
                 raise ValueError("payload must be an object")
-            if data.get("runId") is not None and payload.get("runId") is None:
-                payload = {**payload, "runId": data.get("runId")}
+            payload_run_id = payload.get("runId")
+            if payload_run_id is None or (
+                isinstance(payload_run_id, str) and not payload_run_id.strip()
+            ):
+                envelope_run_id = data.get("runId")
+                if isinstance(envelope_run_id, str) and not envelope_run_id.strip():
+                    envelope_run_id = None
+                payload = {**payload, "runId": envelope_run_id or active_run_id}
             submission = submission_from_sales_telemetry(
                 payload, session_id=data.get("sessionId")
             )
@@ -780,7 +786,8 @@ async def telemetry(
             participant = participant_manager.active
             if participant is not None:
                 await run_result_store.accept_fragment({
-                    "runId": record.get("runId") or data.get("runId", submission.attempt_id), "gameId": "sale",
+                    "runId": record.get("runId") or active_run_id
+                    or record.get("salesSessionId") or submission.attempt_id, "gameId": "sale",
                     "fragmentId": f"sale.part1:{submission.attempt_id}", "data": {"part1": project_sales_part1(record)}
                 }, participant=participant)
         except (ValueError, RuntimeError):
@@ -970,7 +977,8 @@ async def _queue_sales_processing(attempt_id: str) -> None:
         participant = participant_manager.active
         if participant is not None and isinstance(record, dict) and record.get("assessmentStatus") == "completed":
             try:
-                await run_result_store.accept_fragment({"runId": record.get("runId") or attempt_id, "gameId": "sale",
+                await run_result_store.accept_fragment({"runId": record.get("runId") or record.get("salesSessionId")
+                    or attempt_id, "gameId": "sale",
                     "fragmentId": f"sale.part1:{attempt_id}:completed", "data": {"part1": project_sales_part1(record)}}, participant=participant)
             except (ValueError, RuntimeError):
                 logger.warning("Unable to project completed Sales Part 1 result")
@@ -1079,7 +1087,7 @@ async def create_sales_session(
     request: ReturningSessionRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    run_id = request.run_id or active_run_id
+    run_id = request.run_id or active_run_id or request.session_id
     _require_http_auth(authorization)
     try:
         session = await sales_returning_store.create_or_resume(request.session_id, request.part1_attempt_id, run_id)
@@ -1139,7 +1147,7 @@ async def associate_sales_part1(
     request: ReturningSessionRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    run_id = request.run_id or active_run_id
+    run_id = request.run_id or active_run_id or request.session_id or session_id
     _require_http_auth(authorization)
     if request.part1_attempt_id is None:
         raise HTTPException(status_code=422, detail="part1AttemptId is required.")
