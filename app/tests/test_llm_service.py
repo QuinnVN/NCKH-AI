@@ -50,6 +50,12 @@ class LLMServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(settings.llm_base_url, "http://127.0.0.1:9090/v1")
         self.assertEqual(settings.llm_model, "my-local-alias")
 
+    def test_environment_controls_sales_part2_thinking(self):
+        with patch.dict("os.environ", {"AI_THINKING_SALE_PT2": "false"}):
+            self.assertFalse(get_settings().ai_thinking_sale_pt2)
+        with patch.dict("os.environ", {"AI_THINKING_SALE_PT2": "true"}):
+            self.assertTrue(get_settings().ai_thinking_sale_pt2)
+
     async def test_uses_llama_server_chat_completions_contract(self):
         service = self.make_default_service()
         response = FakeResponse({"choices": [{"message": {"content": "answer"}}]})
@@ -89,12 +95,18 @@ class LLMServiceTests(unittest.IsolatedAsyncioTestCase):
         try:
             await service.generate(
                 [{"role": "user", "content": "career data"}],
-                options={"temperature": 0.6, "top_k": 20, "max_tokens": 512},
+                options={
+                    "temperature": 0.6,
+                    "top_k": 20,
+                    "max_tokens": 512,
+                    "reasoning_effort": "none",
+                },
             )
             payload = service.client.post.await_args.kwargs["json"]
             self.assertEqual(payload["temperature"], 0.6)
             self.assertEqual(payload["top_k"], 20)
             self.assertEqual(payload["max_tokens"], 512)
+            self.assertEqual(payload["reasoning_effort"], "none")
 
             with self.assertRaises(LLMServiceError):
                 await service.generate(

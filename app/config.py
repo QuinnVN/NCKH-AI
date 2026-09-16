@@ -44,6 +44,13 @@ def _env_float(name: str, default: float, *, minimum: float, maximum: float) -> 
     return max(minimum, min(maximum, parsed))
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    if not value:
+        return default
+    return value in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Settings:
     host: str
@@ -73,6 +80,10 @@ class Settings:
     sherpa_model_dir: str
     sherpa_num_threads: int
     sherpa_timeout_seconds: float
+    supertonic_base_url: str | None
+    tts_timeout_seconds: float
+    disable_ai_sale_pt2: bool
+    ai_thinking_sale_pt2: bool
     mongodb_uri: str | None
     mongodb_database: str
     mongodb_results_collection: str
@@ -147,6 +158,15 @@ def get_settings() -> Settings:
         sherpa_timeout_seconds=_env_float(
             "SHERPA_TIMEOUT_SECONDS", 20.0, minimum=1.0, maximum=600.0
         ),
+        supertonic_base_url=(
+            os.environ.get("SUPERTONIC_BASE_URL", "http://127.0.0.1:7788").strip().rstrip("/")
+            or None
+        ),
+        tts_timeout_seconds=_env_float(
+            "TTS_TIMEOUT_SECONDS", 8.0, minimum=1.0, maximum=30.0
+        ),
+        disable_ai_sale_pt2=_env_bool("DISABLE_AI_SALE_PT2"),
+        ai_thinking_sale_pt2=_env_bool("AI_THINKING_SALE_PT2", True),
         mongodb_uri=os.environ.get("MONGODB_URI", "").strip() or None,
         mongodb_database=os.environ.get("MONGODB_DATABASE", "desmap").strip() or "desmap",
         mongodb_results_collection=os.environ.get("MONGODB_RESULTS_COLLECTION", "game_results").strip() or "game_results",

@@ -1,4 +1,4 @@
-"""Lifecycle management for the local llama.cpp server."""
+"""Lifecycle management for local llama.cpp and Supertonic servers."""
 
 from __future__ import annotations
 
@@ -15,14 +15,14 @@ from typing import Literal, Mapping
 from app.config import BACKEND_ROOT
 
 
-AIServerName = Literal["llama"]
-AIServerTarget = Literal["all", "llama"]
+AIServerName = Literal["llama", "supertonic"]
+AIServerTarget = Literal["all", "llama", "supertonic"]
 AICommandAction = Literal["setup", "start", "status", "stop", "restart"]
 
-SERVER_NAMES: tuple[AIServerName, ...] = ("llama",)
+SERVER_NAMES: tuple[AIServerName, ...] = ("llama", "supertonic")
 VALID_ACTIONS = frozenset({"start", "status", "stop", "restart"})
 VALID_TARGETS = frozenset({"all", *SERVER_NAMES})
-AI_COMMAND_USAGE = "Usage: ai setup | ai <start|status|stop|restart> [all|llama]"
+AI_COMMAND_USAGE = "Usage: ai setup [stt|supertonic] | ai <start|status|stop|restart> [all|llama|supertonic]"
 
 
 class AIServerError(RuntimeError):
@@ -32,7 +32,7 @@ class AIServerError(RuntimeError):
 @dataclass(frozen=True)
 class AICommand:
     action: AICommandAction
-    target: AIServerTarget | None
+    target: str | None
 
 
 @dataclass(frozen=True)
@@ -63,8 +63,12 @@ def parse_ai_command(command: str) -> AICommand:
     """Parse one operator-console AI lifecycle command."""
 
     parts = command.strip().lower().split()
-    if parts == ["ai", "setup"]:
-        return AICommand(action="setup", target=None)
+    if len(parts) in (2, 3) and parts[:2] == ["ai", "setup"]:
+        if len(parts) == 2:
+            return AICommand(action="setup", target="all")
+        if parts[2] in {"stt", "supertonic"}:
+            return AICommand(action="setup", target=parts[2])
+        raise ValueError(AI_COMMAND_USAGE)
     if len(parts) not in (2, 3) or parts[0] != "ai":
         raise ValueError(AI_COMMAND_USAGE)
 
@@ -128,6 +132,11 @@ class AIServerManager:
             llama_value = _default_llama_executable(self._environment)
         llama_executable = _configured_path(llama_value, self._root)
         llama_prefix = ("serve",) if llama_executable.stem.lower() == "llama" else ()
+        supertonic_value = self._environment.get("SUPERTONIC_SERVER_BIN", "").strip()
+        if not supertonic_value:
+            executable_name = "supertonic.exe" if os.name == "nt" else "supertonic"
+            supertonic_value = str(self._root / ".venv" / "Scripts" / executable_name)
+        supertonic_executable = _configured_path(supertonic_value, self._root)
 
         return {
             "llama": AIServerSpec(
@@ -158,6 +167,13 @@ class AIServerManager:
                 ),
                 host="127.0.0.1",
                 port=8080,
+            ),
+            "supertonic": AIServerSpec(
+                name="supertonic",
+                executable=supertonic_executable,
+                arguments=("serve", "--host", "127.0.0.1", "--port", "7788"),
+                host="127.0.0.1",
+                port=7788,
             ),
         }
 
@@ -191,7 +207,8 @@ class AIServerManager:
             spec = specs[name]
             if not spec.executable.is_file():
                 errors.append(
-                    f"{name}: executable not found at '{spec.executable}'. Set LLAMA_SERVER_BIN to its path."
+                    f"{name}: executable not found at '{spec.executable}'. "
+                    f"Set {'LLAMA_SERVER_BIN' if name == 'llama' else 'SUPERTONIC_SERVER_BIN'} to its path."
                 )
             for required_file in spec.required_files:
                 if not required_file.is_file():
@@ -241,14 +258,25 @@ class AIServerManager:
 
     async def start(self, target: AIServerTarget = "all") -> tuple[AIServerName, ...]:
         names = self._names(target)
-        specs = self._preflight(names)
-        to_start = tuple(name for name in names if not self._is_running(name))
+        specs = self._specs()
+        to_start: list[AIServerName] = []
+        failures: list[str] = []
+        for name in names:
+            try:
+                self._preflight((name,))
+            except AIServerError as exception:
+                failures.append(str(exception).removeprefix("Preflight failed:\n"))
+            else:
+                if not self._is_running(name):
+                    to_start.append(name)
         if not to_start:
+            if failures:
+                raise AIServerError("Start failed:\n" + "\n".join(failures))
             return ()
 
         started: list[AIServerName] = []
-        try:
-            for name in to_start:
+        for name in to_start:
+            try:
                 spec = specs[name]
                 process = await asyncio.create_subprocess_exec(
                     *spec.command,
@@ -257,16 +285,16 @@ class AIServerManager:
                 )
                 self._processes[name] = process
                 started.append(name)
-
-            await asyncio.gather(
-                *(
-                    self._wait_until_ready(name, specs[name], self._processes[name])
-                    for name in started
-                )
-            )
-        except BaseException:
-            await self._stop_names(tuple(started))
-            raise
+                await self._wait_until_ready(name, specs[name], process)
+            except BaseException as exception:
+                if len(names) == 1 and isinstance(exception, OSError):
+                    raise
+                failures.append(f"{name}: {exception}")
+                process = self._processes.get(name)
+                if process is not None and process.returncode is not None:
+                    self._processes.pop(name, None)
+        if failures:
+            raise AIServerError("Start failed:\n" + "\n".join(failures))
         return tuple(started)
 
     async def _request_stop(self, process: asyncio.subprocess.Process) -> None:

@@ -40,7 +40,7 @@ class AICommandParserTests(unittest.TestCase):
 
     def test_accepts_each_action_and_target(self):
         for action in ("start", "status", "stop", "restart"):
-            for target in ("all", "llama"):
+            for target in ("all", "llama", "supertonic"):
                 with self.subTest(action=action, target=target):
                     parsed = parse_ai_command(f"ai {action} {target}")
                     self.assertEqual((parsed.action, parsed.target), (action, target))
@@ -50,11 +50,13 @@ class AICommandParserTests(unittest.TestCase):
             with self.subTest(command=command), self.assertRaises(ValueError):
                 parse_ai_command(command)
 
-    def test_setup_has_no_target(self):
+    def test_setup_defaults_to_all_and_accepts_targeted_setup(self):
         parsed = parse_ai_command("AI SETUP")
 
         self.assertEqual(parsed.action, "setup")
-        self.assertIsNone(parsed.target)
+        self.assertEqual(parsed.target, "all")
+        self.assertEqual(parse_ai_command("ai setup stt").target, "stt")
+        self.assertEqual(parse_ai_command("ai setup supertonic").target, "supertonic")
 
 
 class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
@@ -64,7 +66,12 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
         self.llama = self.root / "tools" / "llama.exe"
         self.llama.parent.mkdir(parents=True, exist_ok=True)
         self.llama.touch()
-        self.environment = {"LLAMA_SERVER_BIN": str(self.llama)}
+        self.supertonic = self.root / "tools" / "supertonic.exe"
+        self.supertonic.touch()
+        self.environment = {
+            "LLAMA_SERVER_BIN": str(self.llama),
+            "SUPERTONIC_SERVER_BIN": str(self.supertonic),
+        }
         self.manager = AIServerManager(root=self.root, environment=self.environment)
 
     def tearDown(self):
@@ -75,6 +82,7 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(llama_spec.executable, self.llama)
         self.assertEqual(llama_spec.arguments[0], "serve")
+        self.assertEqual(self.manager._specs()["supertonic"].executable, self.supertonic)
 
     def test_preflight_reports_all_missing_dependencies(self):
         manager = AIServerManager(
@@ -105,8 +113,8 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
         ):
             started = await self.manager.start("all")
 
-        self.assertEqual(started, ("llama",))
-        self.assertEqual(process_factory.await_count, 1)
+        self.assertEqual(started, ("llama", "supertonic"))
+        self.assertEqual(process_factory.await_count, 2)
         llama_call = process_factory.await_args_list[0]
         self.assertEqual(llama_call.args[:2], (str(self.llama), "serve"))
         if os.name == "nt":
@@ -135,7 +143,7 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
                 process_factory,
             ),
         ):
-            with self.assertRaises(OSError):
+            with self.assertRaises(AIServerError):
                 await self.manager.start("all")
 
         self.assertEqual(self.manager._processes, {})

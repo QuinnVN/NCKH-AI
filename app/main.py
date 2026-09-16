@@ -10,10 +10,10 @@ import re
 from typing import Any, Literal
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, Body, FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, Body, FastAPI, Header, HTTPException, Query, Response, WebSocket, WebSocketDisconnect
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 import uvicorn
 
 from app.ai_servers import AIServerError, AIServerManager, parse_ai_command
@@ -58,10 +58,18 @@ from app.sales_returning_customer import (
     ReturningTurnRequest,
     complete_session,
     public_session,
+    resolve_sales_speech,
+    sales_speech_metadata,
     submit_turn,
 )
 from app.sherpa_setup import install_model_bundle, resolve_model_dir
 from app.sherpa_stt import SherpaOnnxTranscriber
+from app.supertonic_setup import install_supertonic
+from app.tts_service import (
+    MAX_TTS_CHARS,
+    TTSError,
+    TTSService,
+)
 from app.run_results import (
     FRAGMENT_TYPES,
     GAME_IDS,
@@ -86,6 +94,7 @@ sales_transcriber = SherpaOnnxTranscriber()
 sales_processing_tasks: dict[str, asyncio.Task[object]] = {}
 sales_returning_store = ReturningSessionStore()
 sales_returning_transcriber = sales_transcriber
+tts_service = TTSService()
 lawyer_attempt_store = LawyerAttemptStore()
 lawyer_processing_tasks: dict[str, asyncio.Task[object]] = {}
 participant_manager = ParticipantManager()
@@ -111,6 +120,18 @@ class PendingSceneCommand:
     scene_id: str
     acknowledgement: asyncio.Future[dict[str, Any]]
     owner: WebSocket
+
+
+class TTSRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1, max_length=MAX_TTS_CHARS)
+
+    @field_validator("text")
+    @classmethod
+    def non_blank_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("text must not be blank")
+        return value
 
 
 pending_scene_commands: dict[str, PendingSceneCommand] = {}
@@ -663,11 +684,63 @@ def _json_size(data: Any) -> int:
         return 0
 
 
+def _tts_error(exception: TTSError) -> HTTPException:
+    status = (
+        429 if exception.code == "tts_busy" else
+        504 if exception.code == "tts_timeout" else
+        502 if exception.code == "tts_invalid_audio" else 503
+    )
+    return HTTPException(status_code=status, detail={"code": exception.code})
+
+
+def _wav_response(result: Any, speech_id: str) -> Response:
+    headers = {
+        "X-Audio-Duration": f"{result.duration_seconds:.3f}",
+        "X-Sample-Rate": str(result.sample_rate),
+        "X-Speech-Id": speech_id,
+    }
+    if result.model_version:
+        headers["X-Supertonic-Version"] = result.model_version
+    return Response(content=result.data, media_type="audio/wav", headers=headers)
+
+
+def _tts_enabled() -> bool:
+    return not get_settings().disable_ai_sale_pt2
+
+
+def _speech_for_response(session_id: str, response: dict[str, Any]) -> dict[str, Any]:
+    if not _tts_enabled():
+        response = dict(response)
+        response.pop("speech", None)
+        return response
+    customer_text = response.get("customerText")
+    source_id = response.get("turnId")
+    if isinstance(customer_text, str) and isinstance(source_id, str):
+        response = dict(response)
+        metadata = sales_speech_metadata(session_id, source_id, customer_text)
+        metadata["available"] = tts_service.configured
+        metadata["availability"] = "available" if tts_service.configured else "unavailable"
+        response["speech"] = metadata
+    return response
+
+
+def _speech_for_session(response: dict[str, Any]) -> dict[str, Any]:
+    if not _tts_enabled():
+        response.pop("speech", None)
+        return response
+    speech = response.get("speech")
+    if isinstance(speech, dict):
+        speech["available"] = tts_service.configured
+        speech["availability"] = "available" if tts_service.configured else "unavailable"
+    return response
+
+
 @app.get("/api/health")
 async def health() -> dict[str, Any]:
     service = llm_service
     llm_configured = service is not None and service.configured
     stt_ready = sales_transcriber.ready
+    tts_configured = tts_service.configured
     return {
         "status": "ok",
         "ready": llm_configured and stt_ready,
@@ -676,6 +749,10 @@ async def health() -> dict[str, Any]:
         "llmLastError": service.last_error if service is not None else None,
         "sttReady": stt_ready,
         "sttLastError": sales_transcriber.last_error,
+        "ttsConfigured": tts_configured,
+        "ttsReady": tts_service.ready,
+        "ttsLastError": tts_service.last_error,
+        "ttsAuthenticationRequired": get_settings().api_token is not None,
     }
 
 
@@ -798,7 +875,20 @@ async def telemetry(
             "assessmentStatus": record.get("assessmentStatus", "processing"),
         }
 
-    log(f"[Server] Received telemetry event '{event_type or 'unknown'}'.")
+    event_label = event_type or "unknown"
+    payload = data.get("payload")
+    error_code = payload.get("errorCode") if isinstance(payload, dict) else None
+    if (
+        event_type == "sales.part2.error"
+        and isinstance(error_code, str)
+        and re.fullmatch(r"[a-z0-9_.-]{1,64}", error_code)
+    ):
+        log(
+            f"[Server] Received telemetry event '{event_label}' "
+            f"with error code '{error_code}'."
+        )
+    else:
+        log(f"[Server] Received telemetry event '{event_label}'.")
     return {"status": "ok"}
 
 
@@ -1081,6 +1171,52 @@ async def get_sales_persuasion_recording(
     return _public_sales_record(record)
 
 
+@app.post("/api/tts")
+async def synthesize_speech(
+    request: TTSRequest,
+    authorization: str | None = Header(default=None),
+) -> Response:
+    """Synthesize bounded text through the fixed local Supertonic voice."""
+
+    _require_http_auth(authorization)
+    if not _tts_enabled():
+        raise HTTPException(status_code=503, detail={"code": "tts_disabled"})
+    try:
+        result = await tts_service.synthesize(request.text)
+    except TTSError as exception:
+        logger.warning("TTS synthesis failed (%s).", exception.code)
+        raise _tts_error(exception) from exception
+    return _wav_response(result, uuid4().hex)
+
+
+@app.get("/api/sales/sessions/{session_id}/speech/{speech_id}")
+async def get_sales_speech(
+    session_id: str,
+    speech_id: str,
+    authorization: str | None = Header(default=None),
+) -> Response:
+    """Synthesize a customer line resolved from its sales session authority."""
+
+    _require_http_auth(authorization)
+    if not _tts_enabled():
+        raise HTTPException(status_code=503, detail={"code": "tts_disabled"})
+    try:
+        session = await sales_returning_store.get(session_id)
+    except ValueError as exception:
+        raise HTTPException(status_code=422, detail="Invalid sales session ID.") from exception
+    if session is None:
+        raise HTTPException(status_code=404, detail="Sales session not found.")
+    text = resolve_sales_speech(session, speech_id)
+    if text is None:
+        raise HTTPException(status_code=404, detail="Sales speech not found.")
+    try:
+        result = await tts_service.synthesize(text)
+    except TTSError as exception:
+        logger.warning("Sales TTS synthesis failed (%s).", exception.code)
+        raise _tts_error(exception) from exception
+    return _wav_response(result, speech_id)
+
+
 @app.post("/api/sales/sessions")
 @app.post("/api/sales/session", include_in_schema=False)
 async def create_sales_session(
@@ -1095,7 +1231,7 @@ async def create_sales_session(
         raise HTTPException(status_code=422, detail=str(exception)) from exception
     except OSError as exception:
         raise HTTPException(status_code=500, detail="Unable to store sales session.") from exception
-    return public_session(session)
+    return _speech_for_session(public_session(session))
 
 
 @app.get("/api/sales/sessions/{session_id}")
@@ -1111,7 +1247,7 @@ async def get_sales_session(
         raise HTTPException(status_code=422, detail=str(exception)) from exception
     if session is None:
         raise HTTPException(status_code=404, detail="Sales session not found.")
-    return public_session(session)
+    return _speech_for_session(public_session(session))
 
 
 @app.post("/api/sales/sessions/{session_id}/turns")
@@ -1123,13 +1259,14 @@ async def submit_sales_returning_turn(
 ) -> dict[str, Any]:
     _require_http_auth(authorization)
     try:
-        return await submit_turn(
+        result = await submit_turn(
             session_id,
             request,
             store=sales_returning_store,
             transcriber=sales_returning_transcriber,
             responder=LLMSalesResponder(llm_service),
         )
+        return _speech_for_response(session_id, result)
     except KeyError as exception:
         raise HTTPException(status_code=404, detail=str(exception)) from exception
     except ValueError as exception:
@@ -1157,7 +1294,7 @@ async def associate_sales_part1(
         raise HTTPException(status_code=422, detail=str(exception)) from exception
     except OSError as exception:
         raise HTTPException(status_code=500, detail="Unable to associate Part 1 attempt.") from exception
-    return public_session(session)
+    return _speech_for_session(public_session(session))
 
 
 @app.post("/api/sales/sessions/{session_id}/complete")
@@ -1184,7 +1321,7 @@ async def complete_sales_session(
                 }, participant=participant)
             except (ValueError, RuntimeError):
                 logger.warning("Unable to project completed Sales Part 2 result")
-        return public_session(result)
+        return _speech_for_session(public_session(result))
     except KeyError as exception:
         raise HTTPException(status_code=404, detail=str(exception)) from exception
     except RuntimeError as exception:
@@ -1430,14 +1567,18 @@ async def run_ai_server_command(command: str) -> bool:
         parsed = parse_ai_command(command)
         if parsed.action == "setup":
             settings = get_settings()
-            result = await asyncio.to_thread(
-                install_model_bundle, resolve_model_dir(settings.sherpa_model_dir)
-            )
-            if not await sales_transcriber.initialize():
-                raise AIServerError(sales_transcriber.last_error or "Speech recognition initialization failed.")
-            await _resume_sales_processing()
-            state = "Installed" if result.installed else "Already installed"
-            log(f"[AI] {state} {result.model_dir}; speech recognition is ready.")
+            if parsed.target in ("all", "stt"):
+                result = await asyncio.to_thread(
+                    install_model_bundle, resolve_model_dir(settings.sherpa_model_dir)
+                )
+                if not await sales_transcriber.initialize():
+                    raise AIServerError(sales_transcriber.last_error or "Speech recognition initialization failed.")
+                await _resume_sales_processing()
+                state = "Installed" if result.installed else "Already installed"
+                log(f"[AI] {state} {result.model_dir}; speech recognition is ready.")
+            if parsed.target in ("all", "supertonic"):
+                await asyncio.to_thread(install_supertonic)
+                log("[AI] Supertonic 1.3.1 package is installed. Start it with 'ai start supertonic'.")
             return True
         if parsed.target is None:
             raise ValueError("AI server target is required.")

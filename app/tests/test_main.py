@@ -757,6 +757,23 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("scene.ready" in str(message) for message in self.messages))
         self.assertFalse(list(self.recordings_directory.iterdir()))
 
+    async def test_sales_part2_error_log_includes_specific_error_code(self):
+        event = {
+            "eventType": "sales.part2.error",
+            "payload": {"errorCode": "responder_timeout"},
+        }
+
+        result = await main.telemetry(event)
+
+        self.assertEqual(result, {"status": "ok"})
+        self.assertTrue(
+            any(
+                "sales.part2.error" in str(message)
+                and "responder_timeout" in str(message)
+                for message in self.messages
+            )
+        )
+
 
 class LawyerResultProjectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_completed_background_assessment_finalizes_and_syncs_result(self):
@@ -846,6 +863,7 @@ class AISetupCommandTests(unittest.IsolatedAsyncioTestCase):
             patch.object(main, "get_settings", return_value=type("Settings", (), {"sherpa_model_dir": "models/zipformer"})()),
             patch.object(main, "resolve_model_dir", return_value=Path("models/zipformer")),
             patch.object(main, "install_model_bundle", return_value=setup_result),
+            patch.object(main, "install_supertonic"),
             patch.object(main, "_resume_sales_processing", new=AsyncMock()) as resume,
             patch.object(main, "log"),
         ):

@@ -70,6 +70,7 @@ class LLMService:
                 "presence_penalty",
                 "max_tokens",
                 "response_format",
+                "reasoning_effort",
             }
             unknown_options = set(options) - allowed_options
             if unknown_options:

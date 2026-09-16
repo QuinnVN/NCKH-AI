@@ -29,7 +29,7 @@ WAV/processing records, and synchronization sidecars are retained indefinitely.
 
 `app/sales_persuasion.py` owns the sales recording contract and attempt store. `app/lawyer_assessment.py` provides the equivalent durable workflow for the Lawyer closing defense, including bounded case context, four scoring criteria, and the interview-restart penalty. A successful submission means the WAV and JSON attempt record have been persisted; it does not wait for transcription or assessment. Reusing an attempt ID with the same payload is idempotent, while changed immutable data returns 409.
 
-The liveness endpoint is `GET /api/health`. It always reports `status: "ok"` when the process is serving; `ready` and `llmConfigured` indicate whether an LLM service was initialized. `GET /api/health/ready` returns 503 until the LLM is configured. Unity connectivity is reported as `unityConnected`.
+The liveness endpoint is `GET /api/health`. It always reports `status: "ok"` when the process is serving; `ready` and `llmConfigured` indicate whether an LLM service was initialized. `GET /api/health/ready` returns 503 until the LLM is configured. Unity connectivity is reported as `unityConnected`. TTS fields report whether Supertonic is configured, has recently produced a valid WAV, and requires the backend bearer token. TTS does not affect general readiness.
 
 ## HTTP API
 
@@ -106,7 +106,7 @@ This endpoint accepts up to 28 categorized questionnaire dimensions, then uses Q
 
 Unity opens one authenticated connection to `WS /ws/ctrl`. The token can be supplied as the `Authorization: Bearer <token>` header or the `token=<token>` query parameter. A newer connection replaces the older one, and pending commands belonging to the old connection fail rather than accepting an ACK from the wrong client.
 
-The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, and `sale`. For a gameplay scene, the backend sends `load_scene`, waits for a `ready` acknowledgement, then sends `start_scene` and waits for a `running` acknowledgement. Standby requires only `load_scene`. The console also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai setup` to install and initialize speech recognition. Use `ai start`, `ai status`, `ai stop`, or `ai restart` with the optional `all` or `llama` target to manage llama.cpp. The remaining commands are `status` and `exit`. The first command is:
+The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, and `sale`. For a gameplay scene, the backend sends `load_scene`, waits for a `ready` acknowledgement, then sends `start_scene` and waits for a `running` acknowledgement. Standby requires only `load_scene`. The console also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai setup`, `ai setup stt`, or `ai setup supertonic` to install speech dependencies. Use `ai start`, `ai status`, `ai stop`, or `ai restart` with `all`, `llama`, or `supertonic` to manage local model services. The remaining commands are `status` and `exit`. The first command is:
 
 ```json
 {
@@ -179,6 +179,7 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `LLM_READ_TIMEOUT_SECONDS` | `120` | LLM response timeout, capped at 600 seconds. |
 | `LLM_MAX_TOKENS` | `100` | Maximum completion tokens, capped at 2,048. |
 | `LLM_CAREER_MAX_TOKENS` | `4096` | Completion budget for thinking plus career JSON, capped at 8,192. |
+| `AI_THINKING_SALE_PT2` | `true` | Enables thinking for Sales Part 2 customer responses. Set to `false` to request no thinking. |
 | `MAX_CAREER_PROMPT_CHARS` | `32000` | Maximum size of an individual career-assessment prompt message. |
 | `MAX_SALES_PROMPT_CHARS` | `24000` | Maximum size of an individual sales-assessment prompt message. |
 | `MAX_LAWYER_PROMPT_CHARS` | `32000` | Maximum size of the bounded Lawyer assessment prompt. |
@@ -237,7 +238,7 @@ From the interactive console, start llama.cpp with:
 ai start
 ```
 
-This opens llama.cpp in a separate Windows console window. `ai start` preflights the executable and port 8080, then waits for the port to accept connections. Use `ai status`, `ai stop`, or `ai restart` to inspect or control it. The optional `all` target currently means the managed llama server.
+This opens llama.cpp and, when selected, Supertonic in separate Windows console windows. `ai start` preflights each selected service and waits for its port. Supertonic listens on `127.0.0.1:7788`. Use `ai status`, `ai stop`, or `ai restart` to inspect or control either service. A failed Supertonic launch does not stop a llama.cpp process that already started.
 
 The llama executable path comes from `LLAMA_SERVER_BIN`. If that variable is unset, the manager derives `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe`. The manager uses llama.cpp's `-hf` option, so the first run may download `Qwen/Qwen3-4B-GGUF:Q4_K_M`. The backend sends `LLM_MODEL` (default `qwen3-4b`) as the OpenAI-compatible model field, so it must match the server alias.
 
