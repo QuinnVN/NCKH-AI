@@ -28,7 +28,10 @@ from app.llm_service import LLMService, LLMServiceError
 
 
 ATTEMPT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
-SHOE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+# Unity's authored Sales data currently uses the display label as the stable
+# shoe identifier. Accept Unicode word characters and internal spaces while
+# retaining a bounded, control-character-free identifier contract.
+SHOE_ID_PATTERN = re.compile(r"^[^\W_][\w -]{0,63}$", re.UNICODE)
 SALES_RECORDING_EVENT_TYPE = "sales.persuasion_recording"
 SALES_MAX_SHOES = 20
 SALES_MAX_SCENARIO_TEXT = 4000
@@ -62,7 +65,7 @@ class SalesShoeFact(BaseModel):
     @field_validator("shoe_id")
     @classmethod
     def valid_shoe_id(cls, value: str) -> str:
-        if SHOE_ID_PATTERN.fullmatch(value) is None:
+        if value != value.strip() or SHOE_ID_PATTERN.fullmatch(value) is None:
             raise ValueError("shoeId has an invalid format")
         return value
 

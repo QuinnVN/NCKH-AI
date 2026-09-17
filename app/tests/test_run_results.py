@@ -99,20 +99,135 @@ class RunResultTests(unittest.IsolatedAsyncioTestCase):
             part1 = {"fragmentId": "part1", "runId": run_id, "participantName": participant.name,
                      "participantSessionId": participant.session_id, "gameId": "sale",
                      "fragmentType": "sales.part1_recording_uploaded", "occurredAtUtc": "x",
-                     "payload": {"selectedShoeId": "a", "bestFitShoeId": "b", "transcript": "được"}}
+                     "payload": {"attemptId": "attempt-1", "selectedShoeId": "a", "bestFitShoeId": "b",
+                                 "transcript": "được", "score": 80, "feedbackVi": "Tốt",
+                                 "recordingAtUtc": "recorded", "assessmentCompletedAtUtc": "assessed"}}
             await store.accept_fragment(translate_unity_result_fragment(part1), participant=participant)
             for turn_id in ("t1", "t2"):
                 turn = {**part1, "fragmentId": turn_id, "fragmentType": "sales.part2.turn_accepted",
                         "payload": {"turnId": turn_id, "transcript": turn_id}}
                 await store.accept_fragment(translate_unity_result_fragment(turn), participant=participant)
             done = {**part1, "fragmentId": "done", "fragmentType": "sales.part2.completed",
-                    "payload": {"trustState": "restored", "completionReason": "normal",
+                    "payload": {"score": 85, "customerRating": "good", "criterionScores": {"apologyAndPolicyRemedy": 45, "adaptabilityAndDeescalation": 40}, "trustState": "restored", "completionReason": "normal",
                                 "emotionalHandling": True, "causeIdentification": True,
-                                "solutionSuitability": True, "trustRebuilding": True}}
+                                "solutionSuitability": True, "trustRebuilding": True,
+                                "acceptedTurnCount": 2}}
             result = await store.accept_fragment(translate_unity_result_fragment(done), participant=participant)
             self.assertEqual(result["status"], "completed")
             self.assertEqual([turn["turnId"] for turn in result["data"]["turns"]], ["t1", "t2"])
             self.assertEqual(result["data"]["part1"]["selectedShoeId"], "a")
+
+    async def test_sales_waits_for_part1_transcript_and_assessment_before_finalizing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            participant, _ = ParticipantManager().assign("Sales participant")
+            store = RunResultStore(Path(directory), mongo=FakeMongo())
+            run_id = "sales-pending"
+            await store.begin(run_id, "sale", participant)
+            await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "part1-pending",
+                "data": {"part1": {"attemptId": "attempt-1", "selectedShoeId": "shoe-a",
+                                     "bestFitShoeId": "shoe-b", "transcript": None,
+                                     "score": None, "feedbackVi": None,
+                                     "recordingAtUtc": "recorded",
+                                     "assessmentCompletedAtUtc": None}},
+            }, participant=participant)
+            pending = await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "part2-complete",
+                "requiredFields": ["part1", "part2"], "complete": True,
+                "data": {"part2": {"score": 85, "customerRating": "good", "criterionScores": {"apologyAndPolicyRemedy": 45, "adaptabilityAndDeescalation": 40}, "trustState": "restored", "completionReason": "natural",
+                                     "emotionalHandling": True, "causeIdentification": True,
+                                     "solutionSuitability": True, "trustRebuilding": True,
+                                     "acceptedTurnCount": 0}},
+            }, participant=participant)
+            self.assertEqual(pending["status"], "draft")
+
+            completed = await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "part1-assessed",
+                "data": {"part1": {"attemptId": "attempt-1", "selectedShoeId": "shoe-a",
+                                     "bestFitShoeId": "shoe-b", "transcript": "Tôi đề xuất đôi A.",
+                                     "score": 80, "feedbackVi": "Lập luận phù hợp.",
+                                     "recordingAtUtc": "recorded",
+                                     "assessmentCompletedAtUtc": "assessed"}},
+            }, participant=participant)
+            self.assertEqual(completed["status"], "completed")
+            self.assertEqual(completed["data"]["part1"]["selectedShoeId"], "shoe-a")
+            self.assertEqual(completed["data"]["part1"]["transcript"], "Tôi đề xuất đôi A.")
+
+    async def test_late_partial_sales_fragment_does_not_erase_assessment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            participant, _ = ParticipantManager().assign("Sales participant")
+            store = RunResultStore(Path(directory), mongo=FakeMongo())
+            run_id = "sales-late-fragment"
+            await store.begin(run_id, "sale", participant)
+            await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "part1-assessed",
+                "data": {"part1": {"attemptId": "attempt-1", "selectedShoeId": "shoe-a",
+                                     "bestFitShoeId": "shoe-b", "transcript": "Tôi chọn đôi A.",
+                                     "score": 90, "feedbackVi": "Tốt.",
+                                     "recordingAtUtc": "recorded",
+                                     "assessmentCompletedAtUtc": "assessed"}},
+            }, participant=participant)
+            draft = await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "part1-unity-ack",
+                "data": {"part1": {"attemptId": "attempt-1", "selectedShoeId": "shoe-a",
+                                     "bestFitShoeId": "shoe-b"}},
+            }, participant=participant)
+            self.assertEqual(draft["data"]["part1"]["transcript"], "Tôi chọn đôi A.")
+            self.assertEqual(draft["data"]["part1"]["score"], 90)
+
+    async def test_sales_waits_for_every_accepted_part2_transcript(self):
+        with tempfile.TemporaryDirectory() as directory:
+            participant, _ = ParticipantManager().assign("Sales participant")
+            store = RunResultStore(Path(directory), mongo=FakeMongo())
+            run_id = "sales-pending-turn"
+            await store.begin(run_id, "sale", participant)
+            await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "part1",
+                "data": {"part1": {"attemptId": "attempt-1", "selectedShoeId": "shoe-a",
+                                     "bestFitShoeId": "shoe-b", "transcript": "Tôi chọn đôi A.",
+                                     "score": 90, "feedbackVi": "Tốt.",
+                                     "recordingAtUtc": "recorded",
+                                     "assessmentCompletedAtUtc": "assessed"}},
+            }, participant=participant)
+            pending = await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "part2",
+                "requiredFields": ["part1", "part2"], "complete": True,
+                "data": {"part2": {"score": 85, "customerRating": "good", "criterionScores": {"apologyAndPolicyRemedy": 45, "adaptabilityAndDeescalation": 40}, "trustState": "restored", "completionReason": "natural",
+                                     "emotionalHandling": True, "causeIdentification": True,
+                                     "solutionSuitability": True, "trustRebuilding": True,
+                                     "acceptedTurnCount": 1}},
+            }, participant=participant)
+            self.assertEqual(pending["status"], "draft")
+
+            completed = await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "turn-1",
+                "data": {"turns": [{"turnId": "turn-1", "transcript": "Em xin lỗi chị."}]},
+            }, participant=participant)
+            self.assertEqual(completed["status"], "completed")
+            self.assertEqual(completed["data"]["turns"][0]["transcript"], "Em xin lỗi chị.")
+
+    def test_sales_store_projection_uses_aggregate_field_names(self):
+        from app.run_results import project_sales_part1, project_sales_part2
+
+        part1 = project_sales_part1({
+            "attemptId": "attempt-1", "salesSessionId": "session-1",
+            "scenarioId": "scenario-1", "customerId": "customer-1",
+            "selectedShoeId": "shoe-a", "bestFitShoeId": "shoe-b",
+            "transcript": "Tôi chọn đôi A.", "score": 75, "feedbackVi": "Ổn.",
+            "createdAtUtc": "recorded", "updatedAtUtc": "assessed",
+        })
+        self.assertEqual(part1["recordingAtUtc"], "recorded")
+        self.assertEqual(part1["assessmentCompletedAtUtc"], "assessed")
+        self.assertNotIn("createdAtUtc", part1)
+
+        part2 = project_sales_part2({
+            "turns": [{"turnId": "turn-1", "transcript": "Em xin lỗi chị.",
+                       "customerText": "Chị muốn nghe giải pháp cụ thể.",
+                       "activeObjective": 2, "objectiveActiveDuringTurn": 1,
+                       "createdAtUtc": "turn-time"}],
+        })
+        self.assertEqual(part2["turns"][0]["customerReply"], "Chị muốn nghe giải pháp cụ thể.")
+        self.assertEqual(part2["turns"][0]["turnTimestampUtc"], "turn-time")
 
     async def test_current_unity_envelopes_post_for_all_games_and_exclude_extra_fields(self):
         from httpx import ASGITransport, AsyncClient
@@ -156,10 +271,16 @@ class RunResultTests(unittest.IsolatedAsyncioTestCase):
                               "assessmentContextJson": "must not persist", "provider": "must not persist"}
                     await post("lawyer-run", "lawyer", "lawyer.defense_completed", lawyer)
 
-                    await post("sales-run", "sale", "sales.part1_recording_uploaded", {"roundId": "a", "cardId": "shoe", "resolution": "{}", "audio": "drop"})
-                    await post("sales-run", "sale", "sales.part2.completed", {"trustState": "lost", "completionReason": "silence_limit",
+                    await post("sales-run", "sale", "sales.part1_recording_uploaded", {
+                        "roundId": "a", "cardId": "shoe", "bestFitShoeId": "best-shoe",
+                        "transcript": "Tôi đề xuất đôi này.", "score": 70,
+                        "feedback": "Lập luận phù hợp.", "recordingAtUtc": "recorded",
+                        "assessmentCompletedAtUtc": "assessed", "resolution": "{}",
+                        "audio": "drop",
+                    })
+                    await post("sales-run", "sale", "sales.part2.completed", {"score": 0, "customerRating": "bad", "criterionScores": {"apologyAndPolicyRemedy": 0, "adaptabilityAndDeescalation": 0}, "trustState": "lost", "completionReason": "silence_limit",
                         "emotionalHandling": False, "causeIdentification": False, "solutionSuitability": False,
-                        "trustRebuilding": False, "diagnostic": "drop"})
+                        "trustRebuilding": False, "acceptedTurnCount": 0, "diagnostic": "drop"})
                     bad = await client.post("/api/results/fragments", json={"kind": "unknown.result", "runId": "bad", "gameId": "clinic", "data": {}})
                     self.assertEqual(bad.status_code, 422)
 

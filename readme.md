@@ -71,7 +71,7 @@ The recording must be a non-empty PCM WAV with signed 16-bit samples, 16,000 Hz,
 
 The background worker detects silence, transcribes Vietnamese speech, and scores `evidence_use` out of 40, `logical_connections` out of 35, `conclusion_fidelity` out of 15, and `clarity_and_persuasiveness` out of 10. The raw total is preserved. Zero through three interview restarts have no penalty; four or more apply one 50% deduction to the raw total, retaining half points. `GET /api/lawyer/defense-recordings/<roundId>` exposes only gameplay-safe processing status. The diagnostic endpoint at the same path plus `/diagnostic` returns the detailed result only when `X-Diagnostic-Token` matches `LAWYER_DIAGNOSTIC_TOKEN`.
 
-Unity sales uploads use the same telemetry route with `eventType: "sales.persuasion_recording"`. Its payload uses `roundId`, `questionId`, `caseId`, `cardId`, a JSON-string `resolution` containing `selectedShoe`, `bestFitShoe`, `customerNeeds`, `objection`, and `availableShoes`, plus the WAV `audio` object. The adapter validates this envelope and maps it to the sales attempt contract below. Unity audio metadata such as `fileName`, `durationSeconds`, and `endedEarly` is accepted but does not replace WAV validation.
+Unity sales uploads use the same telemetry route with `eventType: "sales.persuasion_recording"`. Its payload uses `roundId`, `questionId`, `caseId`, `cardId`, a JSON-string `resolution` containing `selectedShoe`, `bestFitShoe`, `customerNeeds`, `objection`, and `availableShoes`, plus the WAV `audio` object. The adapter validates this envelope and maps it to the sales attempt contract below. Unity audio metadata such as `fileName`, `durationSeconds`, and `endedEarly` is accepted but does not replace WAV validation. Sales Part 2 completion scores apology plus policy-compliant remedy out of 50 and adaptability plus de-escalation out of 50. The total maps 0 through 30 to a bad customer evaluation, 31 through 60 to consideration, and 61 through 100 to a good evaluation.
 
 ### `POST /api/ai/respond`
 
@@ -179,7 +179,6 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `LLM_READ_TIMEOUT_SECONDS` | `120` | LLM response timeout, capped at 600 seconds. |
 | `LLM_MAX_TOKENS` | `100` | Maximum completion tokens, capped at 2,048. |
 | `LLM_CAREER_MAX_TOKENS` | `4096` | Completion budget for thinking plus career JSON, capped at 8,192. |
-| `AI_THINKING_SALE_PT2` | `true` | Enables thinking for Sales Part 2 customer responses. Set to `false` to request no thinking. |
 | `MAX_CAREER_PROMPT_CHARS` | `32000` | Maximum size of an individual career-assessment prompt message. |
 | `MAX_SALES_PROMPT_CHARS` | `24000` | Maximum size of an individual sales-assessment prompt message. |
 | `MAX_LAWYER_PROMPT_CHARS` | `32000` | Maximum size of the bounded Lawyer assessment prompt. |

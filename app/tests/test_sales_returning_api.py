@@ -92,9 +92,11 @@ class ReturningApiTests(unittest.IsolatedAsyncioTestCase):
             if index == 4: self.assertEqual(turn["customerText"], MANDATORY_CHALLENGE)
         class RestoredAnalyzer:
             async def analyze(self, session):
-                return TrustAnalysis(trustState="restored", emotionalHandling=True, causeIdentification=True, solutionSuitability=True, trustRebuilding=True)
+                return TrustAnalysis(criterionScores={"apologyAndPolicyRemedy": 45, "adaptabilityAndDeescalation": 40}, emotionalHandling=True, causeIdentification=True, solutionSuitability=True, trustRebuilding=True)
         result = await complete_session("scripted", CompletionRequest(completionId="final"), store=self.store, analyzer=RestoredAnalyzer())
         self.assertEqual(result["trustState"], "restored")
+        self.assertEqual(result["score"], 85)
+        self.assertEqual(result["customerRating"], "good")
         self.assertEqual(result["acceptedTurnCount"], 6)
 
     async def test_terminal_turn_retry_remains_idempotent(self):

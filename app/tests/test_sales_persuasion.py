@@ -136,6 +136,30 @@ class SalesPersuasionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             SalesPersuasionSubmission.model_validate(data)
 
+    def test_unity_authored_shoe_labels_are_valid_identifiers(self):
+        data = submission_data(wav_bytes())
+        labels = ["Aduma Samba", "Nyke Air Max", "Columnia Crestwood"]
+        data["availableShoes"] = [
+            {"shoeId": label, "name": label, "price": 1_000_000 + index,
+             "details": "Giày trong cảnh Sales"}
+            for index, label in enumerate(labels)
+        ]
+        data["selectedShoeId"] = labels[0]
+        data["bestFitShoeId"] = labels[1]
+
+        result = SalesPersuasionSubmission.model_validate(data)
+
+        self.assertEqual(result.selected_shoe_id, "Aduma Samba")
+
+    def test_shoe_identifiers_reject_padding_and_control_characters(self):
+        for invalid_id in (" Aduma Samba", "Aduma Samba ", "Aduma\nSamba"):
+            with self.subTest(shoe_id=repr(invalid_id)):
+                data = submission_data(wav_bytes())
+                data["availableShoes"][0]["shoeId"] = invalid_id
+                data["selectedShoeId"] = invalid_id
+                with self.assertRaisesRegex(ValueError, "shoeId has an invalid format"):
+                    SalesPersuasionSubmission.model_validate(data)
+
     async def test_accept_is_idempotent_and_conflicting_retry_is_rejected(self):
         request = SalesPersuasionSubmission.model_validate(submission_data(wav_bytes(amplitude=1000)))
         first, should_process = await self.store.accept(request)

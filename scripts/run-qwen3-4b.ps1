@@ -6,6 +6,8 @@ param(
     [int]$Port = 8080,
     [ValidateRange(4096, 32768)]
     [int]$ContextSize = 16384,
+    [ValidateRange(1, 16)]
+    [int]$ParallelSlots = 1,
     [ValidateRange(0, 999)]
     [int]$GpuLayers = 99,
     [string]$ModelSource = "Qwen/Qwen3-4B-GGUF:Q4_K_M",
@@ -29,6 +31,7 @@ $serverArguments = @(
     "--host", $BindAddress,
     "--port", $Port,
     "--ctx-size", $ContextSize,
+    "--parallel", $ParallelSlots,
     "--jinja",
     "--reasoning", "auto",
     "--reasoning-format", "deepseek",

@@ -43,7 +43,7 @@ _EVENT_FIELDS: dict[str, frozenset[str]] = {
     "sales.persuasion_recording": frozenset({"attemptId", "salesSessionId", "scenarioId", "customerId", "selectedShoeId", "bestFitShoeId", "transcript", "score", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc"}),
     "sales.part1_recording_uploaded": frozenset({"attemptId", "salesSessionId", "scenarioId", "customerId", "selectedShoeId", "bestFitShoeId", "transcript", "score", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc"}),
     "sales.part2.turn_accepted": frozenset({"turnId", "transcript", "customerReply", "objective", "activeObjective", "objectiveActiveDuringTurn", "turnTimestampUtc"}),
-    "sales.part2.completed": frozenset({"trustState", "emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding", "completionReason", "acceptedTurnCount", "silenceCount", "completedAtUtc"}),
+    "sales.part2.completed": frozenset({"score", "customerRating", "criterionScores", "trustState", "emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding", "completionReason", "acceptedTurnCount", "silenceCount", "completedAtUtc"}),
 }
 
 
@@ -114,7 +114,8 @@ def _event_payload(event_type: str, source: Mapping[str, Any], occurred_at: str)
     if event_type == "sales.part2.completed":
         source = source.get("part2") if isinstance(source.get("part2"), Mapping) else source
         return {key: _approved_data(value) for key, value in {
-            "trustState": source.get("trustState"), "emotionalHandling": source.get("emotionalHandling"),
+            "score": source.get("score"), "customerRating": source.get("customerRating"),
+            "criterionScores": source.get("criterionScores"), "trustState": source.get("trustState"), "emotionalHandling": source.get("emotionalHandling"),
             "causeIdentification": source.get("causeIdentification"), "solutionSuitability": source.get("solutionSuitability"),
             "trustRebuilding": source.get("trustRebuilding"), "completionReason": source.get("completionReason"),
             "acceptedTurnCount": source.get("acceptedTurnCount"), "silenceCount": source.get("silenceCount"),
@@ -284,6 +285,11 @@ def merge_result_data(current: Mapping[str, Any], incoming: Mapping[str, Any]) -
             result[key] = _merge_keyed(result.get(key), value, "caseId")
         elif key == "turns":
             result[key] = _merge_keyed(result.get(key), value, "turnId")
+        elif key in {"part1", "part2"} and isinstance(value, Mapping):
+            existing = result.get(key)
+            merged = dict(existing) if isinstance(existing, Mapping) else {}
+            merged.update(value)
+            result[key] = merged
         else:
             result[key] = value
     return result
@@ -386,15 +392,37 @@ def project_lawyer_record(record: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def project_sales_part1(record: Mapping[str, Any]) -> dict[str, Any]:
-    return {k: record.get(k) for k in ("attemptId", "selectedShoeId", "bestFitShoeId", "transcript", "score", "feedbackVi", "createdAtUtc", "updatedAtUtc")}
+    return {
+        "attemptId": record.get("attemptId"),
+        "salesSessionId": record.get("salesSessionId"),
+        "scenarioId": record.get("scenarioId"),
+        "customerId": record.get("customerId"),
+        "selectedShoeId": record.get("selectedShoeId"),
+        "bestFitShoeId": record.get("bestFitShoeId"),
+        "transcript": record.get("transcript"),
+        "score": record.get("score"),
+        "feedbackVi": record.get("feedbackVi"),
+        "recordingAtUtc": record.get("createdAtUtc"),
+        "assessmentCompletedAtUtc": record.get("updatedAtUtc"),
+    }
 
 
 def project_sales_part2(session: Mapping[str, Any]) -> dict[str, Any]:
     turns = []
     for turn in session.get("turns", []):
         if isinstance(turn, Mapping):
-            turns.append({k: turn.get(k) for k in ("turnId", "transcript", "customerText", "activeObjective", "objectiveActiveDuringTurn", "createdAtUtc", "timestampUtc")})
-    return {"turns": turns, "trustState": session.get("trustState"),
+            turns.append({
+                "turnId": turn.get("turnId"),
+                "transcript": turn.get("transcript"),
+                "customerReply": turn.get("customerText"),
+                "activeObjective": turn.get("activeObjective"),
+                "objectiveActiveDuringTurn": turn.get("objectiveActiveDuringTurn"),
+                "turnTimestampUtc": turn.get("timestampUtc") or turn.get("createdAtUtc"),
+            })
+    return {"turns": turns, "score": session.get("score"),
+            "customerRating": session.get("customerRating"),
+            "criterionScores": session.get("criterionScores"),
+            "trustState": session.get("trustState"),
             "emotionalHandling": session.get("emotionalHandling", False),
             "causeIdentification": session.get("causeIdentification", False),
             "solutionSuitability": session.get("solutionSuitability", False),
@@ -533,10 +561,45 @@ class RunResultStore:
             if not isinstance(lawyer.get("criterionScores"), Mapping) or lawyer.get("rawScore") is None or lawyer.get("finalScore") is None:
                 return False
         if game_id == "sale" and "part2" in required:
+            part1 = data.get("part1")
             part2 = data.get("part2")
+            part1_fields = {
+                "attemptId", "selectedShoeId", "bestFitShoeId", "transcript",
+                "score", "feedbackVi", "recordingAtUtc",
+                "assessmentCompletedAtUtc",
+            }
             flags = {"emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding"}
+            if not isinstance(part1, Mapping) or not part1_fields.issubset(set(part1)):
+                return False
+            if not part1.get("attemptId") or not part1.get("selectedShoeId") or not part1.get("bestFitShoeId"):
+                return False
+            if part1.get("transcript") is None or part1.get("score") is None or part1.get("feedbackVi") is None:
+                return False
+            if not part1.get("recordingAtUtc") or not part1.get("assessmentCompletedAtUtc"):
+                return False
+            score = part2.get("score") if isinstance(part2, Mapping) else None
+            criterion_scores = part2.get("criterionScores") if isinstance(part2, Mapping) else None
+            valid_ratings = {"bad", "considering", "good"}
             if not isinstance(part2, Mapping) or not part2.get("trustState") or not part2.get("completionReason") or not flags.issubset(set(part2)):
                 return False
+            if not isinstance(score, int) or isinstance(score, bool) or not 0 <= score <= 100:
+                return False
+            if part2.get("customerRating") not in valid_ratings or not isinstance(criterion_scores, Mapping):
+                return False
+            criterion_values = (criterion_scores.get("apologyAndPolicyRemedy"), criterion_scores.get("adaptabilityAndDeescalation"))
+            if any(not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 50 for value in criterion_values) or sum(criterion_values) != score:
+                return False
+            turns = data.get("turns", [])
+            if not isinstance(turns, list):
+                return False
+            accepted_turn_count = part2.get("acceptedTurnCount")
+            if not isinstance(accepted_turn_count, int) or accepted_turn_count < 0:
+                return False
+            if len(turns) < accepted_turn_count:
+                return False
+            for turn in turns:
+                if not isinstance(turn, Mapping) or not turn.get("turnId") or turn.get("transcript") is None:
+                    return False
         return True
 
     async def finalize(self, run_id: str) -> dict[str, Any]:

@@ -83,7 +83,6 @@ class Settings:
     supertonic_base_url: str | None
     tts_timeout_seconds: float
     disable_ai_sale_pt2: bool
-    ai_thinking_sale_pt2: bool
     mongodb_uri: str | None
     mongodb_database: str
     mongodb_results_collection: str
@@ -166,7 +165,6 @@ def get_settings() -> Settings:
             "TTS_TIMEOUT_SECONDS", 8.0, minimum=1.0, maximum=30.0
         ),
         disable_ai_sale_pt2=_env_bool("DISABLE_AI_SALE_PT2"),
-        ai_thinking_sale_pt2=_env_bool("AI_THINKING_SALE_PT2", True),
         mongodb_uri=os.environ.get("MONGODB_URI", "").strip() or None,
         mongodb_database=os.environ.get("MONGODB_DATABASE", "desmap").strip() or "desmap",
         mongodb_results_collection=os.environ.get("MONGODB_RESULTS_COLLECTION", "game_results").strip() or "game_results",

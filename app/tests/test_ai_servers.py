@@ -82,6 +82,12 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(llama_spec.executable, self.llama)
         self.assertEqual(llama_spec.arguments[0], "serve")
+        self.assertEqual(
+            llama_spec.arguments[
+                llama_spec.arguments.index("--parallel") + 1
+            ],
+            "1",
+        )
         self.assertEqual(self.manager._specs()["supertonic"].executable, self.supertonic)
 
     def test_preflight_reports_all_missing_dependencies(self):

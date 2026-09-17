@@ -154,6 +154,8 @@ class AIServerManager:
                     "8080",
                     "--ctx-size",
                     "16384",
+                    "--parallel",
+                    "1",
                     "--jinja",
                     "--reasoning",
                     "auto",

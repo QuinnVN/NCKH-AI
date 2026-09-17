@@ -555,7 +555,7 @@ async def set_game(
         acknowledgement,
         scene_id,
         "load_scene",
-        "standby" if scene_id == "standby" else "running" if scene_id == "doctor" or scene_id == "clinic" or scene_id == "sale" else "ready",
+        "standby" if scene_id == "standby" else "running" if scene_id == "doctor" else "ready",
     ):
         participant_manager.activity = previous_activity
         return False
@@ -1226,7 +1226,13 @@ async def create_sales_session(
     run_id = request.run_id or active_run_id or request.session_id
     _require_http_auth(authorization)
     try:
-        session = await sales_returning_store.create_or_resume(request.session_id, request.part1_attempt_id, run_id)
+        participant = participant_manager.active
+        session = await sales_returning_store.create_or_resume(
+            request.session_id,
+            request.part1_attempt_id,
+            run_id,
+            participant.name if participant is not None else None,
+        )
     except ValueError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
     except OSError as exception:
@@ -1289,7 +1295,13 @@ async def associate_sales_part1(
     if request.part1_attempt_id is None:
         raise HTTPException(status_code=422, detail="part1AttemptId is required.")
     try:
-        session = await sales_returning_store.create_or_resume(session_id, request.part1_attempt_id, run_id)
+        participant = participant_manager.active
+        session = await sales_returning_store.create_or_resume(
+            session_id,
+            request.part1_attempt_id,
+            run_id,
+            participant.name if participant is not None else None,
+        )
     except ValueError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
     except OSError as exception:
