@@ -1,0 +1,76 @@
+{
+  "_id": "80495cafad5f4922ba5549be2e50dfe3",
+  "runId": "80495cafad5f4922ba5549be2e50dfe3",
+  "participantName": "Lê Hoàng Thảo Nhiên",
+  "participantSessionId": "e74cac37c63c48949cd051f3de597a7f",
+  "gameId": "sale",
+  "status": "completed",
+  "startedAtUtc": "2026-09-17T08:17:17.4713960Z",
+  "completedAtUtc": "2026-09-17T08:22:00.347602Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-aad3f367a0434de795920a8e6625d1f2",
+      "salesSessionId": "c44822c507c34314912cc19c276bc33a",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "ĐÔI DẠ CHƠI ĐÔI GIÀY NÀY THÌ LÀ THEO TRÊN CỦA XU HƯỚNG HIỆN NAY THÌ ĐÔI GIÀY NÀY ĐƯỢC THIẾT KẾ DỰA THEO NHỮNG CÁI PHONG CÁCH GẦN ĐÂY NÊN LÀ KHÔNG LO SỢ LÀ NÓ KHÔNG BẮT MẮT ĐÔI NÀY THÌ CŨNG TRONG ĐÔI NÀY THÌ CŨNG TÍCH HỢP THEO NHỮNG KIỂU CÁI THIẾT KẾ HIỆN ĐẠI NHẤT NÊN LÀ KHÔNG LO SỢ LÀ HƠI ĐƠN GIẢN CÒN ĐÔI NI E THÌ GIÁ CẢ SẼ NHỈNH HƠN MỘT CHÚT NHƯNG MÀ THÌ SẼ MANG LẠI CÁI TRẢI NGHIỆM ỔN HƠN NẾU NHƯ MÀ CHỊ CÓ NHU CẦU MUA CÁI ĐÔI GIÀY NÓ CÓ KHẢ NĂNG CHỐNG NƯỚC CÒN ĐÔI AN THÌ NÓ SẼ ĐÁP ỨNG NHỮNG CÁI NHU CẦU CƠ BẢN CỦA",
+      "score": 75,
+      "feedbackVi": "Câu trả lời đã giải thích rõ lý do chọn Aduma Samba, nhấn mạnh tính nhẹ, êm chân và thoáng khí phù hợp với nhu cầu chạy bộ ngắn. Tuy nhiên, chưa giải thích rõ lý do chọn loại giày này so với Nyke Air Max, và chưa phản hồi trực tiếp với lo ngại về tính cá tính của Nyke Air Max. Thông tin sản phẩm được trình bày cơ bản, chưa đủ thuyết phục để thuyết phục khách hàng.",
+      "recordingAtUtc": "2026-09-17T08:19:49.073639Z",
+      "assessmentCompletedAtUtc": "2026-09-17T08:20:00.983384Z"
+    },
+    "turns": [
+      {
+        "turnId": "5bc86d86d97d4816b9b3243a62cf82d6",
+        "transcript": "DẠ CHỊ ƠI ĐÔI GIÀY NÀY THÌ LÀ CÓ THÍCH HỢP CÓ MANG THEO TÍNH THỜI TRANG NỮA NÊN LÀ NÓ SẼ KHÔNG ÊM CHÂN BẰNG ĐÔI GIÀY ÔI ĐÔI GIÀY CUỐI TÊN GÌ KHÔNG HẾT RỒI",
+        "customerReply": "Làm ăn vậy mà coi được á hả? Chị không cần giày mới, trả tiền lại cho chị.",
+        "objective": "ListeningAndClarifying",
+        "turnTimestampUtc": "2026-09-17T08:20:56.6516420Z"
+      },
+      {
+        "turnId": "5e3419ad9056427992c2209691beb65e",
+        "transcript": "DẠ DẠ CHƠI ĐÔI GIÀY NÀY EM CŨNG LÚC ĐẦU EM CÓ NÓI LÀ ĐÔI GIÀY NÀY RẤT LÀ THÍCH HỢP THÊM THỜI TRANG NỮA LÀ NÓ SẼ KHÔNG Ê VẰN ĐÔI GIÀY CỔ CAO KIA ĐÔI GIÀY CỔ CAO KIA THÌ NÓ VỪA CHỐNG NƯỚC VỪA MANG VỪA ÊM CHÂN HƠN NÊN LÀ GIÁ CẢ NÓ SẼ NHỈNH HƠN MỘT CHÚT NÊN LÀ NÓ SẼ KHÁC VỚI ĐÔI GIÀY ĐÔI GIÀY VÀ CHỊU",
+        "customerReply": "Em không tự giải quyết được thì kêu quản lý ra đây gặp chị bắt đền.",
+        "objective": "ListeningAndClarifying",
+        "turnTimestampUtc": "2026-09-17T08:21:37.3053070Z"
+      }
+    ],
+    "part2": {
+      "turns": [
+        {
+          "turnId": "5bc86d86d97d4816b9b3243a62cf82d6",
+          "transcript": "DẠ CHỊ ƠI ĐÔI GIÀY NÀY THÌ LÀ CÓ THÍCH HỢP CÓ MANG THEO TÍNH THỜI TRANG NỮA NÊN LÀ NÓ SẼ KHÔNG ÊM CHÂN BẰNG ĐÔI GIÀY ÔI ĐÔI GIÀY CUỐI TÊN GÌ KHÔNG HẾT RỒI",
+          "customerReply": "Làm ăn vậy mà coi được á hả? Chị không cần giày mới, trả tiền lại cho chị.",
+          "activeObjective": 1,
+          "objectiveActiveDuringTurn": 1,
+          "turnTimestampUtc": null
+        },
+        {
+          "turnId": "5e3419ad9056427992c2209691beb65e",
+          "transcript": "DẠ DẠ CHƠI ĐÔI GIÀY NÀY EM CŨNG LÚC ĐẦU EM CÓ NÓI LÀ ĐÔI GIÀY NÀY RẤT LÀ THÍCH HỢP THÊM THỜI TRANG NỮA LÀ NÓ SẼ KHÔNG Ê VẰN ĐÔI GIÀY CỔ CAO KIA ĐÔI GIÀY CỔ CAO KIA THÌ NÓ VỪA CHỐNG NƯỚC VỪA MANG VỪA ÊM CHÂN HƠN NÊN LÀ GIÁ CẢ NÓ SẼ NHỈNH HƠN MỘT CHÚT NÊN LÀ NÓ SẼ KHÁC VỚI ĐÔI GIÀY ĐÔI GIÀY VÀ CHỊU",
+          "customerReply": "Em không tự giải quyết được thì kêu quản lý ra đây gặp chị bắt đền.",
+          "activeObjective": 1,
+          "objectiveActiveDuringTurn": 1,
+          "turnTimestampUtc": "2026-09-17T08:21:24.163034Z"
+        }
+      ],
+      "score": 0,
+      "customerRating": "bad",
+      "criterionScores": {
+        "apologyAndPolicyRemedy": 0,
+        "adaptabilityAndDeescalation": 0
+      },
+      "trustState": "lost",
+      "emotionalHandling": false,
+      "causeIdentification": false,
+      "solutionSuitability": false,
+      "trustRebuilding": false,
+      "completionReason": "manager_escalation",
+      "acceptedTurnCount": 2,
+      "silenceCount": 0,
+      "completedAtUtc": "2026-09-17T08:22:01.3770950Z"
+    }
+  }
+}

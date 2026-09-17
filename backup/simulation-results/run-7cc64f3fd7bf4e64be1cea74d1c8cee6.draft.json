@@ -1,0 +1,32 @@
+{
+  "runId": "7cc64f3fd7bf4e64be1cea74d1c8cee6",
+  "participantName": "test",
+  "participantSessionId": "c391c83edfaa407f87f1bf9f812d85c4",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T20:00:01.004524Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-0f35fe643ba24ad8be4dc6b7e0ee2153",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "DẠ MẶC DÙ THÌ LÀ CÁI ĐÔI MỘT A ĐƠN GIẢN NHƯNG MÀ THẬT RA CÁI THIẾT KẾ ĐƠN GIẢN ĐÓ LÀ CÓ MỤC ĐÍCH HẾT CHO QUÝ KHÁCH TẠI VÌ SỞ DĨ LÀ CÁI ĐÔI MỘT A NÓ PHÙ HỢP ĐỂ MÀ CHẠY BỘ ĐỂ MÀ ĐI BỘ NHIỀU ĐÚNG VỚI NHU CẦU CỦA MÌNH VÀ GIÁ THÀNH NÓ PHẢI CHĂNG HƠN CHI TIẾT ĐƠN GIẢN HƠN NHƯNG MÀ KHÔNG HỀ NHƯNG MÀ KHÔNG HỀ VÔ DỤNG ĐÂU NHA PHỐI VỚI TẤT CẢ NHỮNG BỘ ĐỒ ĐỀU RẤT HỢP CÒN ĐÔI BA B THÌ ĐÚNG LÀ TRÔNG NÓ CÓ VẺ NHƯ LÀ HẦM HỐ HƠN NGẦU HƠN CÁ TÍNH HƠN NHƯNG MÀ NHỮNG CHI TIẾT CỦA NÓ KHÁ LÀ DỄ BỊ RƠI RỚT KHI MÀ MÌNH ĐI LẠI NHIỀU NÈ VÀ NGOÀI RA GIÁ NÓ CŨNG HƠI CHÁT HƠN VÀ NÓ PHẢI ĐI NÓ SẼ DỄ GÂY ĐAU CHO DÂN CHO MÌNH NÊN LÀ EM VẪN KHUYÊN THẬT LÒNG THÌ KHÁCH MÌNH VẪN NÊN ĐI ĐÔI MỘT A",
+      "score": 75,
+      "feedbackVi": "Câu trả lời đã giải thích rõ lý do chọn 1A phù hợp với nhu cầu chạy bộ và đi bộ, đồng thời phản đối 3B vì thiết kế cá tính và không phù hợp với nhu cầu. Tuy nhiên, thông tin về 3B không được giải thích đầy đủ, và có thể cần thêm chi tiết về tính năng của 1A để thuyết phục hơn.",
+      "createdAtUtc": "2026-09-16T20:00:00.998154Z",
+      "updatedAtUtc": "2026-09-16T20:00:11.481525Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-0f35fe643ba24ad8be4dc6b7e0ee2153": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T20:00:01.004706Z"
+    },
+    "sale.part1:sales-persuasion-0f35fe643ba24ad8be4dc6b7e0ee2153:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T20:00:11.488295Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T20:02:09.047272Z",
+  "requiredFields": []
+}

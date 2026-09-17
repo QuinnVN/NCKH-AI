@@ -1,0 +1,77 @@
+{
+  "runId": "53f508807e4244a9b96a2376af22e904",
+  "participantName": "Đỗ Bùi Phước Ân",
+  "participantSessionId": "0de13e5c144845539bb17d0dc6c5d632",
+  "gameId": "lawyer",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T06:23:18.2925630Z",
+  "data": {
+    "caseId": "club-room-fire",
+    "interviewRestartCount": 0,
+    "finalClueSet": [
+      {
+        "evidenceId": "clue-09",
+        "title": "Camera cầu thang 16:07",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-14",
+        "title": "Dữ liệu cảm biến khói",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-18",
+        "title": "Camera cầu thang 16:07",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-23",
+        "title": "Báo cáo giám định cháy",
+        "strength": "strong"
+      }
+    ],
+    "completedEvidenceLinks": [],
+    "transcript": "Ờ RỒI GAN ARASHI LSCUSIA SOSO ĐẦU TIÊN LÀ THẰNG MINH NÓ KÊU LÀ NÓ ĐÃ RA KHỎI PHÒNG TỪ BỐN MƯƠI NĂM PHÚT RỒI TỨC LÀ NÓ ĐANG NÓ ĐANG ĐI TẢI RA KHỎI PHÒNG RỒI NHƯNG MÀ TRONG BA LÔ CỦA NÓ CÓ GÌ BA LÔ CỦA NÓ LÀ NÓ CÓ CẢ Y SẠC LẪN CÁI LAPTOP CỦA BÙI CỦA NÓ CHO NÊN LÀ KHÔNG THỂ NÀO LÀ CHÁY DO CÁI TỐI ĐÓ ĐƯỢC VẢ LẠI THÌ ĐỂ CLASSI THÌ HIỆU CHỨNG ĐÁM CHÁY THỨ NHẤT LÀ CÁI GIẤY Á MỘT LÀ MINH HÚT CẦN TRONG ĐÓ XONG NÓ LÀM CHÁY PHÒNG HAI LÀ NÓ VÔ TÌNH NÓ CÓ THỦ THẰNG THÙ MẤY CON KIA ĐỂ RỒI NÓ CÓ ĐỐT GIẤY TRONG ĐÓ CÁI PHÒNG NHƯNG MÀ DỮ LIỆU LÀ BẮT ĐẦU TỪ KHU VỰC Ổ CẮM ĐIỆN SOCRAT GẦN ĐÓ CÓ THỂ LÀ MINH ĐANG BỊ NGHI NGỜ MINH LIM MÀ MINH BỊ OAN HOẶC LÀ MINH THẬT SỰ ĐÁM CHÁY CÒN LAN TRƯỚC KHI MINH LÀ ĐI TRƯỚC KHI MINH RỜI ĐI THÌ LAN THẤY LÀ Ổ CẮM ĐIỆN VẬY ĐÚNG RỒI MINH ĐANG XÀI MÀ MINH NĂM PHÚT",
+    "criterionScores": {
+      "evidenceUse": 15,
+      "logicalConnections": 25,
+      "conclusionFidelity": 10,
+      "clarityAndPersuasiveness": 5
+    },
+    "rawScore": 55,
+    "restartPenaltyPercent": 0,
+    "finalScore": 55.0,
+    "feedbackVi": "Lời bào chữa không đủ rõ ràng và có sự lúng lúng trong lập luận. Người chơi đã cố gắng đưa ra các điểm mâu thuẫn nhưng không có sự kết nối logic rõ ràng giữa các bằng chứng và kết luận. Có thể thấy rằng lời bào chữa thiếu sự tập trung và không thể hiện được sự phân tích sâu về các bằng chứng hiện có. Cần có một lập luận rõ ràng, có cơ sở trên các bằng chứng cụ thể và có sự liên kết chặt chẽ giữa các luận điểm để thuyết phục người nghe.",
+    "recordingAtUtc": "2026-09-16T06:32:18.971337Z",
+    "assessmentCompletedAtUtc": "2026-09-16T06:32:40.212885Z",
+    "completionStatus": "completed",
+    "lawyer": {
+      "roundId": "02b852f17c7e45a8b9da33a318b2f422",
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 0,
+      "transcript": "",
+      "feedbackVi": "",
+      "recordingAtUtc": "",
+      "assessmentCompletedAtUtc": ""
+    }
+  },
+  "fragments": {
+    "lawyer:02b852f17c7e45a8b9da33a318b2f422": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T06:32:18.980708Z"
+    },
+    "lawyer:02b852f17c7e45a8b9da33a318b2f422:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T06:32:40.323293Z"
+    },
+    "02b852f17c7e45a8b9da33a318b2f422:defense": {
+      "kind": "lawyer.defense_completed",
+      "acceptedAtUtc": "2026-09-16T06:32:41.278740Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T06:45:22.920182Z",
+  "requiredFields": [
+    "lawyer"
+  ],
+  "completionRequested": true
+}

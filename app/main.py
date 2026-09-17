@@ -298,6 +298,22 @@ def parse_reset_command(command: str) -> str:
     return validate_reset_target(parts[1])
 
 
+def parse_sales_part2_test_command(command: str) -> str:
+    """Extract one text-only Sales Part 2 test turn from a console command."""
+
+    if not isinstance(command, str):
+        raise ValueError("Usage: test <text>")
+    parts = command.strip().split(maxsplit=1)
+    if len(parts) != 2 or parts[0].lower() != "test":
+        raise ValueError("Usage: test <text>")
+    transcript = parts[1].strip()
+    if not transcript:
+        raise ValueError("Usage: test <text>")
+    if len(transcript) > get_settings().max_transcript_chars:
+        raise ValueError("Test text exceeds the configured transcript limit.")
+    return transcript
+
+
 def build_scene_command_request(scene_id: str, command_type: str) -> dict[str, Any]:
     global next_command_sequence
 
@@ -1568,6 +1584,44 @@ async def run_llm_smoke_test() -> bool:
     return True
 
 
+async def run_sales_part2_text_test(transcript: str) -> bool:
+    """Evaluate one typed player line with the Sales Part 2 responder.
+
+    This deliberately uses an in-memory opening state. It exercises the same
+    LLM prompt, schema validation, ratings, and server-owned Lan reply as a
+    live turn, without requiring audio or changing a gameplay session.
+    """
+
+    service = llm_service
+    if service is None or not service.configured:
+        log("[Sales Part 2 Test] Failed: language model is not configured.")
+        return False
+
+    session = {
+        "phase": 1,
+        "investigationEvidence": [],
+        "goodResponseCount": 0,
+        "badResponseCount": 0,
+        "missingReturnPolicyCount": 0,
+        "acceptedTurnCount": 0,
+        "unauthorizedPromiseChallenged": False,
+    }
+    try:
+        response = await LLMSalesResponder(service).respond(session, transcript)
+    except RuntimeError as exception:
+        log(f"[Sales Part 2 Test] Failed: {exception}")
+        return False
+
+    log(f"[Sales Part 2 Test] Lan: {response.customer_text}")
+    log(
+        "[Sales Part 2 Test] "
+        f"rating={response.player_response_rating}; "
+        f"objective={response.active_objective}; "
+        f"completed={response.objective_completed}."
+    )
+    return True
+
+
 def _server_names(names: tuple[str, ...]) -> str:
     return " and ".join(names)
 
@@ -1709,6 +1763,14 @@ async def handleCommands() -> None:
             continue
         if command == "test_llm":
             await run_llm_smoke_test()
+            continue
+        if command.split(maxsplit=1)[0].lower() == "test":
+            try:
+                transcript = parse_sales_part2_test_command(command)
+            except ValueError as exception:
+                log(f"[Sales Part 2 Test] {exception}")
+                continue
+            await run_sales_part2_text_test(transcript)
             continue
         if command == "status":
             status = "connected" if unity_ws is not None else "not connected"

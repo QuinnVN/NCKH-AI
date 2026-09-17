@@ -1,0 +1,77 @@
+{
+  "runId": "3c40a98f131540c5965425ba1e7e1520",
+  "participantName": "test",
+  "participantSessionId": "ffc489bcc25b41c0af89b22a68033acd",
+  "gameId": "lawyer",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-15T13:08:34.6461480Z",
+  "data": {
+    "caseId": "club-room-fire",
+    "interviewRestartCount": 0,
+    "finalClueSet": [
+      {
+        "evidenceId": "clue-09",
+        "title": "Camera cầu thang 16:07",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-14",
+        "title": "Dữ liệu cảm biến khói",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-17",
+        "title": "Vật chứng tại hiện trường",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-23",
+        "title": "Báo cáo giám định cháy",
+        "strength": "strong"
+      }
+    ],
+    "completedEvidenceLinks": [],
+    "transcript": "",
+    "criterionScores": {
+      "evidenceUse": 0,
+      "logicalConnections": 0,
+      "conclusionFidelity": 0,
+      "clarityAndPersuasiveness": 0
+    },
+    "rawScore": 0,
+    "restartPenaltyPercent": 0,
+    "finalScore": 0.0,
+    "feedbackVi": "Không phát hiện lời bào chữa trong bản ghi âm.",
+    "recordingAtUtc": "2026-09-15T13:12:37.464557Z",
+    "assessmentCompletedAtUtc": "2026-09-15T13:12:37.608568Z",
+    "completionStatus": "completed",
+    "lawyer": {
+      "roundId": "ec7d5b5ce6084076878fb965ebcc7598",
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 0,
+      "transcript": "",
+      "feedbackVi": "",
+      "recordingAtUtc": "",
+      "assessmentCompletedAtUtc": ""
+    }
+  },
+  "fragments": {
+    "lawyer:ec7d5b5ce6084076878fb965ebcc7598": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-15T13:12:37.476857Z"
+    },
+    "lawyer:ec7d5b5ce6084076878fb965ebcc7598:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-15T13:12:37.619633Z"
+    },
+    "ec7d5b5ce6084076878fb965ebcc7598:defense": {
+      "kind": "lawyer.defense_completed",
+      "acceptedAtUtc": "2026-09-15T13:12:37.846710Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-15T13:22:01.756022Z",
+  "requiredFields": [
+    "lawyer"
+  ],
+  "completionRequested": true
+}

@@ -71,7 +71,7 @@ The recording must be a non-empty PCM WAV with signed 16-bit samples, 16,000 Hz,
 
 The background worker detects silence, transcribes Vietnamese speech, and scores `evidence_use` out of 40, `logical_connections` out of 35, `conclusion_fidelity` out of 15, and `clarity_and_persuasiveness` out of 10. The raw total is preserved. Zero through three interview restarts have no penalty; four or more apply one 50% deduction to the raw total, retaining half points. `GET /api/lawyer/defense-recordings/<roundId>` exposes only gameplay-safe processing status. The diagnostic endpoint at the same path plus `/diagnostic` returns the detailed result only when `X-Diagnostic-Token` matches `LAWYER_DIAGNOSTIC_TOKEN`.
 
-Unity sales uploads use the same telemetry route with `eventType: "sales.persuasion_recording"`. Its payload uses `roundId`, `questionId`, `caseId`, `cardId`, a JSON-string `resolution` containing `selectedShoe`, `bestFitShoe`, `customerNeeds`, `objection`, and `availableShoes`, plus the WAV `audio` object. The adapter validates this envelope and maps it to the sales attempt contract below. Unity audio metadata such as `fileName`, `durationSeconds`, and `endedEarly` is accepted but does not replace WAV validation. Sales Part 2 completion scores apology plus policy-compliant remedy out of 50 and adaptability plus de-escalation out of 50. The total maps 0 through 30 to a bad customer evaluation, 31 through 60 to consideration, and 61 through 100 to a good evaluation.
+Unity sales uploads use the same telemetry route with `eventType: "sales.persuasion_recording"`. Its payload uses `roundId`, `questionId`, `caseId`, `cardId`, a JSON-string `resolution` containing `selectedShoe`, `bestFitShoe`, `customerNeeds`, `objection`, and `availableShoes`, plus the WAV `audio` object. The adapter validates this envelope and maps it to the sales attempt contract below. Unity audio metadata such as `fileName`, `durationSeconds`, and `endedEarly` is accepted but does not replace WAV validation. Sales Part 2 completion scores apology plus policy-compliant remedy out of 50 and adaptability plus de-escalation out of 50. Each store-policy violation deducts 10 points. The final customer rating and `trustState` come from whether good turns outnumber bad turns, bad turns outnumber good turns, or the counts are tied.
 
 ### `POST /api/ai/respond`
 
@@ -211,10 +211,18 @@ Start the API and operator console from the repository root:
 py -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-For the interactive console (including `set_game`, `reset`, and `test_llm`), run:
+For the interactive console (including `set_game`, `reset`, `test_llm`, and the text-only Sales Part 2 test command), run:
 
 ```powershell
 py -m app.main
+```
+
+Use `test <text>` to send one typed player response through the Sales Part 2
+LLM responder. It bypasses speech recognition and does not create or alter a
+gameplay session. For example:
+
+```text
+test Em xin lỗi chị, em sẽ kiểm tra độ vừa và mời chị thử đôi nhẹ hơn.
 ```
 
 On a fresh checkout, install the pinned speech model from the operator console:

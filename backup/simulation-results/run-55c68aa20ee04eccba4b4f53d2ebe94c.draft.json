@@ -1,0 +1,39 @@
+{
+  "runId": "55c68aa20ee04eccba4b4f53d2ebe94c",
+  "participantName": "test",
+  "participantSessionId": "7a4efc354e2643d9bcf0a48bc300317d",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T21:36:21.2618210Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-b8df30667b004043ad83e4ba71497ac8",
+      "salesSessionId": "95c36a5cc713407d86176ae6a89c9dc8",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "TUY RẰNG ĐÔI NƠI KỲ EMAST TRÔNG CÁ TÍNH HƠN NHƯNG ĐÔI A DUMAS SAMBA PHÙ HỢP VỚI TÚI TIỀN VÀ CÁI NHU CẦU ĐI BỘ BẠN HƠN",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng khí. Đồng thời, đã giải quyết được phản đối của khách hàng về sự cá tính của Nyke Air Max bằng cách nhấn mạnh ưu điểm của Aduma Samba phù hợp với ngân sách và nhu cầu sử dụng. Thông tin sản phẩm được trình bày rõ ràng và chính xác.",
+      "recordingAtUtc": "2026-09-16T21:36:50.624529Z",
+      "assessmentCompletedAtUtc": "2026-09-16T21:36:57.966028Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-b8df30667b004043ad83e4ba71497ac8": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:36:50.638044Z"
+    },
+    "95c36a5cc713407d86176ae6a89c9dc8:part1:sales-persuasion-b8df30667b004043ad83e4ba71497ac8": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-16T21:36:50.696012Z"
+    },
+    "sale.part1:sales-persuasion-b8df30667b004043ad83e4ba71497ac8:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:36:57.973762Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T21:43:41.793295Z",
+  "requiredFields": []
+}

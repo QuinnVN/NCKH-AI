@@ -1,0 +1,77 @@
+{
+  "runId": "6b0936e20114453bb824bc3b4b7159d7",
+  "participantName": "Nguyễn Phúc Anh",
+  "participantSessionId": "39a44946824548e6af2648904abf59af",
+  "gameId": "completed",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T05:52:49.4179960Z",
+  "data": {
+    "caseId": "club-room-fire",
+    "interviewRestartCount": 0,
+    "finalClueSet": [
+      {
+        "evidenceId": "clue-11",
+        "title": "Camera hành lang",
+        "strength": "weak"
+      },
+      {
+        "evidenceId": "clue-13",
+        "title": "Camera hành lang 16:12",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-19",
+        "title": "Ảnh hiện trường",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-24",
+        "title": "Giám định ổ điện",
+        "strength": "strong"
+      }
+    ],
+    "completedEvidenceLinks": [],
+    "transcript": "KHÔNG ĐỨNG ĐỨNG LẠI THÌ ĐƯỢC NHƯNG MÀ DÍNH DÍNH BÀN NÈ HÃY TRÌNH BÀY LỜI BÀO CHỮA CHO BỊ CÁO OK TÔI MUỐN NÓI LÀ ĐỜI ĐẦU TIÊN CỦA TÔI LÀ MINH KHÔNG PHẢI LÀ NGƯỜI GÂY RA VỤ CHÁY BỞI VÌ THEO LỜI KHAI CỦA MINH THÌ LÚC MƯỜI SÁU LÚC MƯỜI SÁU GIỜ THÌ ANH ẤY ĐANG Ở ĐANG ĐI QUA PHÒNG CÂU LẠC BỘ VÀ ANH ẤY LÀM GÌ ĐÓ TÔI KHÔNG BIẾT NHƯNG MÀ SAU ĐÓ THÌ ANH ẤY QUAY TRỞ LẠI PHÒNG PHÒNG HỌC VÀ ANH ẤY CÓ LÚC THEO TÔI NHỚ THÌ LÀ MƯỜI SÁU GIỜ NĂM VÀ ANH ẤY CÓ Ở TRONG PHÒNG LÀM VIỆC VỚI LAPTO SAO CÒN BA GIÂY VẬY",
+    "criterionScores": {
+      "evidenceUse": 15,
+      "logicalConnections": 20,
+      "conclusionFidelity": 10,
+      "clarityAndPersuasiveness": 5
+    },
+    "rawScore": 50,
+    "restartPenaltyPercent": 0,
+    "finalScore": 50.0,
+    "feedbackVi": "Lời bào chữa của người chơi không đủ rõ ràng và có sự lặp lại, gây khó hiểu. Người chơi đã nêu được một số điểm chính như thời gian Minh rời phòng, camera ghi nhận, và sự xuất hiện của thiết bị khác tại hiện trường. Tuy nhiên, lập luận chưa được tổ chức một cách logic và chưa sử dụng đầy đủ các bằng chứng được cung cấp. Cần làm rõ hơn các mối liên hệ giữa các bằng chứng và kết luận cuối cùng để tăng tính thuyết phục.",
+    "recordingAtUtc": "2026-09-16T06:05:13.431508Z",
+    "assessmentCompletedAtUtc": "2026-09-16T06:05:33.527195Z",
+    "completionStatus": "completed",
+    "lawyer": {
+      "roundId": "61643a3c2b514e738b87c4a31a849907",
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 0,
+      "transcript": "",
+      "feedbackVi": "",
+      "recordingAtUtc": "",
+      "assessmentCompletedAtUtc": ""
+    }
+  },
+  "fragments": {
+    "lawyer:61643a3c2b514e738b87c4a31a849907": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T06:05:13.503312Z"
+    },
+    "lawyer:61643a3c2b514e738b87c4a31a849907:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T06:05:33.552914Z"
+    },
+    "61643a3c2b514e738b87c4a31a849907:defense": {
+      "kind": "lawyer.defense_completed",
+      "acceptedAtUtc": "2026-09-16T06:05:33.896516Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T06:08:38.660444Z",
+  "requiredFields": [
+    "lawyer"
+  ],
+  "completionRequested": true
+}

@@ -1,0 +1,60 @@
+{
+  "_id": "51ea1749be334b0d87d7b91179314d99",
+  "runId": "51ea1749be334b0d87d7b91179314d99",
+  "participantName": "Nguyễn Phúc Anh",
+  "participantSessionId": "c6a2204ea396444b810b75debeef0a03",
+  "gameId": "doctor",
+  "status": "completed",
+  "startedAtUtc": "2026-09-16T06:13:17.6921200Z",
+  "completedAtUtc": "2026-09-16T06:15:56.032749Z",
+  "data": {
+    "cases": [
+      {
+        "roundId": "4b701cdbe57b42d991ea93c1b6c6513e",
+        "caseId": "09 - Viem phe quan cap",
+        "scoreDelta": 0,
+        "scoreTotal": 0,
+        "patientName": "Hoàng Tuấn Kiệt",
+        "selectedQuestionsJson": "{\"items\":[]}",
+        "notesJson": "{\"items\":[{\"cardId\":\"bron-time\",\"text\":\"Ho kéo dài sáu ngày sau cảm\",\"isEssential\":true,\"selectedCategory\":\"symptoms\",\"correctCategory\":\"time\",\"isCorrect\":false},{\"cardId\":\"bron-cough\",\"text\":\"Ho từ khan chuyển sang có đờm\",\"isEssential\":true,\"selectedCategory\":\"medicalhistory\",\"correctCategory\":\"symptoms\",\"isCorrect\":false}]}",
+        "caseSubmittedAtUtc": "2026-09-16T06:13:58.6511990Z",
+        "correctCount": 0,
+        "incorrectCount": 2,
+        "unassignedCount": 0,
+        "essentialCorrectCount": 0,
+        "essentialIncorrectCount": 2,
+        "essentialUnassignedCount": 0,
+        "categorizationAccuracyPercent": "0",
+        "essentialCategorizationAccuracyPercent": "0",
+        "remainingTime": 118.7826156616211
+      },
+      {
+        "roundId": "4b701cdbe57b42d991ea93c1b6c6513e",
+        "caseId": "04 - Hen phe quan",
+        "scoreDelta": 1,
+        "scoreTotal": 1,
+        "patientName": "Phạm Gia Bảo",
+        "selectedQuestionsJson": "{\"items\":[]}",
+        "notesJson": "{\"items\":[{\"cardId\":\"asthma-time\",\"text\":\"Khởi phát chiều nay\",\"isEssential\":true,\"selectedCategory\":\"time\",\"correctCategory\":\"time\",\"isCorrect\":true},{\"cardId\":\"asthma-wheeze\",\"text\":\"Khò khè\",\"isEssential\":true,\"selectedCategory\":\"medicalhistory\",\"correctCategory\":\"symptoms\",\"isCorrect\":false},{\"cardId\":\"asthma-chest\",\"text\":\"Nặng ngực và khó thở\",\"isEssential\":true,\"selectedCategory\":\"travelhistory\",\"correctCategory\":\"symptoms\",\"isCorrect\":false},{\"cardId\":\"asthma-dust\",\"text\":\"Khởi phát sau khi tiếp xúc bụi\",\"isEssential\":true,\"selectedCategory\":\"time\",\"correctCategory\":\"travelhistory\",\"isCorrect\":false}]}",
+        "caseSubmittedAtUtc": "2026-09-16T06:15:11.1575070Z",
+        "correctCount": 1,
+        "incorrectCount": 3,
+        "unassignedCount": 0,
+        "essentialCorrectCount": 1,
+        "essentialIncorrectCount": 3,
+        "essentialUnassignedCount": 0,
+        "categorizationAccuracyPercent": "25",
+        "essentialCategorizationAccuracyPercent": "25",
+        "remainingTime": 46.27518081665039
+      }
+    ],
+    "round": {
+      "roundId": "4b701cdbe57b42d991ea93c1b6c6513e",
+      "scoreTotal": 1,
+      "roundStartedAtUtc": "2026-09-16T06:13:17.4113820Z",
+      "roundCompletedAtUtc": "2026-09-16T06:15:57.4306340Z",
+      "remainingTime": 0.0
+    },
+    "roundCompletedAtUtc": "2026-09-16T06:15:57.4306340Z"
+  }
+}

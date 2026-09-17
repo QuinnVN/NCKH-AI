@@ -1,0 +1,39 @@
+{
+  "runId": "2cfd8dcca0a343b5b7d3b6a3af16d153",
+  "participantName": "test",
+  "participantSessionId": "4d65e182ebbe4c07bebd0290243945c4",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T21:01:28.5119920Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-757de5306e7a4a64b4d6465f6d4fcd3a",
+      "salesSessionId": "c1ba066c0dc84b588aa860454bc965ca",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "LẮP LẸP LẸP LẸP",
+      "score": 85,
+      "feedbackVi": "Câu trả lời phù hợp với nhu cầu của khách hàng, tập trung vào tính êm chân, nhẹ và thoáng. Đã giải thích rõ lý do chọn Aduma Samba so với Nyke Air Max, đồng thời nhấn mạnh rằng Aduma Samba vẫn có tính thẩm mỹ và phù hợp với nhu cầu chạy bộ đường nhựa. Thông tin sản phẩm được trình bày rõ ràng và chính xác.",
+      "recordingAtUtc": "2026-09-16T21:01:52.644689Z",
+      "assessmentCompletedAtUtc": "2026-09-16T21:01:59.699916Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-757de5306e7a4a64b4d6465f6d4fcd3a": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:01:52.656923Z"
+    },
+    "c1ba066c0dc84b588aa860454bc965ca:part1:sales-persuasion-757de5306e7a4a64b4d6465f6d4fcd3a": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-16T21:01:52.700767Z"
+    },
+    "sale.part1:sales-persuasion-757de5306e7a4a64b4d6465f6d4fcd3a:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:01:59.706535Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T21:05:08.291712Z",
+  "requiredFields": []
+}

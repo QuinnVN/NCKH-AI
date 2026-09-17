@@ -1,0 +1,41 @@
+{
+  "attemptId": "sales-persuasion-a6e3ef039ef743ccac57f9987a098a5b",
+  "runId": "a3b40b00b9e84c44bff91edd7dd233d3",
+  "salesSessionId": "39441cc8c842428fb2381c38c4f19db1",
+  "scenarioId": "sales-part-1-persuasion",
+  "customerId": "Minh",
+  "selectedShoeId": "Aduma Samba",
+  "bestFitShoeId": "Aduma Samba",
+  "customerNeeds": "Chào bạn! Mình muốn tìm một đôi giày để chạy bộ nhẹ khoảng 3 đến 5 cây số mỗi sáng. Mình mới tập nên thích đôi nào êm chân, nhẹ và thoáng một chút.\nMình thường chạy trên đường nhựa, thỉnh thoảng đi bộ nữa. Ngân sách của mình khoảng một triệu rưỡi trở xuống. Bạn chọn giúp mình một đôi phù hợp nhé!",
+  "objection": "Đôi này hợp với nhu cầu của mình, nhưng đôi Nyke Air Max trông cá tính và bắt mắt hơn. Mình sợ Aduma Samba hơi đơn giản.",
+  "availableShoes": [
+    {
+      "shoeId": "Aduma Samba",
+      "name": "Aduma Samba",
+      "price": 1290000,
+      "details": "Chạy bộ đường nhựa\nĐệm êm · Nhẹ · Thoáng\nGiá: 1.290.000 đ"
+    },
+    {
+      "shoeId": "Nyke Air Max",
+      "name": "Nyke Air Max",
+      "price": 1450000,
+      "details": "Bóng rổ trong nhà\nÔm cổ chân · Đế chắc\nGiá: 1.450.000 đ"
+    },
+    {
+      "shoeId": "Columnia Crestwood",
+      "name": "Columnia Crestwood",
+      "price": 1890000,
+      "details": "Chạy địa hình\nĐế bám sâu · Chống nước\nGiá: 1.890.000 đ"
+    }
+  ],
+  "requestHash": "549a4dec5e593f472050b873fd3bf0542144b7de637bb112ab9adf5ea262770f",
+  "audioFile": "sales-persuasion-sales-persuasion-a6e3ef039ef743ccac57f9987a098a5b.wav",
+  "status": "completed",
+  "assessmentStatus": "completed",
+  "transcript": "MẶC DÙ LÀ NIKE EM MAX TRONG CÁ TÍNH THẬT NHƯNG MÀ THẬT RA ĐÔI ĐẤY THÌ NÓ KHÔNG THỰC SỰ PHÙ HỢP VỚI NHU CẦU ĐI LẠI NHIỀU CỦA MÌNH NGOÀI RA THÌ GIÁ NÓ CŨNG HƠI CHÁT MỘT TÍ ĐI BỘ NHIỀU THÌ NÓ SẼ DỄ BỊ RỚT NHỮNG CÁI IDAM CỦA NÓ XUỐNG THÌ MÌNH PHẢI CẦN PHẢI MUA GIÀY MỚI NHANH HƠN CÒN RIÊNG ITO MAFIA MẶC DÙ NHA LÀ NÓ ĐƠN GIẢN THẬT EM CÔNG NHẬN NHA CHỊ NHƯNG MÀ TẠI VÌ NÓ PHỐI ĐỒ RẤT LÀ ĐẸP PHỐI ĐỒ RẤT LÀ HỢP VỚI MỌI OUTFIT LUÔN KIỂU TẤT CẢ OUFFIT VÀ CÒN ĐI BỘ HỢP PHÙ HỢP VÀ RẤT HỢP TÚI TIỀN CỦA MÌNH NỮA NÊN LÀ ĐỂ TIẾT KIỆM MỘT TÍ CŨNG NHƯ LÀ ĐỂ PHÙ HỢP ĐI KHÔNG BỊ ĐAU CHÂN Á THÌ ITU MAFIA LÀ TUYỆT NHẤT EM CÁ VỚI CHỊ LUÔN",
+  "score": 75,
+  "feedbackVi": "Câu trả lời đã giải thích rõ lý do chọn Aduma Samba dựa trên nhu cầu chạy bộ đường nhựa, êm chân và nhẹ. Tuy nhiên, có thể đã bỏ qua một số điểm quan trọng như tính thẩm mỹ của Nyke Air Max và giá cả. Thông tin sản phẩm được trình bày rõ ràng, nhưng có thể cần cân nhắc thêm về sự phù hợp với phong cách cá tính của khách hàng.",
+  "error": null,
+  "createdAtUtc": "2026-09-17T03:48:49.823552Z",
+  "updatedAtUtc": "2026-09-17T03:49:01.630657Z"
+}

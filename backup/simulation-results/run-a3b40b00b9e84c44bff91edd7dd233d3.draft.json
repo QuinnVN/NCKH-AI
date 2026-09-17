@@ -1,0 +1,39 @@
+{
+  "runId": "a3b40b00b9e84c44bff91edd7dd233d3",
+  "participantName": "test",
+  "participantSessionId": "04a48c4b36db4e7dae464b0934185ef4",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-17T03:47:47.1244190Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-a6e3ef039ef743ccac57f9987a098a5b",
+      "salesSessionId": "39441cc8c842428fb2381c38c4f19db1",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "MẶC DÙ LÀ NIKE EM MAX TRONG CÁ TÍNH THẬT NHƯNG MÀ THẬT RA ĐÔI ĐẤY THÌ NÓ KHÔNG THỰC SỰ PHÙ HỢP VỚI NHU CẦU ĐI LẠI NHIỀU CỦA MÌNH NGOÀI RA THÌ GIÁ NÓ CŨNG HƠI CHÁT MỘT TÍ ĐI BỘ NHIỀU THÌ NÓ SẼ DỄ BỊ RỚT NHỮNG CÁI IDAM CỦA NÓ XUỐNG THÌ MÌNH PHẢI CẦN PHẢI MUA GIÀY MỚI NHANH HƠN CÒN RIÊNG ITO MAFIA MẶC DÙ NHA LÀ NÓ ĐƠN GIẢN THẬT EM CÔNG NHẬN NHA CHỊ NHƯNG MÀ TẠI VÌ NÓ PHỐI ĐỒ RẤT LÀ ĐẸP PHỐI ĐỒ RẤT LÀ HỢP VỚI MỌI OUTFIT LUÔN KIỂU TẤT CẢ OUFFIT VÀ CÒN ĐI BỘ HỢP PHÙ HỢP VÀ RẤT HỢP TÚI TIỀN CỦA MÌNH NỮA NÊN LÀ ĐỂ TIẾT KIỆM MỘT TÍ CŨNG NHƯ LÀ ĐỂ PHÙ HỢP ĐI KHÔNG BỊ ĐAU CHÂN Á THÌ ITU MAFIA LÀ TUYỆT NHẤT EM CÁ VỚI CHỊ LUÔN",
+      "score": 75,
+      "feedbackVi": "Câu trả lời đã giải thích rõ lý do chọn Aduma Samba dựa trên nhu cầu chạy bộ đường nhựa, êm chân và nhẹ. Tuy nhiên, có thể đã bỏ qua một số điểm quan trọng như tính thẩm mỹ của Nyke Air Max và giá cả. Thông tin sản phẩm được trình bày rõ ràng, nhưng có thể cần cân nhắc thêm về sự phù hợp với phong cách cá tính của khách hàng.",
+      "recordingAtUtc": "2026-09-17T03:48:49.823552Z",
+      "assessmentCompletedAtUtc": "2026-09-17T03:49:01.630657Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-a6e3ef039ef743ccac57f9987a098a5b": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T03:48:49.889385Z"
+    },
+    "39441cc8c842428fb2381c38c4f19db1:part1:sales-persuasion-a6e3ef039ef743ccac57f9987a098a5b": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-17T03:48:50.266411Z"
+    },
+    "sale.part1:sales-persuasion-a6e3ef039ef743ccac57f9987a098a5b:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T03:49:01.693611Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-17T03:54:55.790828Z",
+  "requiredFields": []
+}

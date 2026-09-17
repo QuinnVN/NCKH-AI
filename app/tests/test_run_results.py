@@ -223,11 +223,25 @@ class RunResultTests(unittest.IsolatedAsyncioTestCase):
         part2 = project_sales_part2({
             "turns": [{"turnId": "turn-1", "transcript": "Em xin lỗi chị.",
                        "customerText": "Chị muốn nghe giải pháp cụ thể.",
+                       "playerResponseRating": "bad",
+                       "policyViolations": ["unauthorized_refund"],
                        "activeObjective": 2, "objectiveActiveDuringTurn": 1,
                        "createdAtUtc": "turn-time"}],
+            "rawScore": 70,
+            "policyViolationPenalty": 10,
+            "policyViolations": [{"turnId": "turn-1", "code": "unauthorized_refund"}],
+            "score": 60,
+            "goodResponseCount": 1,
+            "badResponseCount": 2,
+            "finalCustomerText": "Chị không muốn nói chuyện với em, kêu quản lý ra đây cho chị.",
         })
         self.assertEqual(part2["turns"][0]["customerReply"], "Chị muốn nghe giải pháp cụ thể.")
         self.assertEqual(part2["turns"][0]["turnTimestampUtc"], "turn-time")
+        self.assertEqual(part2["rawScore"], 70)
+        self.assertEqual(part2["policyViolationPenalty"], 10)
+        self.assertEqual(part2["policyViolations"][0]["code"], "unauthorized_refund")
+        self.assertEqual(part2["goodResponseCount"], 1)
+        self.assertEqual(part2["badResponseCount"], 2)
 
     async def test_current_unity_envelopes_post_for_all_games_and_exclude_extra_fields(self):
         from httpx import ASGITransport, AsyncClient

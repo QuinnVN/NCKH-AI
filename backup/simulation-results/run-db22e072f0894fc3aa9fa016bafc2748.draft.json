@@ -1,0 +1,51 @@
+{
+  "runId": "db22e072f0894fc3aa9fa016bafc2748",
+  "participantName": "test",
+  "participantSessionId": "add30421471b4db8a2c99eec730de61c",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T21:25:16.3094120Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-a57c306f53a643caa45bac920bbd13ba",
+      "salesSessionId": "20e8f11bc5aa4a489a070f76afc17fbf",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "LOẠT LÀ LẸP LÀ LẬT LỰC",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Tuy nhiên, việc chọn Aduma Samba là phù hợp hơn Nyke Air Max vì nó phù hợp với nhu cầu chạy trên đường nhựa và có giá trong ngân sách. Thông tin sản phẩm được trình bày rõ ràng, nhưng có thể cần nhấn mạnh hơn về tính nhẹ và thoáng của Aduma Samba để thuyết phục khách hàng.",
+      "recordingAtUtc": "2026-09-16T21:26:03.556762Z",
+      "assessmentCompletedAtUtc": "2026-09-16T21:26:09.307505Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-f8686170be85456281ec7854a6e17d83": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:25:43.752198Z"
+    },
+    "072c0207811d4115a2f71b5d08825cc0:part1:sales-persuasion-f8686170be85456281ec7854a6e17d83": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-16T21:25:43.825993Z"
+    },
+    "sale.part1:sales-persuasion-f8686170be85456281ec7854a6e17d83:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:25:50.341698Z"
+    },
+    "sale.part1:sales-persuasion-a57c306f53a643caa45bac920bbd13ba": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:26:03.566163Z"
+    },
+    "20e8f11bc5aa4a489a070f76afc17fbf:part1:sales-persuasion-a57c306f53a643caa45bac920bbd13ba": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-16T21:26:03.623278Z"
+    },
+    "sale.part1:sales-persuasion-a57c306f53a643caa45bac920bbd13ba:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:26:09.314222Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T21:35:46.826638Z",
+  "requiredFields": []
+}

@@ -1,0 +1,39 @@
+{
+  "runId": "e0f41dd1b9834b4ebf92d3ed7fcd2f06",
+  "participantName": "Nguyễn Mỹ Ngọc Anh",
+  "participantSessionId": "f6d2de59e7a84e68801c08139849fa3b",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-17T01:51:48.7034030Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-8feddb68ada249c8b208374ecb83fd04",
+      "salesSessionId": "170ec300abbf4b26a10562891ec75ad6",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "TRONG CÁ TÍNH VÀ BẮT MẮT HẢ RUMA TRÔNG HƠI ĐƠN GIẢN",
+      "score": 75,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Tuy nhiên, việc chọn Aduma Samba có thể không phù hợp với sở thích cá tính của khách hàng. Thông tin sản phẩm của Aduma Samba là chính xác, nhưng cần giải thích rõ hơn về ưu điểm cá tính của Nyke Air Max để thuyết phục khách hàng. Đánh giá chung là hợp lý, nhưng có thể cải thiện nếu giải thích rõ hơn về sự khác biệt giữa hai đôi giày.",
+      "recordingAtUtc": "2026-09-17T01:52:36.332971Z",
+      "assessmentCompletedAtUtc": "2026-09-17T01:52:45.891298Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-8feddb68ada249c8b208374ecb83fd04": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T01:52:36.384720Z"
+    },
+    "170ec300abbf4b26a10562891ec75ad6:part1:sales-persuasion-8feddb68ada249c8b208374ecb83fd04": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-17T01:52:36.504548Z"
+    },
+    "sale.part1:sales-persuasion-8feddb68ada249c8b208374ecb83fd04:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T01:52:45.957143Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-17T01:53:10.956369Z",
+  "requiredFields": []
+}

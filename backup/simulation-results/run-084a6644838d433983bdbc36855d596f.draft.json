@@ -1,0 +1,32 @@
+{
+  "runId": "084a6644838d433983bdbc36855d596f",
+  "participantName": "test",
+  "participantSessionId": "1241f4417d4c477fbd88da0cdfe36fbc",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T17:54:33.083716Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-a97e6541ca794b09b834e12dd8b79e47",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "BÂY GIỜ ĐEM PHỞ MA RA CHỊ HÃY MUA ĐÔI MỘT A ĐI CẢM ƠN",
+      "score": 75,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Tuy nhiên, việc đề xuất 1A có thể không phù hợp với sở thích cá tính của khách hàng. Thông tin sản phẩm của 1A cũng được trình bày rõ ràng, nhưng có thể cần nhấn mạnh hơn về tính thẩm mỹ để phù hợp với mong muốn của khách. Đánh giá chung là hợp lý, nhưng có thể cải thiện nếu giải thích rõ hơn về ưu điểm của 1A so với 3B.",
+      "createdAtUtc": "2026-09-16T17:54:33.077628Z",
+      "updatedAtUtc": "2026-09-16T17:54:41.641506Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-a97e6541ca794b09b834e12dd8b79e47": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T17:54:33.083758Z"
+    },
+    "sale.part1:sales-persuasion-a97e6541ca794b09b834e12dd8b79e47:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T17:54:41.654710Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T18:14:15.501108Z",
+  "requiredFields": []
+}

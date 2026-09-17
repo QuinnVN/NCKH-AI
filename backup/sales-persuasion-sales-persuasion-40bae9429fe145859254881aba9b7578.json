@@ -1,0 +1,41 @@
+{
+  "attemptId": "sales-persuasion-40bae9429fe145859254881aba9b7578",
+  "runId": "9e820fbefe83410c817212fca0884474",
+  "salesSessionId": "4402f9c0edd44a67980b31f496a8c24c",
+  "scenarioId": "sales-part-1-persuasion",
+  "customerId": "Minh",
+  "selectedShoeId": "Aduma Samba",
+  "bestFitShoeId": "Aduma Samba",
+  "customerNeeds": "Chào bạn! Mình muốn tìm một đôi giày để chạy bộ nhẹ khoảng 3 đến 5 cây số mỗi sáng. Mình mới tập nên thích đôi nào êm chân, nhẹ và thoáng một chút.\nMình thường chạy trên đường nhựa, thỉnh thoảng đi bộ nữa. Ngân sách của mình khoảng một triệu rưỡi trở xuống. Bạn chọn giúp mình một đôi phù hợp nhé!",
+  "objection": "Đôi này hợp với nhu cầu của mình, nhưng đôi Nyke Air Max trông cá tính và bắt mắt hơn. Mình sợ Aduma Samba hơi đơn giản.",
+  "availableShoes": [
+    {
+      "shoeId": "Aduma Samba",
+      "name": "Aduma Samba",
+      "price": 1290000,
+      "details": "Chạy bộ đường nhựa\nĐệm êm · Nhẹ · Thoáng\nGiá: 1.290.000 đ"
+    },
+    {
+      "shoeId": "Nyke Air Max",
+      "name": "Nyke Air Max",
+      "price": 1450000,
+      "details": "Bóng rổ trong nhà\nÔm cổ chân · Đế chắc\nGiá: 1.450.000 đ"
+    },
+    {
+      "shoeId": "Columnia Crestwood",
+      "name": "Columnia Crestwood",
+      "price": 1890000,
+      "details": "Chạy địa hình\nĐế bám sâu · Chống nước\nGiá: 1.890.000 đ"
+    }
+  ],
+  "requestHash": "03a60bef368ea43e35ed0a848cb21398c986fbae7a8985e3477ea9a2b64744d0",
+  "audioFile": "sales-persuasion-sales-persuasion-40bae9429fe145859254881aba9b7578.wav",
+  "status": "completed",
+  "assessmentStatus": "completed",
+  "transcript": "ĐÔI ADU SAMBA ĐÔI ADOBE SAMBA RẤT LÀ HỢP VỚI LẠI MINH CHO NÊN LÀ MINH MUA ĐI NHA MINH VỚI LẠI LÀ NÓ PHÙ HỢP VỚI NHU CẦU CỦA MINH LÀ HAY ĐI TRÊN ĐƯỜNG ĐƯỜNG GÌ TA ĐƯỜNG NHỰA ĐÓ MINH ỦA TẮT GHI ÂM ĐI RA SAO TA",
+  "score": 85,
+  "feedbackVi": "Câu trả lời thuyết phục được vì đã giải thích rõ lý do chọn Aduma Samba phù hợp với nhu cầu chạy bộ trên đường nhựa, êm chân, nhẹ và thoáng. Đồng thời đã giải quyết được phản đối về sự cá tính của Nyke Air Max bằng cách nhấn mạnh ưu điểm của Aduma Samba. Thông tin sản phẩm cũng được trình bày chính xác.",
+  "error": null,
+  "createdAtUtc": "2026-09-17T08:36:26.527518Z",
+  "updatedAtUtc": "2026-09-17T08:36:35.710761Z"
+}

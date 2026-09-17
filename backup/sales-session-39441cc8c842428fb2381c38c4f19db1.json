@@ -1,0 +1,48 @@
+{
+  "sessionId": "39441cc8c842428fb2381c38c4f19db1",
+  "runId": "a3b40b00b9e84c44bff91edd7dd233d3",
+  "part1AttemptId": "sales-persuasion-a6e3ef039ef743ccac57f9987a098a5b",
+  "participantName": "test",
+  "phase": 1,
+  "acceptedTurnCount": 0,
+  "badResponseCount": 0,
+  "silenceCount": 0,
+  "turnIds": [],
+  "turns": [],
+  "completedTurns": {
+    "42d1c9a3a2b74d87a80e1d76bc4e6e1e": {
+      "sessionId": "39441cc8c842428fb2381c38c4f19db1",
+      "turnId": "42d1c9a3a2b74d87a80e1d76bc4e6e1e",
+      "requestHash": "553d2f9d2a637f4466a0de985e09b86668ff87076f067d1cdb996da99edee00a",
+      "status": "failed",
+      "accepted": false,
+      "retryCount": 1,
+      "clientVersion": "0.4.0",
+      "activeObjective": 1,
+      "createdAtUtc": "2026-09-17T03:51:01.190650Z",
+      "audioFormat": {
+        "sampleRateHz": 16000,
+        "channels": 1,
+        "durationSeconds": 19.459875,
+        "encoding": "pcm_s16le"
+      },
+      "transcript": "EM XIN LỖI CHỊ RẤT LÀ NHIỀU EM NGHĨ ĐÂY LÀ LỖI KỸ THUẬT CỦA BÊN EM TẠI VÌ TỤI EM ĐÃ HOÀN THIỆN SẢN PHẨM CHƯA TỐT LẮM EM XIN PHÉP ĐỔI HÀNG CHO CHỊ ĐƯỢC KHÔNG Ạ EM XIN LỖI CHỊ RẤT LÀ NHIỀU NHƯNG MÀ EM SẼ KHÔNG CÓ HOÀN TIỀN HAY LÀ GIẢM GIÁ ĐƯỢC CHỊ THÔNG CẢM GIÚP EM NHÉ EM SẼ ĐỔI ĐỔI HÀNG CHO CHỊ SỚM NHẤT CÓ THỂ NHÉ",
+      "language": "vi",
+      "sttProvider": "sherpa-onnx",
+      "sttModel": "sherpa-onnx-zipformer-vi-30M-int8-2026-02-09",
+      "sttVersion": "1.13.8",
+      "error": {
+        "code": "responder_invalid"
+      },
+      "processingDurationSeconds": 61.530286799999885,
+      "acceptedTurnCount": 0,
+      "silenceCount": 0
+    }
+  },
+  "pendingTurns": {},
+  "openingComplaint": "Em ơi, chị muốn đổi đôi giày này. Chị mới mua ở đây ba ngày trước, nhưng mang vào thì bị đau chân. Lần trước em tư vấn đôi này phù hợp với chị nên chị khá thất vọng.",
+  "status": "active",
+  "trustState": null,
+  "createdAtUtc": "2026-09-17T03:47:45.808001Z",
+  "updatedAtUtc": "2026-09-17T03:52:02.744473Z"
+}

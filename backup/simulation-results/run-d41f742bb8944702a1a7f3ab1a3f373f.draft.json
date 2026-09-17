@@ -1,0 +1,32 @@
+{
+  "runId": "d41f742bb8944702a1a7f3ab1a3f373f",
+  "participantName": "test",
+  "participantSessionId": "ee2129fcc72e4bcc94959d3200798ab0",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T16:53:56.316494Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-d55f0f63490e42d3b68994e49cb7a50a",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "Ờ DẠ EM EM BIẾT LÀ MÌNH THẤY LÀ ĐÔI BA B CÓ VẺ LÀ TRÔNG NÓ RẤT LÀ CÁ TÍNH KIỂU DÁNG KHÁ LÀ SÁNG TẠO TUY NHIÊN THÌ ĐÔI MỘT A NẾU MÀ DÙNG CHO ĐI BỘ HẰNG NGÀY THÌ NÓ ĂN ĐỨT BA B BỞI VÌ SAO TẠI VÌ NÓ RẤT LÀ ĐƠN GIẢN NHÌN NÓ RẤT LÀ DỄ PHỐI ĐỒ KỂ CẢ NHỮNG BỘ ĐỒ ĐƠN GIẢN NHẤT ĐEO CÁI ĐỒ NÀY VẪN RẤT LÀ ĐẸP NGOÀI RA THÌ NÓ ÔM PHÁT CHÂN MÌNH NHƯ VẬY NÈ TRỜI ƠI PHẢI NÓI LÀ ĐI BỘ CỰC SƯỚNG LUÔN NÊN LÀ EM PHẢI NÓI THIỆT Á LÀ BA B MẶC DÙ NÓ ĐẸP THIỆT NÓ CÁ TÍNH THIỆT NHƯNG MÀ VỀ MỤC ĐÍCH ĐI BỘ NHA GIÁ CẢ THÌ ĐÔI BA A ĐI MỘT MỘT A VẪN ĐÃ HƠN Ạ",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã giải thích rõ lý do chọn 1A phù hợp với nhu cầu chạy bộ đường nhựa, êm chân và nhẹ. Đã phản đối 3B vì cá tính nhưng không phù hợp với mục đích sử dụng. Thông tin sản phẩm được trình bày chính xác, phù hợp với ngân sách và nhu cầu của khách hàng.",
+      "createdAtUtc": "2026-09-16T16:53:56.307485Z",
+      "updatedAtUtc": "2026-09-16T16:54:05.105201Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-d55f0f63490e42d3b68994e49cb7a50a": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T16:53:56.316676Z"
+    },
+    "sale.part1:sales-persuasion-d55f0f63490e42d3b68994e49cb7a50a:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T16:54:05.113339Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T17:08:15.181475Z",
+  "requiredFields": []
+}

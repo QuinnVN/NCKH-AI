@@ -1,0 +1,77 @@
+{
+  "runId": "2c78da4f445440a1ae128f041d3b29fb",
+  "participantName": "Huỳnh Nhật Đông",
+  "participantSessionId": "0a975cbfae1d42aba9bb067c08eace6e",
+  "gameId": "lawyer",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T04:40:46.6241910Z",
+  "data": {
+    "caseId": "club-room-fire",
+    "interviewRestartCount": 0,
+    "finalClueSet": [
+      {
+        "evidenceId": "clue-11",
+        "title": "Camera hành lang",
+        "strength": "weak"
+      },
+      {
+        "evidenceId": "clue-12",
+        "title": "Camera hành lang 16:08",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-18",
+        "title": "Camera cầu thang 16:07",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-24",
+        "title": "Giám định ổ điện",
+        "strength": "strong"
+      }
+    ],
+    "completedEvidenceLinks": [],
+    "transcript": "ĐÚNG RỒI KHÔNG CÓ LÀM ĐƯỢC GÌ HẾT ĐÓ Ý LÀ NÓ KHÔNG CÓ HIỆN CÁI GÌ ĐỂ MÀ CẦM Ờ KHÔNG THAO TÁC ĐƯỢC ĐÚNG RỒI KHÔNG CÓ TIỀN KHÔNG THẤY ĐƯỢC Ở MỘT KHOẢNG THÌ NÓ HIỆN CÒN LÚC MỘT KHOẢNG NỮA LÀ KHÔNG HIỆN NHA ĐÂY LÀ TẦM NÀY NÓ HIỆN NÈ QUA TỚI ĐÂY LÀ HẾT VÀ XUỐNG DƯỚI CŨNG HẾT NGAY GIỮA GIỮA TÀU NÀY CÓ LÀ NÓ CHỈ HIỆN TRONG CÁI TRONG CÁI BẢNG",
+    "criterionScores": {
+      "evidenceUse": 0,
+      "logicalConnections": 0,
+      "conclusionFidelity": 0,
+      "clarityAndPersuasiveness": 0
+    },
+    "rawScore": 0,
+    "restartPenaltyPercent": 0,
+    "finalScore": 0.0,
+    "feedbackVi": "Lời bào chữa không có tính logic, không sử dụng bất kỳ bằng chứng nào từ hồ sơ, không có sự kết nối giữa các lý do và kết luận. Lời nói không rõ ràng, không có lập luận rõ ràng, không có sự phân tích hoặc suy luận từ các bằng chứng được cung cấp. Đây là một lời bào chữa không có giá trị và không thể được coi là một lập luận hợp lý.",
+    "recordingAtUtc": "2026-09-16T04:49:30.138751Z",
+    "assessmentCompletedAtUtc": "2026-09-16T04:49:45.439526Z",
+    "completionStatus": "completed",
+    "lawyer": {
+      "roundId": "bc036dae2fa7470a815e19f2e0e7f460",
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 0,
+      "transcript": "",
+      "feedbackVi": "",
+      "recordingAtUtc": "",
+      "assessmentCompletedAtUtc": ""
+    }
+  },
+  "fragments": {
+    "lawyer:bc036dae2fa7470a815e19f2e0e7f460": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T04:49:30.169458Z"
+    },
+    "lawyer:bc036dae2fa7470a815e19f2e0e7f460:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T04:49:45.459451Z"
+    },
+    "bc036dae2fa7470a815e19f2e0e7f460:defense": {
+      "kind": "lawyer.defense_completed",
+      "acceptedAtUtc": "2026-09-16T04:49:45.886189Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T04:52:37.606016Z",
+  "requiredFields": [
+    "lawyer"
+  ],
+  "completionRequested": true
+}

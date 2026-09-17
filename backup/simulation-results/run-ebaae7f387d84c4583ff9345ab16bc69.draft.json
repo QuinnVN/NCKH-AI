@@ -1,0 +1,63 @@
+{
+  "runId": "ebaae7f387d84c4583ff9345ab16bc69",
+  "participantName": "Nguyễn Mỹ Ngọc Anh",
+  "participantSessionId": "f6d2de59e7a84e68801c08139849fa3b",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-17T01:53:20.6233750Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-4405e5aeac3a4b66b0c2171c7e994820",
+      "salesSessionId": "1c8deb60eeee4773aa37ca8da8642897",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "EM THẤY THỜI GIAN ĐỂ CHUẨN BỊ Ồ EM THẤY NÓ GHI ÂM RỒI NÈ À ĐÔI NÀY EM NÊN NÓI GÌ TA PHẢI MUA CÁI ĐÔI NÀY HỢP LÝ NÀY NHÌN KHÔNG ĐƯỢC ĐÔI NÀY NHÌN KHÔNG ĐƯỢC BẮT MẮT LẮM NHƯNG MÀ NÓ KHÁ LÀ PHÙ HỢP VỚI LẠI NHU CẦU MÀ MÌNH MUỐN Ờ TẠI VÌ ANH MUỐN MUA MỘT CÁI ĐÔI GIÀY NÓ THOÁNG KHÍ VÀ PHÙ HỢP VỚI CHẠY BỘ TRONG KHI CÁI ĐÔI KIA NÓ SẼ KHÔNG ĐƯỢC PHÙ HỢP LẮM VỚI NHỮNG CÁI NHU CẦU ĐÓ CỦA ANH NÊN LÀ NẾU NHƯ MÀ ANH MUỐN NÓ THOẢI MÁI VÀ NÓ AN TOÀN NHẤT TRONG LÚC SỬ DỤNG THÌ EM NGHĨ LÀ ĐÔI A DUMA SAMBA SẼ LÀ LỰA CHỌN PHÙ HỢP NHẤT",
+      "score": 85,
+      "feedbackVi": "Đáp án phù hợp với nhu cầu chạy bộ nhẹ, êm chân và thoáng khí. Đã giải quyết phản đối về sự cá tính của Nyke Air Max bằng cách nhấn mạnh ưu điểm của Aduma Samba. Thông tin sản phẩm chính xác, phù hợp với ngân sách và nhu cầu của khách hàng.",
+      "recordingAtUtc": "2026-09-17T01:54:33.832043Z",
+      "assessmentCompletedAtUtc": "2026-09-17T01:54:42.249761Z"
+    },
+    "turns": [
+      {
+        "turnId": "3bf22a0f0b204d6aa9895f868ba22ef7",
+        "transcript": "Ờ EM XIN LỖI VÌ TRẢI NGHIỆM KHÔNG ĐƯỢC ƯNG Ý LẮM CỦA MÌNH TỰ NHIÊN NÓ GIẬT QUÁ À EM KHÔNG CÓ THẤY GÌ HẾT TRƠN Á DỮ LUÔN HẢ NÓ GIẬT NHƯ LÀ EM ĐANG Ở EM ĐANG Ở NHẬT BẢN VẬY Á",
+        "customerReply": "Giày quá chật, đi cả ngày khó chịu, em không hỏi lịch đi bộ trước, chị muốn đổi nhẹ hơn.",
+        "objective": "ListeningAndClarifying",
+        "turnTimestampUtc": "2026-09-17T01:56:19.6590660Z"
+      },
+      {
+        "turnId": "1dd0642707674f009f719abfb1a39d1c",
+        "transcript": "CỦA EM RỒI EM XIN LỖI Ờ CHỊ CÓ MUỐN ĐỔI SAI KHÁC THOẢI MÁI THOẢI MÁI HƠN VỚI CHỒNG RỒI",
+        "customerReply": "Giày chật, đi cả ngày khó chịu. Em không hỏi lịch đi bộ, chị muốn đổi nhẹ hơn.",
+        "objective": "FindingRootCause",
+        "turnTimestampUtc": "2026-09-17T01:57:55.9081320Z"
+      }
+    ]
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-4405e5aeac3a4b66b0c2171c7e994820": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T01:54:33.903114Z"
+    },
+    "1c8deb60eeee4773aa37ca8da8642897:part1:sales-persuasion-4405e5aeac3a4b66b0c2171c7e994820": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-17T01:54:34.226935Z"
+    },
+    "sale.part1:sales-persuasion-4405e5aeac3a4b66b0c2171c7e994820:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T01:54:42.311085Z"
+    },
+    "sales.part2.turn_accepted:3bf22a0f0b204d6aa9895f868ba22ef7:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-17T01:56:18.524927Z"
+    },
+    "sales.part2.turn_accepted:1dd0642707674f009f719abfb1a39d1c:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-17T01:57:54.590259Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-17T01:59:03.223216Z",
+  "requiredFields": []
+}

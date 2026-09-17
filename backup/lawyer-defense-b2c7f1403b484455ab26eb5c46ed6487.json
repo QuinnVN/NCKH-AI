@@ -1,0 +1,89 @@
+{
+  "roundId": "b2c7f1403b484455ab26eb5c46ed6487",
+  "runId": "f3972823a5bd416bb367cbbba0fce1ff",
+  "caseId": "club-room-fire",
+  "interviewRestartCount": 3,
+  "assessmentContext": {
+    "caseSummary": "Khoảng 16:20, một vụ cháy xảy ra tại phòng CLB của trường. Đám cháy bắt đầu gần ổ cắm điện bên bàn làm việc. Lan nói đã thấy Minh rời đi khi một thiết bị vẫn còn cắm điện; Minh khẳng định mình đã rút bộ sạc.",
+    "investigationObjective": "Thu thập thông tin, kiểm tra lời khai và mâu thuẫn, chọn chứng cứ có giá trị, rồi xây dựng lập luận bảo vệ Minh.",
+    "defenseConclusion": "Chứng cứ hiện có không đủ để kết luận Minh gây ra vụ cháy; chuỗi thời gian, vật chứng và giám định đều tạo ra nghi vấn hợp lý về nguyên nhân khác.",
+    "orderedEvidence": [
+      {
+        "evidenceId": "clue-09",
+        "title": "Camera cầu thang 16:07",
+        "description": "Khi Minh mở balo, một dây sạc màu trắng được nhìn thấy bên trong.",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-12",
+        "title": "Camera hành lang 16:08",
+        "description": "Một học sinh khác đi vào khu vực phòng CLB lúc 16:08.",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-19",
+        "title": "Ảnh hiện trường",
+        "description": "Một củ sạc khác được tìm thấy tại ổ cắm và không khớp với sạc của Minh.",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-24",
+        "title": "Giám định ổ điện",
+        "description": "Dây điện bị hư hỏng do nhiệt tác động từ bên ngoài trước khi xảy ra chập điện.",
+        "strength": "strong"
+      }
+    ],
+    "reasoningCards": [
+      {
+        "reasoningId": "reasoning-1",
+        "title": "Cơ hội tiếp cận",
+        "description": "Đối chiếu việc Minh rời phòng với những gì xảy ra sau đó."
+      },
+      {
+        "reasoningId": "reasoning-2",
+        "title": "Vật chứng bộ sạc",
+        "description": "Đối chiếu timeline với vật chứng và lời khai về bộ sạc."
+      },
+      {
+        "reasoningId": "reasoning-3",
+        "title": "Nguyên nhân đám cháy",
+        "description": "Đối chiếu vật chứng với kết luận giám định cháy."
+      }
+    ],
+    "sampleAnswers": [
+      "Minh không phải người duy nhất có thể tiếp cận phòng CLB sau 16:05, vì cửa không khóa và camera ghi nhận có người khác đi về phía phòng sau khi Minh rời đi. Khi Minh quay lại lúc 16:12, camera cũng xác nhận Minh không bước vào phòng. Ngoài ra, bộ sạc còn lại tại hiện trường không trùng đặc điểm với bộ sạc của Minh. Quan trọng nhất, giám định cho thấy điểm phát cháy nằm ở sọt giấy và hiện tượng chập điện xảy ra sau khi đám cháy đã bắt đầu. Vì vậy, chưa có cơ sở để kết luận bộ sạc của Minh gây ra vụ cháy.",
+      "Dù Minh từng sử dụng ổ điện trước vụ cháy, điều đó không có nghĩa thiết bị của Minh là nguyên nhân. Giám định cho thấy điểm phát cháy ban đầu nằm ở sọt giấy, không phải ổ điện, và hiện tượng chập điện chỉ xảy ra sau khi nhiệt từ đám cháy tác động vào dây điện. Minh cũng khai đã mang bộ sạc theo, phù hợp với hình ảnh camera ghi nhận dây sạc trong balo. Vì vậy, giả thuyết cho rằng bộ sạc của Minh gây cháy không phù hợp với các bằng chứng hiện có.",
+      "Minh rời phòng lúc 16:05 và đến khoảng 16:12 mới quay lại. Camera cho thấy khi quay lại, Minh chỉ đứng ngoài cửa và không bước vào phòng. Trong khoảng thời gian Minh vắng mặt, vẫn có người khác tiếp cận khu vực phòng CLB. Mùi khét và dấu hiệu khói chỉ xuất hiện rõ sau đó. Vì vậy, có một khoảng thời gian đủ lớn để sự cố xảy ra khi Minh không có mặt trong phòng, nên không thể chỉ dựa vào việc Minh từng dùng ổ điện để quy trách nhiệm cho Minh.",
+      "Lời khai của Lan rằng còn một thiết bị cắm ở ổ điện chưa đủ để xác định đó là bộ sạc của Minh. Từ vị trí của Lan, ổ điện bị che một phần và cô không thể quan sát rõ thiết bị. Trong khi đó, bộ sạc được tìm thấy tại hiện trường có màu đen, còn bộ sạc của Minh màu trắng. Camera cũng ghi nhận vật giống dây sạc trắng trong balo Minh sau khi rời phòng. Vì vậy, lời khai của Lan không đủ mạnh để chứng minh Minh đã bỏ lại bộ sạc.",
+      "Có ba lý do chính để không thể kết luận Minh gây ra vụ cháy. Thứ nhất, Minh đã rời phòng trước khi đám cháy phát triển và camera xác nhận Minh không vào lại khi quay về. Thứ hai, người khác vẫn có khả năng tiếp cận căn phòng trong thời gian Minh vắng mặt. Thứ ba, bằng chứng vật lý không ủng hộ giả thuyết bộ sạc gây cháy: điểm phát cháy nằm ở sọt giấy và chập điện xảy ra sau khi lửa đã xuất hiện. Do đó, chứng cứ hiện tại không chỉ thiếu để buộc trách nhiệm cho Minh mà còn cho thấy một nguyên nhân khác có khả năng hợp lý hơn."
+    ]
+  },
+  "requestHash": "0f36b9ad0e55653b15e9073f5852edefcd0112265f3be5313d0322ac91977981",
+  "audioFile": "lawyer-defense-b2c7f1403b484455ab26eb5c46ed6487.wav",
+  "status": "completed",
+  "assessmentStatus": "completed",
+  "transcript": "ĐẦU TIÊN THÌ CÁC BẠN VẪN CHƯA XÁC ĐỊNH ĐƯỢC NGUYÊN NHÂN LÀ THIẾT BỊ NÀO GÂY RA CHÁY NHƯNG MÀ LẠI CHO RẰNG LÀ PHẠT CỦA MINH LÀ THỨ GÂY CHÁY NHƯNG MÀ ĐÓ KHÔNG PHẢI LÀ ĐIỀU TÔI MUỐN NÓI Ở ĐÂY CÁI ĐIỀU MUỐN NÓI Ở ĐÂY LÀ MINH KHÔNG LÀ MANG DÂY PHẠT THEO BÊN NGƯỜI CÒN PHẠT CẤM CHO Ổ ĐÓ KHÔNG PHẢI CỦA MINH LÀ CÁI THỨ NHẤT CÁI THỨ HAI NHẤT LÀ DÂY PHẠT ĐƯỢC BỊ CHÁY ĐÓ KHÔNG TRÙNG KHỚP VỚI DÂY PHẠT CỦA MINH MANG THEO VÀ KHÔNG TRÙNG KHỚP VỚI THIẾT BỊ CỦA MÌNH CÁI THỨ BA LÀ EM ĐÃ RÚT PHẠT KHI RỜI ĐI RỒI VÀ CAMERA HỆ THỐNG KÍCH HOẠT BÁO CHÁY ĐƯỢC CỦA TRƯỜNG ĐƯỢC KÍCH HOẠT MƯỜI SÁU GIỜ HAI MƯƠI PHÚT LÀ MINH ĐÃ RỜI KHỎI PHÒNG MƯỜI LĂM PHÚT TRƯỚC ĐÓ RỒI CÓ NGHĨA LÀ MƯỜI SÁU GIỜ NĂM PHÚT VÀ KHI MINH QUAY LẠI MINH KHÔNG CÓ BƯỚC VÀO PHÒNG VÀO LÚC MƯỜI SÁU GIỜ HAI MƯƠI SÁU GIỜ MƯỜI LĂM NGOÀI RA MỘT HỌC SINH KHÁC CŨNG ĐƯỢC CHO LÀ ĐÃ ĐI VÀO KHU VỰC PHÒNG CÂU LẠC BỘ LÚC MƯỜI SÁU GIỜ TÁM PHÚT VÌ VẬY NÊN VẪN CÒN CÓ KHẢ NĂNG LÀ CÓ MỘT NHÂN CHỨNG MỘT NGHI PHẠM KHÁC CHỨ KHÔNG PHẢI CHỈ CÓ MINH NÊN LÀ CÁC BẠN KHÔNG ĐỦ CHỨNG CỨ ĐỂ KẾT TỘI THÂN CHỦ CỦA TÔI LÀ KẺ GÂY TỘI",
+  "criteria": {
+    "evidenceUse": 10,
+    "logicalConnections": 15,
+    "conclusionFidelity": 5,
+    "clarityAndPersuasiveness": 2
+  },
+  "rawScore": 32,
+  "restartPenaltyPercent": 0,
+  "finalScore": 32.0,
+  "feedbackVi": "Lời bào chữa không rõ ràng và không có cấu trúc logic. Người chơi đã cố gắng đưa ra một số điểm chính nhưng không có sự liên kết chặt chẽ giữa các bằng chứng và kết luận. Có thể thấy rằng người chơi không thể tổ chức thông tin một cách hiệu quả để thuyết phục người nghe. Lời nói cũng không có sự tự tin và không có sự tập trung vào các bằng chứng cụ thể để hỗ trợ kết luận.",
+  "speechModel": {
+    "provider": "sherpa-onnx",
+    "model": "sherpa-onnx-zipformer-vi-30M-int8-2026-02-09",
+    "version": "1.13.8"
+  },
+  "languageModel": {
+    "provider": "llama.cpp",
+    "model": "qwen3-4b",
+    "version": "unavailable"
+  },
+  "error": null,
+  "createdAtUtc": "2026-09-16T00:30:08.993701Z",
+  "updatedAtUtc": "2026-09-16T00:30:26.697862Z"
+}

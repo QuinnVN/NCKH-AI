@@ -42,8 +42,8 @@ _EVENT_FIELDS: dict[str, frozenset[str]] = {
     "lawyer.defense_recording": frozenset({"roundId", "caseId", "interviewRestartCount", "transcript", "criterionScores", "rawScore", "restartPenaltyPercent", "finalScore", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc", "completionStatus"}),
     "sales.persuasion_recording": frozenset({"attemptId", "salesSessionId", "scenarioId", "customerId", "selectedShoeId", "bestFitShoeId", "transcript", "score", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc"}),
     "sales.part1_recording_uploaded": frozenset({"attemptId", "salesSessionId", "scenarioId", "customerId", "selectedShoeId", "bestFitShoeId", "transcript", "score", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc"}),
-    "sales.part2.turn_accepted": frozenset({"turnId", "transcript", "customerReply", "objective", "activeObjective", "objectiveActiveDuringTurn", "turnTimestampUtc"}),
-    "sales.part2.completed": frozenset({"score", "customerRating", "criterionScores", "trustState", "emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding", "completionReason", "acceptedTurnCount", "silenceCount", "completedAtUtc"}),
+    "sales.part2.turn_accepted": frozenset({"turnId", "transcript", "customerReply", "playerResponseRating", "policyViolations", "objective", "activeObjective", "objectiveActiveDuringTurn", "turnTimestampUtc"}),
+    "sales.part2.completed": frozenset({"rawScore", "policyViolationPenalty", "policyViolations", "score", "customerRating", "criterionScores", "trustState", "finalCustomerText", "goodResponseCount", "badResponseCount", "emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding", "completionReason", "acceptedTurnCount", "silenceCount", "completedAtUtc"}),
 }
 
 
@@ -107,6 +107,8 @@ def _event_payload(event_type: str, source: Mapping[str, Any], occurred_at: str)
         return {key: _approved_data(value) for key, value in {
             "turnId": nested.get("turnId") or nested.get("roundId"),
             "transcript": nested.get("transcript"), "customerReply": nested.get("customerReply"),
+            "playerResponseRating": nested.get("playerResponseRating"),
+            "policyViolations": nested.get("policyViolations"),
             "objective": nested.get("objective"), "activeObjective": nested.get("activeObjective"),
             "objectiveActiveDuringTurn": nested.get("objectiveActiveDuringTurn"),
             "turnTimestampUtc": nested.get("turnTimestampUtc") or occurred_at,
@@ -114,8 +116,10 @@ def _event_payload(event_type: str, source: Mapping[str, Any], occurred_at: str)
     if event_type == "sales.part2.completed":
         source = source.get("part2") if isinstance(source.get("part2"), Mapping) else source
         return {key: _approved_data(value) for key, value in {
-            "score": source.get("score"), "customerRating": source.get("customerRating"),
+            "rawScore": source.get("rawScore"), "policyViolationPenalty": source.get("policyViolationPenalty"),
+            "policyViolations": source.get("policyViolations"), "score": source.get("score"), "customerRating": source.get("customerRating"),
             "criterionScores": source.get("criterionScores"), "trustState": source.get("trustState"), "emotionalHandling": source.get("emotionalHandling"),
+            "finalCustomerText": source.get("finalCustomerText"), "goodResponseCount": source.get("goodResponseCount"), "badResponseCount": source.get("badResponseCount"),
             "causeIdentification": source.get("causeIdentification"), "solutionSuitability": source.get("solutionSuitability"),
             "trustRebuilding": source.get("trustRebuilding"), "completionReason": source.get("completionReason"),
             "acceptedTurnCount": source.get("acceptedTurnCount"), "silenceCount": source.get("silenceCount"),
@@ -415,14 +419,22 @@ def project_sales_part2(session: Mapping[str, Any]) -> dict[str, Any]:
                 "turnId": turn.get("turnId"),
                 "transcript": turn.get("transcript"),
                 "customerReply": turn.get("customerText"),
+                "playerResponseRating": turn.get("playerResponseRating"),
+                "policyViolations": turn.get("policyViolations", []),
                 "activeObjective": turn.get("activeObjective"),
                 "objectiveActiveDuringTurn": turn.get("objectiveActiveDuringTurn"),
                 "turnTimestampUtc": turn.get("timestampUtc") or turn.get("createdAtUtc"),
             })
-    return {"turns": turns, "score": session.get("score"),
+    return {"turns": turns, "rawScore": session.get("rawScore"),
+            "policyViolationPenalty": session.get("policyViolationPenalty", 0),
+            "policyViolations": session.get("policyViolations", []),
+            "score": session.get("score"),
             "customerRating": session.get("customerRating"),
             "criterionScores": session.get("criterionScores"),
             "trustState": session.get("trustState"),
+            "finalCustomerText": session.get("finalCustomerText"),
+            "goodResponseCount": session.get("goodResponseCount", 0),
+            "badResponseCount": session.get("badResponseCount", 0),
             "emotionalHandling": session.get("emotionalHandling", False),
             "causeIdentification": session.get("causeIdentification", False),
             "solutionSuitability": session.get("solutionSuitability", False),

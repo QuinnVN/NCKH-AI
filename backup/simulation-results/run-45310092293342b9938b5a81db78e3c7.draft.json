@@ -1,0 +1,48 @@
+{
+  "runId": "45310092293342b9938b5a81db78e3c7",
+  "participantName": "test",
+  "participantSessionId": "729f4d117bed457eab2051ca5af5cc3b",
+  "gameId": "clinic",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T06:47:13.5370770Z",
+  "data": {
+    "patientResults": [
+      {
+        "patientId": "1",
+        "sicknessName": "Hen suyễn",
+        "resolution": "cured",
+        "severity": 2,
+        "bedIndex": -1,
+        "scoreDelta": 2,
+        "scoreTotal": 2,
+        "actionableAtUtc": "2026-09-16T06:47:23.6163940Z",
+        "resolvedAtUtc": "2026-09-16T06:47:28.5084740Z",
+        "resolutionDurationSeconds": 4.87974214553833
+      },
+      {
+        "patientId": "2",
+        "sicknessName": "Co giật",
+        "resolution": "cured",
+        "severity": 4,
+        "bedIndex": -1,
+        "scoreDelta": 8,
+        "scoreTotal": 10,
+        "actionableAtUtc": "2026-09-16T06:47:31.6300340Z",
+        "resolvedAtUtc": "2026-09-16T06:47:33.1557880Z",
+        "resolutionDurationSeconds": 1.507660150527954
+      }
+    ]
+  },
+  "fragments": {
+    "9bed881ca64841fca02522620247262d:patient:1": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-16T06:47:27.045198Z"
+    },
+    "9bed881ca64841fca02522620247262d:patient:2": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-16T06:47:31.680006Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T06:47:35.890525Z",
+  "requiredFields": []
+}

@@ -1,0 +1,53 @@
+{
+  "_id": "f3972823a5bd416bb367cbbba0fce1ff",
+  "runId": "f3972823a5bd416bb367cbbba0fce1ff",
+  "participantName": "test",
+  "participantSessionId": "4aed274ae8964444be0add350272e545",
+  "gameId": "lawyer",
+  "status": "completed",
+  "startedAtUtc": "2026-09-16T00:23:59.6610210Z",
+  "completedAtUtc": "2026-09-16T00:30:26.722857Z",
+  "data": {
+    "lawyer": {
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 3,
+      "finalClueSet": [
+        {
+          "evidenceId": "clue-09",
+          "title": "Camera cầu thang 16:07",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-12",
+          "title": "Camera hành lang 16:08",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-19",
+          "title": "Ảnh hiện trường",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-24",
+          "title": "Giám định ổ điện",
+          "strength": "strong"
+        }
+      ],
+      "completedEvidenceLinks": [],
+      "transcript": "ĐẦU TIÊN THÌ CÁC BẠN VẪN CHƯA XÁC ĐỊNH ĐƯỢC NGUYÊN NHÂN LÀ THIẾT BỊ NÀO GÂY RA CHÁY NHƯNG MÀ LẠI CHO RẰNG LÀ PHẠT CỦA MINH LÀ THỨ GÂY CHÁY NHƯNG MÀ ĐÓ KHÔNG PHẢI LÀ ĐIỀU TÔI MUỐN NÓI Ở ĐÂY CÁI ĐIỀU MUỐN NÓI Ở ĐÂY LÀ MINH KHÔNG LÀ MANG DÂY PHẠT THEO BÊN NGƯỜI CÒN PHẠT CẤM CHO Ổ ĐÓ KHÔNG PHẢI CỦA MINH LÀ CÁI THỨ NHẤT CÁI THỨ HAI NHẤT LÀ DÂY PHẠT ĐƯỢC BỊ CHÁY ĐÓ KHÔNG TRÙNG KHỚP VỚI DÂY PHẠT CỦA MINH MANG THEO VÀ KHÔNG TRÙNG KHỚP VỚI THIẾT BỊ CỦA MÌNH CÁI THỨ BA LÀ EM ĐÃ RÚT PHẠT KHI RỜI ĐI RỒI VÀ CAMERA HỆ THỐNG KÍCH HOẠT BÁO CHÁY ĐƯỢC CỦA TRƯỜNG ĐƯỢC KÍCH HOẠT MƯỜI SÁU GIỜ HAI MƯƠI PHÚT LÀ MINH ĐÃ RỜI KHỎI PHÒNG MƯỜI LĂM PHÚT TRƯỚC ĐÓ RỒI CÓ NGHĨA LÀ MƯỜI SÁU GIỜ NĂM PHÚT VÀ KHI MINH QUAY LẠI MINH KHÔNG CÓ BƯỚC VÀO PHÒNG VÀO LÚC MƯỜI SÁU GIỜ HAI MƯƠI SÁU GIỜ MƯỜI LĂM NGOÀI RA MỘT HỌC SINH KHÁC CŨNG ĐƯỢC CHO LÀ ĐÃ ĐI VÀO KHU VỰC PHÒNG CÂU LẠC BỘ LÚC MƯỜI SÁU GIỜ TÁM PHÚT VÌ VẬY NÊN VẪN CÒN CÓ KHẢ NĂNG LÀ CÓ MỘT NHÂN CHỨNG MỘT NGHI PHẠM KHÁC CHỨ KHÔNG PHẢI CHỈ CÓ MINH NÊN LÀ CÁC BẠN KHÔNG ĐỦ CHỨNG CỨ ĐỂ KẾT TỘI THÂN CHỦ CỦA TÔI LÀ KẺ GÂY TỘI",
+      "criterionScores": {
+        "evidenceUse": 10,
+        "logicalConnections": 15,
+        "conclusionFidelity": 5,
+        "clarityAndPersuasiveness": 2
+      },
+      "rawScore": 32,
+      "restartPenaltyPercent": 0,
+      "finalScore": 32.0,
+      "feedbackVi": "Lời bào chữa không rõ ràng và không có cấu trúc logic. Người chơi đã cố gắng đưa ra một số điểm chính nhưng không có sự liên kết chặt chẽ giữa các bằng chứng và kết luận. Có thể thấy rằng người chơi không thể tổ chức thông tin một cách hiệu quả để thuyết phục người nghe. Lời nói cũng không có sự tự tin và không có sự tập trung vào các bằng chứng cụ thể để hỗ trợ kết luận.",
+      "recordingAtUtc": "2026-09-16T00:30:08.993701Z",
+      "assessmentCompletedAtUtc": "2026-09-16T00:30:26.697862Z",
+      "completionStatus": "completed"
+    }
+  }
+}

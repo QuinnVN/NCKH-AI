@@ -1,0 +1,28 @@
+{
+  "runId": "sales-persuasion-ad3674158df74646afad0689f2565508",
+  "participantName": "test",
+  "participantSessionId": "823251162bbe4d1c882c8e04a996abd4",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T13:57:24.670846Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-ad3674158df74646afad0689f2565508",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "",
+      "score": 0,
+      "feedbackVi": "Bản ghi không có tiếng nói. Hãy trả lời khách hàng bằng giọng nói rõ ràng.",
+      "createdAtUtc": "2026-09-16T13:57:24.559622Z",
+      "updatedAtUtc": "2026-09-16T13:57:24.668683Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-ad3674158df74646afad0689f2565508:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T13:57:24.671049Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T14:46:57.488161Z",
+  "requiredFields": []
+}

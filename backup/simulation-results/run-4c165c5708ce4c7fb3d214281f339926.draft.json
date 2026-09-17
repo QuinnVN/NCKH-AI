@@ -1,0 +1,39 @@
+{
+  "runId": "4c165c5708ce4c7fb3d214281f339926",
+  "participantName": "test",
+  "participantSessionId": "4173a1abad7b4d4fa7d64186dca910bd",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-17T03:21:49.9402160Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-556a1cc5a2404a98a90b872b312796cb",
+      "salesSessionId": "7a8022a57f4744a094aae4a510e73c73",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "ÔI DẠ VÂNG ĐIỀU ĐÚNG LÀ ĐÔI NIKE CÓ VẺ LÀ NÓ THỜI THƯỢNG HƠN MỘT TÍ NHƯNG MÀ NHƯNG MÀ TẠI VÌ A DUMA FANPAGE THÌ NÓ PHẢI HỢP VỚI NHU CẦU ĐI LẠI CỦA MÌNH NÈ GIÁ CẢ CŨNG PHÙ HỢP HƠN VÀ THẬT RA NHA VỚI CÁI SỰ THIẾT KẾ ĐƠN GIẢN CỦA NÓ THÌ PHỐI ĐỒ VỚI CÁI GÌ CŨNG HỢP NÊN LÀ EM CÁ LUÔN NHA MÌNH PHẢI RẤT LÀ GHIỀN ĐI CÁI ĐÔI NÀY",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Đã giải thích rõ lý do chọn Aduma Samba so với Nyke Air Max, nhấn mạnh sự phù hợp với nhu cầu chạy bộ trên đường nhựa và ngân sách. Tuy nhiên, có thể đưa ra đề xuất khác nếu khách hàng vẫn thích phong cách cá tính hơn.",
+      "recordingAtUtc": "2026-09-17T03:22:35.057673Z",
+      "assessmentCompletedAtUtc": "2026-09-17T03:22:44.872921Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-556a1cc5a2404a98a90b872b312796cb": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T03:22:35.085378Z"
+    },
+    "7a8022a57f4744a094aae4a510e73c73:part1:sales-persuasion-556a1cc5a2404a98a90b872b312796cb": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-17T03:22:35.355746Z"
+    },
+    "sale.part1:sales-persuasion-556a1cc5a2404a98a90b872b312796cb:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T03:22:44.920440Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-17T03:46:50.202015Z",
+  "requiredFields": []
+}

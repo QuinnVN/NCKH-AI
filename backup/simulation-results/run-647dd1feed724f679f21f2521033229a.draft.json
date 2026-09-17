@@ -1,0 +1,77 @@
+{
+  "runId": "647dd1feed724f679f21f2521033229a",
+  "participantName": "test",
+  "participantSessionId": "3ab96f02d7da41319c714b91ebaa0f3f",
+  "gameId": "lawyer",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-15T14:11:14.9605760Z",
+  "data": {
+    "caseId": "club-room-fire",
+    "interviewRestartCount": 0,
+    "finalClueSet": [
+      {
+        "evidenceId": "clue-09",
+        "title": "Camera cầu thang 16:07",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-14",
+        "title": "Dữ liệu cảm biến khói",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-19",
+        "title": "Ảnh hiện trường",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-23",
+        "title": "Báo cáo giám định cháy",
+        "strength": "strong"
+      }
+    ],
+    "completedEvidenceLinks": [],
+    "transcript": "ĐẦU TIÊN THÌ CÁI NHIỆT ĐỘ KHÓI NÓ BẮT ĐẦU TĂNG RÕ TỪ MƯỜI SÁU GIỜ MƯỜI BA PHÚT NHƯNG MÀ MINH QUAY TRỞ LẠI ĐÓ LÚC MƯỜI SÁU GIỜ MƯỜI HAI VÀ MINH KHÔNG HỀ BƯỚC VÀO MINH CHỞ NÓ CỠ HAI MƯƠI GIÂY THÔI VẬY CÓ NGHĨA LÀ BÂY GIỜ ĐÃ KHÔNG VÀO PHÒNG RỒI MÀ MƯỜI SÁU MƯỜI BA BẮT ĐẦU MỚI CÓ NHIỆT ĐỒNG ĐỘ KHÓI THÌ LÀM SAO MINH CÓ THỂ LÀ NGƯỜI LÀM PHÁT CÁC BẠN DÁM CHẮC LÀ MÌNH LÀ NGƯỜI GÂY RA CÁI KHÓI ĐÓ CÁI THỨ HAI LÀ BÂY GIỜ BÁO CÁO GIÁM ĐỊNH CHÁY BÂY GIỜ NÓ ĐÃ KHÁC BÂY GIỜ GIẤU CHÁY ĐƯỢC PHÁT HIỆN LÀ GIẤY Ở TRONG SỌT RÁC THÌ ĐÂU CÓ LIÊN QUAN GÌ TỚI MINH ĐÂU NGOÀI RA THÌ CÁI CỦ PHẠT CÒN CẤM LẠI Ở ĐÓ KHÔNG PHẢI LÀ CỦ PHẠT CỦA MINH MÀ LÀ CỬ PHẠT CỦA MỘT NGƯỜI KHÁC CỦ PHẠT CỦA MINH LÀ MÀU TRẮNG BẰNG CỦ PHẠT Ở TRONG Ở HÁM NGHIỆM HIỆN TRƯỜNG LÀ MÀU ĐEN CÁC BẠN CÓ THỂ NÀO CÁC BẠN KHÔNG ĐỦ BẰNG CHỨNG ĐỂ MÀ QUY VÀO THÂN CHỦ CHÚNG TÔI CÓ TỘI ĐƯỢC THỨ NHẤT LÀ CÁC BẠN KHÔNG CÓ BẰNG CHỨNG VỀ THỜI GIAN THỜI GIAN CHÚNG TA ĐÃ MINH BẠCH RẤT RÕ LÀ MƯỜI SÁU GIỜ MƯỜI BA MỚI BẮT ĐẦU CHÁY VÀ HOÀN TOÀN DIỄN RA MỘT ĐIỀU LÀ CHÁY LÀ DO GIẤY CHỨ KHÔNG PHẢI LÀ DO DÂY PHẠT VÀ KỂ CÓ KHI LÀ DÂY PHẠT THÌ ĐÓ KHÔNG PHẢI CỦA DÂN CHỦ TÔI THÂN CHỦ",
+    "criterionScores": {
+      "evidenceUse": 15,
+      "logicalConnections": 20,
+      "conclusionFidelity": 10,
+      "clarityAndPersuasiveness": 5
+    },
+    "rawScore": 50,
+    "restartPenaltyPercent": 0,
+    "finalScore": 50.0,
+    "feedbackVi": "Lời bào chữa của người chơi có một số điểm tích cực, nhưng vẫn còn nhiều thiếu sót. Người chơi đã nêu được một số bằng chứng quan trọng như thời gian, vật chứng bộ sạc và báo cáo giám định. Tuy nhiên, lập luận còn thiếu sự liên kết chặt chẽ giữa các bằng chứng và kết luận. Người chơi cũng chưa thể đưa ra một lập luận rõ ràng và thuyết phục để chứng minh rằng Minh không phải là người gây ra vụ cháy. Lời nói còn mang tính chủ quan và chưa sử dụng đầy đủ các bằng chứng được cung cấp trong hồ sơ. Cần có sự cải thiện về cách tổ chức lập luận và sử dụng bằng chứng một cách hiệu quả hơn.",
+    "recordingAtUtc": "2026-09-15T14:14:23.424604Z",
+    "assessmentCompletedAtUtc": "2026-09-15T14:14:47.887869Z",
+    "completionStatus": "completed",
+    "lawyer": {
+      "roundId": "210d06526d3f4993ad1fb92e8ccde504",
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 0,
+      "transcript": "",
+      "feedbackVi": "",
+      "recordingAtUtc": "",
+      "assessmentCompletedAtUtc": ""
+    }
+  },
+  "fragments": {
+    "lawyer:210d06526d3f4993ad1fb92e8ccde504": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-15T14:14:23.438713Z"
+    },
+    "lawyer:210d06526d3f4993ad1fb92e8ccde504:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-15T14:14:47.900223Z"
+    },
+    "210d06526d3f4993ad1fb92e8ccde504:defense": {
+      "kind": "lawyer.defense_completed",
+      "acceptedAtUtc": "2026-09-15T14:14:48.420095Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-15T15:51:58.053280Z",
+  "requiredFields": [
+    "lawyer"
+  ],
+  "completionRequested": true
+}

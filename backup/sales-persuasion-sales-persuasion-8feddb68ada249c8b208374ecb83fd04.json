@@ -1,0 +1,41 @@
+{
+  "attemptId": "sales-persuasion-8feddb68ada249c8b208374ecb83fd04",
+  "runId": "e0f41dd1b9834b4ebf92d3ed7fcd2f06",
+  "salesSessionId": "170ec300abbf4b26a10562891ec75ad6",
+  "scenarioId": "sales-part-1-persuasion",
+  "customerId": "Minh",
+  "selectedShoeId": "Aduma Samba",
+  "bestFitShoeId": "Aduma Samba",
+  "customerNeeds": "Chào bạn! Mình muốn tìm một đôi giày để chạy bộ nhẹ khoảng 3 đến 5 cây số mỗi sáng. Mình mới tập nên thích đôi nào êm chân, nhẹ và thoáng một chút.\nMình thường chạy trên đường nhựa, thỉnh thoảng đi bộ nữa. Ngân sách của mình khoảng một triệu rưỡi trở xuống. Bạn chọn giúp mình một đôi phù hợp nhé!",
+  "objection": "Đôi này hợp với nhu cầu của mình, nhưng đôi Nyke Air Max trông cá tính và bắt mắt hơn. Mình sợ Aduma Samba hơi đơn giản.",
+  "availableShoes": [
+    {
+      "shoeId": "Aduma Samba",
+      "name": "Aduma Samba",
+      "price": 1290000,
+      "details": "Chạy bộ đường nhựa\nĐệm êm · Nhẹ · Thoáng\nGiá: 1.290.000 đ"
+    },
+    {
+      "shoeId": "Nyke Air Max",
+      "name": "Nyke Air Max",
+      "price": 1450000,
+      "details": "Bóng rổ trong nhà\nÔm cổ chân · Đế chắc\nGiá: 1.450.000 đ"
+    },
+    {
+      "shoeId": "Columnia Crestwood",
+      "name": "Columnia Crestwood",
+      "price": 1890000,
+      "details": "Chạy địa hình\nĐế bám sâu · Chống nước\nGiá: 1.890.000 đ"
+    }
+  ],
+  "requestHash": "1882076842d87dde35fbd67cbc8241113f16d6289973ae878cd9621b769143f7",
+  "audioFile": "sales-persuasion-sales-persuasion-8feddb68ada249c8b208374ecb83fd04.wav",
+  "status": "completed",
+  "assessmentStatus": "completed",
+  "transcript": "TRONG CÁ TÍNH VÀ BẮT MẮT HẢ RUMA TRÔNG HƠI ĐƠN GIẢN",
+  "score": 75,
+  "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Tuy nhiên, việc chọn Aduma Samba có thể không phù hợp với sở thích cá tính của khách hàng. Thông tin sản phẩm của Aduma Samba là chính xác, nhưng cần giải thích rõ hơn về ưu điểm cá tính của Nyke Air Max để thuyết phục khách hàng. Đánh giá chung là hợp lý, nhưng có thể cải thiện nếu giải thích rõ hơn về sự khác biệt giữa hai đôi giày.",
+  "error": null,
+  "createdAtUtc": "2026-09-17T01:52:36.332971Z",
+  "updatedAtUtc": "2026-09-17T01:52:45.891298Z"
+}

@@ -1,0 +1,100 @@
+{
+  "sessionId": "7a8022a57f4744a094aae4a510e73c73",
+  "runId": "4c165c5708ce4c7fb3d214281f339926",
+  "part1AttemptId": "sales-persuasion-556a1cc5a2404a98a90b872b312796cb",
+  "participantName": "test",
+  "phase": 2,
+  "acceptedTurnCount": 1,
+  "silenceCount": 0,
+  "turnIds": [
+    "0c441861bf6940928aabc1bc4a90a4f8"
+  ],
+  "turns": [
+    {
+      "turnId": "0c441861bf6940928aabc1bc4a90a4f8",
+      "transcript": "Ô BÂY GIỜ EM XIN LỖI CHỊ RẤT LÀ NHIỀU CÓ VẺ NHƯ LÀ DO LÀ TRONG QUÁ TRÌNH MÀ KỸ THUẬT TỤI EM SẢN XUẤT THÌ NÓ CÓ VẤN ĐỀ MỘT TÍ DẠ TỤI EM SẼ ĐỔI HÀNG CHO CHỊ ĐƯỢC KHÔNG Ạ DẠ CHỊ MANG ĐÔI GIÀY NGUYÊN VẸN NÀY THÌ TỤI EM SẼ ĐỔI CHO CHỊ MỘT ĐÔI MỚI HOÀN TOÀN LUÔN EM XIN LỖI CHỊ RẤT LÀ NHIỀU VỀ VẤN ĐỀ NÀY TỤI EM SẼ KHẮC PHỤC TỐT HẾT SỨC CÓ THỂ",
+      "objectiveActiveDuringTurn": 1,
+      "customerText": "Chị mang đôi giày này được bao lâu rồi? Có phù hợp với việc đi bộ lâu không?",
+      "activeObjective": 2,
+      "objectiveCompleted": true,
+      "disclosedFactIds": [],
+      "conversationComplete": false,
+      "turnAssessment": {
+        "emotionalAcknowledgment": true,
+        "openQuestion": true,
+        "useOrDurationQuestion": true,
+        "fitConditionOrPreferenceQuestion": true,
+        "causeStatement": false,
+        "policyExchange": false,
+        "lightweightForWalking": false,
+        "fitOrWalkTrial": false,
+        "originalSaleResponsibility": false,
+        "routineMatchExplanation": false,
+        "verificationStep": false,
+        "unauthorizedPromise": false,
+        "maintainsUnauthorizedPromise": false,
+        "managerEscalation": false,
+        "abuse": false
+      }
+    }
+  ],
+  "completedTurns": {
+    "0c441861bf6940928aabc1bc4a90a4f8": {
+      "sessionId": "7a8022a57f4744a094aae4a510e73c73",
+      "turnId": "0c441861bf6940928aabc1bc4a90a4f8",
+      "requestHash": "7ae6a161ce7826e3f5df4475a282a70525ce1f7317b52211e8d40b4ba6784742",
+      "status": "accepted",
+      "accepted": true,
+      "retryCount": 1,
+      "clientVersion": "0.4.0",
+      "activeObjective": 2,
+      "createdAtUtc": "2026-09-17T03:25:27.483206Z",
+      "audioFormat": {
+        "sampleRateHz": 16000,
+        "channels": 1,
+        "durationSeconds": 18.419875,
+        "encoding": "pcm_s16le"
+      },
+      "transcript": "Ô BÂY GIỜ EM XIN LỖI CHỊ RẤT LÀ NHIỀU CÓ VẺ NHƯ LÀ DO LÀ TRONG QUÁ TRÌNH MÀ KỸ THUẬT TỤI EM SẢN XUẤT THÌ NÓ CÓ VẤN ĐỀ MỘT TÍ DẠ TỤI EM SẼ ĐỔI HÀNG CHO CHỊ ĐƯỢC KHÔNG Ạ DẠ CHỊ MANG ĐÔI GIÀY NGUYÊN VẸN NÀY THÌ TỤI EM SẼ ĐỔI CHO CHỊ MỘT ĐÔI MỚI HOÀN TOÀN LUÔN EM XIN LỖI CHỊ RẤT LÀ NHIỀU VỀ VẤN ĐỀ NÀY TỤI EM SẼ KHẮC PHỤC TỐT HẾT SỨC CÓ THỂ",
+      "language": "vi",
+      "sttProvider": "sherpa-onnx",
+      "sttModel": "sherpa-onnx-zipformer-vi-30M-int8-2026-02-09",
+      "sttVersion": "1.13.8",
+      "customerText": "Chị mang đôi giày này được bao lâu rồi? Có phù hợp với việc đi bộ lâu không?",
+      "objectiveCompleted": true,
+      "disclosedFactIds": [],
+      "conversationComplete": false,
+      "deterministicEnding": null,
+      "turnAssessment": {
+        "emotionalAcknowledgment": true,
+        "openQuestion": true,
+        "useOrDurationQuestion": true,
+        "fitConditionOrPreferenceQuestion": true,
+        "causeStatement": false,
+        "policyExchange": false,
+        "lightweightForWalking": false,
+        "fitOrWalkTrial": false,
+        "originalSaleResponsibility": false,
+        "routineMatchExplanation": false,
+        "verificationStep": false,
+        "unauthorizedPromise": false,
+        "maintainsUnauthorizedPromise": false,
+        "managerEscalation": false,
+        "abuse": false
+      },
+      "llmProvider": "llama.cpp",
+      "llmModel": "qwen3-4b",
+      "llmVersion": "unavailable",
+      "processingDurationSeconds": 78.83112239999173,
+      "acceptedTurnCount": 1,
+      "silenceCount": 0
+    }
+  },
+  "pendingTurns": {},
+  "openingComplaint": "Em ơi, chị muốn đổi đôi giày này. Chị mới mua ở đây ba ngày trước, nhưng mang vào thì bị đau chân. Lần trước em tư vấn đôi này phù hợp với chị nên chị khá thất vọng.",
+  "status": "active",
+  "trustState": null,
+  "createdAtUtc": "2026-09-17T03:21:48.633983Z",
+  "updatedAtUtc": "2026-09-17T03:26:46.331118Z",
+  "investigationEvidence": []
+}

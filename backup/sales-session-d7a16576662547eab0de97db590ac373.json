@@ -1,0 +1,19 @@
+{
+  "sessionId": "d7a16576662547eab0de97db590ac373",
+  "runId": "7a100cc5d3de45729ba130ccc9aa75a2",
+  "part1AttemptId": null,
+  "participantName": "Võ Nguyễn Xuân Phương",
+  "phase": 1,
+  "acceptedTurnCount": 0,
+  "badResponseCount": 0,
+  "silenceCount": 0,
+  "turnIds": [],
+  "turns": [],
+  "completedTurns": {},
+  "pendingTurns": {},
+  "openingComplaint": "Em ơi, chị muốn đổi đôi giày này. Chị mới mua ở đây ba ngày trước, nhưng mang vào thì bị đau chân. Lần trước em tư vấn đôi này phù hợp với chị nên chị khá thất vọng.",
+  "status": "active",
+  "trustState": null,
+  "createdAtUtc": "2026-09-17T08:33:16.862859Z",
+  "updatedAtUtc": "2026-09-17T08:33:16.862902Z"
+}

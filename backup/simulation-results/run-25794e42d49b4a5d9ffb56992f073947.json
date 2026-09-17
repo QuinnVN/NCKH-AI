@@ -1,0 +1,77 @@
+{
+  "runId": "25794e42d49b4a5d9ffb56992f073947",
+  "participantName": "Nguyễn Trần Diệu An",
+  "participantSessionId": "88b218391d454cd4b82e28e7288aee89",
+  "gameId": "lawyer",
+  "status": "completed",
+  "startedAtUtc": "2026-09-16T07:23:43.8730350Z",
+  "data": {
+    "caseId": "club-room-fire",
+    "interviewRestartCount": 1,
+    "finalClueSet": [
+      {
+        "evidenceId": "clue-08",
+        "title": "Kiểm tra cửa phòng",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-12",
+        "title": "Camera hành lang 16:08",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-21",
+        "title": "Sơ đồ vị trí của Lan",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-23",
+        "title": "Báo cáo giám định cháy",
+        "strength": "strong"
+      }
+    ],
+    "completedEvidenceLinks": [],
+    "transcript": "MẤY CÁI NÃY THÔI MÀ BẮT ĐẦU TỪ KHU ĐIỆN NÓI RỒI ĐÓ GIỜ LÀ TÔI PHẢI BIỆN HỘ HẢ THÌ THEO NHƯ BÁO CÁO BAN ĐẦU TẠI HIỆN TRƯỜNG CỦA VỤ CHÁY THÌ ĐÁM CHÁY NÓ CÓ KHẢ NĂNG LÀ BẮT ĐẦU TỪ KHU VỰC Ổ CẮM ĐIỆN GẦN BÀN LÀM VIỆC NHƯNG MÀ THEO NHƯ CAMERA TRÍCH XUẤT ĐƯỢC Ở TẠI TRONG PHÒNG ĐÓ THÌ MỘT PHẦN CỦA Ổ ĐIỆN BỊ CHE KHUẤT BỞI MỘT CÁI CHỒNG GIẤY TẠI ĐÓ NÊN LÀ CHÚNG TA VẪN KHÔNG THỂ XÁC ĐỊNH ĐƯỢC CÓ CHẮC CHẮN RẰNG CÁI ĐÁM CHÁY ĐÓ XUẤT PHÁT TỪ CÁI Ổ CẮM ĐIỆN HAY KHÔNG VÀ THEO NHƯ LỜI KHAI CỦA LAN THÌ TRƯỚC KHI MINH RỜI ĐI THẤY CÓ MỘT THIẾT BỊ VẪN CÒN ĐƯỢC CẮM Ở Ổ ĐIỆN NHƯNG SAU THỜI GIAN ĐÓ THÌ MINH CŨNG CÓ QUAY LẠI QUAY LẠI PHÒNG CÂU LẠC BỘ VÀ ĐIỀU ĐÓ CŨNG CÓ THỂ CHỨNG MINH RẰNG LÀ SAU KHOẢNG THỜI GIAN MÀ LAN CHỨNG KIẾN THẤY CÁI THIẾT BỊ",
+    "criterionScores": {
+      "evidenceUse": 40,
+      "logicalConnections": 30,
+      "conclusionFidelity": 10,
+      "clarityAndPersuasiveness": 5
+    },
+    "rawScore": 85,
+    "restartPenaltyPercent": 0,
+    "finalScore": 85.0,
+    "feedbackVi": "Lời bào chữa không đủ rõ ràng và có sự thiếu kết nối logic giữa các bằng chứng. Người chơi đã nêu ra một số điểm đáng chú ý như việc ổ điện bị che khuất và sự mâu thuẫn giữa lời khai của Lan và Minh, nhưng không có lập luận rõ ràng để kết luận rằng Minh không phải nguyên nhân vụ cháy. Lời nói còn thiếu sự kiểm soát và có thể gây hiểu lầm cho người nghe.",
+    "recordingAtUtc": "2026-09-16T07:35:22.983883Z",
+    "assessmentCompletedAtUtc": "2026-09-16T07:37:39.290740Z",
+    "completionStatus": "completed",
+    "lawyer": {
+      "roundId": "ef7a0b7fbe7440ffb0cb9dcb36d79a51",
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 1,
+      "transcript": "",
+      "feedbackVi": "",
+      "recordingAtUtc": "",
+      "assessmentCompletedAtUtc": ""
+    }
+  },
+  "fragments": {
+    "lawyer:ef7a0b7fbe7440ffb0cb9dcb36d79a51": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T07:35:23.001736Z"
+    },
+    "lawyer:ef7a0b7fbe7440ffb0cb9dcb36d79a51:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T07:37:39.293353Z"
+    },
+    "ef7a0b7fbe7440ffb0cb9dcb36d79a51:defense": {
+      "kind": "lawyer.defense_completed",
+      "acceptedAtUtc": "2026-09-16T07:37:40.563137Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T08:04:58.503808Z",
+  "requiredFields": [
+    "lawyer"
+  ],
+  "completionRequested": true
+}

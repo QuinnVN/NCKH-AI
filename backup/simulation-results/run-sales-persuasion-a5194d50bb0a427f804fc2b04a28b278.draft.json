@@ -1,0 +1,28 @@
+{
+  "runId": "sales-persuasion-a5194d50bb0a427f804fc2b04a28b278",
+  "participantName": "test",
+  "participantSessionId": "3b2bcbe83d324d898ca0636d99f4580c",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T11:37:14.465885Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-a5194d50bb0a427f804fc2b04a28b278",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "Ờ THÌ THẬT RA LÀ MẶC DÙ CÁI ĐÔI MỘT A NÀY NÓ CÓ HƠI ĐƠN GIẢN HƠN MỘT TÍ NHƯNG MÀ TẠI VÌ VỚI NHU CẦU CHẠY BỘ MỖI NGÀY THÌ ĐƠN GIẢN NHƯ VẬY THỨ NHẤT LÀ SẼ DỄ PHỐI ĐỒ HƠN NẾU MÀ QUÝ KHÁCH QUAN TÂM ĐẾN VẤN ĐỀ THỜI TRANG THỨ HAI THÌ ĐÂY LÀ MỘT CÁI ĐÔI MÀ NÓ PHÙ HỢP VỚI GIÁ TÚI TIỀN CỦA NHÀ MÌNH NHẤT NÈ DƯỚI MỘT TRIỆU RƯỠI MÀ CỤ THỂ LÀ CHỈ GẦN CHỈ HƠN MỘT TRIỆU HAI MỘT TÍ THÔI LÀ CHỈ MỘT ĐẦU HAI THÔI VÀ NGOÀI RA NỮA THÌ MỘT CÁI LỢI NỮA LÀ BÂY GIỜ BÊN EM VỚI CÁI ĐÔI NÀY NHẤT THÌ ĐÂY PHẢI LÀ CÁI ĐÔI MÀ VỪA PHÙ HỢP THỜI TRANG VỪA PHÙ HỢP ĐỂ CÓ THỂ ÔM BẢO VỆ ĐÔI CHÂN CỦA MÌNH TỐT NHẤT VỚI NHU CẦU ĐI BỘ HẰNG NGÀY CỦA QUÝ KHÁCH NÈ",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng khí. Đồng thời, đã giải thích rõ lý do chọn 1A thay vì 3B, nhấn mạnh ưu điểm của 1A phù hợp với ngân sách và nhu cầu sử dụng. Tuy nhiên, có thể đưa ra đề xuất khác nếu khách hàng vẫn thích phong cách cá tính hơn.",
+      "createdAtUtc": "2026-09-16T11:37:03.890067Z",
+      "updatedAtUtc": "2026-09-16T11:37:14.460006Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-a5194d50bb0a427f804fc2b04a28b278:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T11:37:14.466007Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T13:48:06.887258Z",
+  "requiredFields": []
+}

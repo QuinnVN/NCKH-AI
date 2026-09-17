@@ -1,0 +1,416 @@
+{
+  "runId": "b1c8390f4e4a45779fc021c3205e493a",
+  "participantName": "test",
+  "participantSessionId": "8e77c48a190244aaa4ece7b55a4613c7",
+  "gameId": "clinic",
+  "status": "finalized",
+  "startedAtUtc": "2026-09-15T10:51:47.8124090Z",
+  "data": {
+    "patientResults": [
+      {
+        "patientId": "1",
+        "sicknessName": "Hen suyễn",
+        "resolution": "cured",
+        "severity": 2,
+        "bedIndex": -1,
+        "scoreDelta": 2,
+        "scoreTotal": 2,
+        "actionableAtUtc": "2026-09-15T10:51:58.0246900Z",
+        "resolvedAtUtc": "2026-09-15T10:52:00.9930290Z",
+        "resolutionDurationSeconds": 2.955717086791992
+      },
+      {
+        "patientId": "2",
+        "sicknessName": "Gãy chân",
+        "resolution": "cured",
+        "severity": 3,
+        "bedIndex": -1,
+        "scoreDelta": 3,
+        "scoreTotal": 5,
+        "actionableAtUtc": "2026-09-15T10:52:06.0197140Z",
+        "resolvedAtUtc": "2026-09-15T10:52:06.7570010Z",
+        "resolutionDurationSeconds": 0.713286280632019
+      },
+      {
+        "patientId": "3",
+        "sicknessName": "Khó thở",
+        "resolution": "cured",
+        "severity": 4,
+        "bedIndex": -1,
+        "scoreDelta": 8,
+        "scoreTotal": 13,
+        "actionableAtUtc": "2026-09-15T10:52:06.2358060Z",
+        "resolvedAtUtc": "2026-09-15T10:52:09.7617830Z",
+        "resolutionDurationSeconds": 3.5124218463897705
+      },
+      {
+        "patientId": "4",
+        "sicknessName": "Nhồi máu cơ tim",
+        "resolution": "cured",
+        "severity": 4,
+        "bedIndex": -1,
+        "scoreDelta": 8,
+        "scoreTotal": 21,
+        "actionableAtUtc": "2026-09-15T10:52:11.9980130Z",
+        "resolvedAtUtc": "2026-09-15T10:52:13.9934710Z",
+        "resolutionDurationSeconds": 1.9762178659439087
+      },
+      {
+        "patientId": "6",
+        "sicknessName": "Co giật",
+        "resolution": "cured",
+        "severity": 4,
+        "bedIndex": -1,
+        "scoreDelta": 8,
+        "scoreTotal": 29,
+        "actionableAtUtc": "2026-09-15T10:52:15.0153870Z",
+        "resolvedAtUtc": "2026-09-15T10:52:18.2165330Z",
+        "resolutionDurationSeconds": 3.186380624771118
+      },
+      {
+        "patientId": "5",
+        "sicknessName": "Ảo giác",
+        "resolution": "cured",
+        "severity": 2,
+        "bedIndex": -1,
+        "scoreDelta": 2,
+        "scoreTotal": 31,
+        "actionableAtUtc": "2026-09-15T10:52:14.0466470Z",
+        "resolvedAtUtc": "2026-09-15T10:52:20.3493270Z",
+        "resolutionDurationSeconds": 6.290992259979248
+      },
+      {
+        "patientId": "7",
+        "sicknessName": "Sốt siêu vi",
+        "resolution": "cured",
+        "severity": 2,
+        "bedIndex": -1,
+        "scoreDelta": 2,
+        "scoreTotal": 33,
+        "actionableAtUtc": "2026-09-15T10:52:19.2386750Z",
+        "resolvedAtUtc": "2026-09-15T10:52:22.7614060Z",
+        "resolutionDurationSeconds": 3.5008294582366943
+      },
+      {
+        "patientId": "8",
+        "sicknessName": "Sốt siêu vi",
+        "resolution": "cured",
+        "severity": 2,
+        "bedIndex": -1,
+        "scoreDelta": 2,
+        "scoreTotal": 35,
+        "actionableAtUtc": "2026-09-15T10:52:22.0601870Z",
+        "resolvedAtUtc": "2026-09-15T10:52:25.2110030Z",
+        "resolutionDurationSeconds": 3.133599042892456
+      },
+      {
+        "patientId": "9",
+        "sicknessName": "Ảo giác",
+        "resolution": "cured",
+        "severity": 2,
+        "bedIndex": -1,
+        "scoreDelta": 2,
+        "scoreTotal": 37,
+        "actionableAtUtc": "2026-09-15T10:52:23.4785570Z",
+        "resolvedAtUtc": "2026-09-15T10:52:26.5002900Z",
+        "resolutionDurationSeconds": 3.0110151767730713
+      },
+      {
+        "patientId": "11",
+        "sicknessName": "Sốt",
+        "resolution": "cured",
+        "severity": 1,
+        "bedIndex": -1,
+        "scoreDelta": 1,
+        "scoreTotal": 38,
+        "actionableAtUtc": "2026-09-15T10:52:27.9986390Z",
+        "resolvedAtUtc": "2026-09-15T10:52:29.6413020Z",
+        "resolutionDurationSeconds": 1.625421404838562
+      },
+      {
+        "patientId": "12",
+        "sicknessName": "Cảm",
+        "resolution": "cured",
+        "severity": 1,
+        "bedIndex": -1,
+        "scoreDelta": 1,
+        "scoreTotal": 39,
+        "actionableAtUtc": "2026-09-15T10:52:30.0754910Z",
+        "resolvedAtUtc": "2026-09-15T10:52:32.4873420Z",
+        "resolutionDurationSeconds": 2.3950905799865723
+      },
+      {
+        "patientId": "14",
+        "sicknessName": "Khó thở",
+        "resolution": "cured",
+        "severity": 4,
+        "bedIndex": -1,
+        "scoreDelta": 8,
+        "scoreTotal": 47,
+        "actionableAtUtc": "2026-09-15T10:52:31.7514570Z",
+        "resolvedAtUtc": "2026-09-15T10:52:34.4123590Z",
+        "resolutionDurationSeconds": 2.644886016845703
+      },
+      {
+        "patientId": "13",
+        "sicknessName": "Nhức đầu",
+        "resolution": "cured",
+        "severity": 1,
+        "bedIndex": -1,
+        "scoreDelta": 1,
+        "scoreTotal": 48,
+        "actionableAtUtc": "2026-09-15T10:52:30.4623050Z",
+        "resolvedAtUtc": "2026-09-15T10:52:35.5004630Z",
+        "resolutionDurationSeconds": 5.022072792053223
+      },
+      {
+        "patientId": "15",
+        "sicknessName": "Hen suyễn",
+        "resolution": "cured",
+        "severity": 2,
+        "bedIndex": -1,
+        "scoreDelta": 2,
+        "scoreTotal": 50,
+        "actionableAtUtc": "2026-09-15T10:52:34.8956250Z",
+        "resolvedAtUtc": "2026-09-15T10:52:39.1738110Z",
+        "resolutionDurationSeconds": 4.259433746337891
+      },
+      {
+        "patientId": "17",
+        "sicknessName": "Gãy tay",
+        "resolution": "cured",
+        "severity": 3,
+        "bedIndex": -1,
+        "scoreDelta": 3,
+        "scoreTotal": 53,
+        "actionableAtUtc": "2026-09-15T10:52:38.0911860Z",
+        "resolvedAtUtc": "2026-09-15T10:52:40.0306480Z",
+        "resolutionDurationSeconds": 1.920967698097229
+      },
+      {
+        "patientId": "16",
+        "sicknessName": "Cảm",
+        "resolution": "cured",
+        "severity": 1,
+        "bedIndex": -1,
+        "scoreDelta": 1,
+        "scoreTotal": 54,
+        "actionableAtUtc": "2026-09-15T10:52:37.7250960Z",
+        "resolvedAtUtc": "2026-09-15T10:52:40.9494990Z",
+        "resolutionDurationSeconds": 3.207864761352539
+      },
+      {
+        "patientId": "18",
+        "sicknessName": "Đau bụng",
+        "resolution": "cured",
+        "severity": 1,
+        "bedIndex": -1,
+        "scoreDelta": 1,
+        "scoreTotal": 55,
+        "actionableAtUtc": "2026-09-15T10:52:39.6489250Z",
+        "resolvedAtUtc": "2026-09-15T10:52:44.6494310Z",
+        "resolutionDurationSeconds": 4.985351085662842
+      },
+      {
+        "patientId": "19",
+        "sicknessName": "Sốt siêu vi",
+        "resolution": "cured",
+        "severity": 2,
+        "bedIndex": -1,
+        "scoreDelta": 2,
+        "scoreTotal": 57,
+        "actionableAtUtc": "2026-09-15T10:52:40.7469610Z",
+        "resolvedAtUtc": "2026-09-15T10:52:45.5656200Z",
+        "resolutionDurationSeconds": 4.803656578063965
+      },
+      {
+        "patientId": "22",
+        "sicknessName": "Sốt",
+        "resolution": "cured",
+        "severity": 1,
+        "bedIndex": -1,
+        "scoreDelta": 1,
+        "scoreTotal": 58,
+        "actionableAtUtc": "2026-09-15T10:52:46.1054990Z",
+        "resolvedAtUtc": "2026-09-15T10:52:47.0612500Z",
+        "resolutionDurationSeconds": 0.9405967593193054
+      },
+      {
+        "patientId": "23",
+        "sicknessName": "Nhồi máu cơ tim",
+        "resolution": "cured",
+        "severity": 4,
+        "bedIndex": -1,
+        "scoreDelta": 8,
+        "scoreTotal": 66,
+        "actionableAtUtc": "2026-09-15T10:52:46.1858250Z",
+        "resolvedAtUtc": "2026-09-15T10:52:49.8517720Z",
+        "resolutionDurationSeconds": 3.650376796722412
+      },
+      {
+        "patientId": "24",
+        "sicknessName": "Co giật",
+        "resolution": "cured",
+        "severity": 4,
+        "bedIndex": -1,
+        "scoreDelta": 8,
+        "scoreTotal": 74,
+        "actionableAtUtc": "2026-09-15T10:52:49.9005270Z",
+        "resolvedAtUtc": "2026-09-15T10:52:52.3399620Z",
+        "resolutionDurationSeconds": 2.4239425659179688
+      },
+      {
+        "patientId": "26",
+        "sicknessName": "Khó thở",
+        "resolution": "cured",
+        "severity": 4,
+        "bedIndex": -1,
+        "scoreDelta": 8,
+        "scoreTotal": 82,
+        "actionableAtUtc": "2026-09-15T10:52:52.3078330Z",
+        "resolvedAtUtc": "2026-09-15T10:52:54.3211110Z",
+        "resolutionDurationSeconds": 1.998764991760254
+      },
+      {
+        "patientId": "10",
+        "sicknessName": "Sốt siêu vi",
+        "resolution": "cured",
+        "severity": 2,
+        "bedIndex": -1,
+        "scoreDelta": 2,
+        "scoreTotal": 84,
+        "actionableAtUtc": "2026-09-15T10:52:25.5972790Z",
+        "resolvedAtUtc": "2026-09-15T10:52:55.5546630Z",
+        "resolutionDurationSeconds": 29.945663452148438
+      },
+      {
+        "patientId": "25",
+        "sicknessName": "Sốt",
+        "resolution": "cured",
+        "severity": 1,
+        "bedIndex": -1,
+        "scoreDelta": 1,
+        "scoreTotal": 85,
+        "actionableAtUtc": "2026-09-15T10:52:50.8084500Z",
+        "resolvedAtUtc": "2026-09-15T10:52:57.7545810Z",
+        "resolutionDurationSeconds": 6.927319049835205
+      }
+    ],
+    "round": {
+      "roundId": "e6cf6256d02e4f3ba34fa1a29614cb4d",
+      "scoreTotal": 85,
+      "roundStartedAtUtc": "2026-09-15T10:51:47.7636070Z",
+      "roundCompletedAtUtc": "2026-09-15T10:52:57.7721260Z",
+      "remainingTime": 0.0
+    },
+    "roundCompletedAtUtc": "2026-09-15T10:52:57.7721260Z"
+  },
+  "fragments": {
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:1": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:00.547363Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:2": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:06.308304Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:3": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:09.312124Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:4": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:13.523406Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:6": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:17.755891Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:5": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:19.893343Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:7": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:22.305091Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:8": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:24.745111Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:9": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:26.043836Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:11": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:29.181985Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:12": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:32.029861Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:14": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:33.963386Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:13": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:35.032336Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:15": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:38.707176Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:17": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:39.572877Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:16": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:40.490786Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:18": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:44.189605Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:19": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:45.118304Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:22": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:46.594971Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:23": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:49.390789Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:24": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:51.878512Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:26": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:53.861004Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:10": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:55.083349Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:patient:25": {
+      "kind": "clinic.patient_resolved",
+      "acceptedAtUtc": "2026-09-15T10:52:57.286751Z"
+    },
+    "e6cf6256d02e4f3ba34fa1a29614cb4d:round": {
+      "kind": "clinic.round_finished",
+      "acceptedAtUtc": "2026-09-15T10:52:57.310410Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-15T10:52:57.310432Z",
+  "requiredFields": [
+    "patientResults",
+    "round"
+  ],
+  "completionRequested": true
+}

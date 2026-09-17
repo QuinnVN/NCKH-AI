@@ -1,0 +1,41 @@
+{
+  "attemptId": "sales-persuasion-a700501a26d446ac9946c40ae2682b8c",
+  "runId": "56a2c9b1a5ca4c2d9b8be55e151c766e",
+  "salesSessionId": "c52656ea90e244cd9d320cb1e91248e8",
+  "scenarioId": "sales-part-1-persuasion",
+  "customerId": "Minh",
+  "selectedShoeId": "Aduma Samba",
+  "bestFitShoeId": "Aduma Samba",
+  "customerNeeds": "Chào bạn! Mình muốn tìm một đôi giày để chạy bộ nhẹ khoảng 3 đến 5 cây số mỗi sáng. Mình mới tập nên thích đôi nào êm chân, nhẹ và thoáng một chút.\nMình thường chạy trên đường nhựa, thỉnh thoảng đi bộ nữa. Ngân sách của mình khoảng một triệu rưỡi trở xuống. Bạn chọn giúp mình một đôi phù hợp nhé!",
+  "objection": "Đôi này hợp với nhu cầu của mình, nhưng đôi Nyke Air Max trông cá tính và bắt mắt hơn. Mình sợ Aduma Samba hơi đơn giản.",
+  "availableShoes": [
+    {
+      "shoeId": "Aduma Samba",
+      "name": "Aduma Samba",
+      "price": 1290000,
+      "details": "Chạy bộ đường nhựa\nĐệm êm · Nhẹ · Thoáng\nGiá: 1.290.000 đ"
+    },
+    {
+      "shoeId": "Nyke Air Max",
+      "name": "Nyke Air Max",
+      "price": 1450000,
+      "details": "Bóng rổ trong nhà\nÔm cổ chân · Đế chắc\nGiá: 1.450.000 đ"
+    },
+    {
+      "shoeId": "Columnia Crestwood",
+      "name": "Columnia Crestwood",
+      "price": 1890000,
+      "details": "Chạy địa hình\nĐế bám sâu · Chống nước\nGiá: 1.890.000 đ"
+    }
+  ],
+  "requestHash": "d5bdece3de9d7eb6f18b2807ee629299e677058ffdbe659c7079a3f028a5ec61",
+  "audioFile": "sales-persuasion-sales-persuasion-a700501a26d446ac9946c40ae2682b8c.wav",
+  "status": "completed",
+  "assessmentStatus": "completed",
+  "transcript": "TUY RẰNG ĐÔI NICK TRẺ EMMAS TRÔNG RẤT CÁ TÍNH VÀ BẮT MÁT NHƯNG ĐÔI ARUMAR SAMBA PHÙ HỢP VỚI BERT VÀ NHU CẦU ĐI BỘ CỦA ANH HƠN",
+  "score": 85,
+  "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Đồng thời, đã giải quyết được phản đối của khách hàng về sự cá tính của Nyke Air Max bằng cách nhấn mạnh ưu điểm của Aduma Samba. Thông tin sản phẩm được trình bày rõ ràng và phù hợp với nhu cầu của khách hàng.",
+  "error": null,
+  "createdAtUtc": "2026-09-16T21:44:50.728052Z",
+  "updatedAtUtc": "2026-09-16T21:44:57.694219Z"
+}

@@ -1,0 +1,28 @@
+{
+  "runId": "3da85362483b41288d710b8be44e816f",
+  "participantName": "test",
+  "participantSessionId": "7fd7e655a75f4af4a321d97f28122c29",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T17:20:58.063722Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-f4298c0d4d1b4effa358aa24d3ba5a4d",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": null,
+      "score": null,
+      "feedbackVi": null,
+      "createdAtUtc": "2026-09-16T17:20:58.059707Z",
+      "updatedAtUtc": "2026-09-16T17:20:58.059720Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-f4298c0d4d1b4effa358aa24d3ba5a4d": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T17:20:58.063903Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T17:36:19.600843Z",
+  "requiredFields": []
+}

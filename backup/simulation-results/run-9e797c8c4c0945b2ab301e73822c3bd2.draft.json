@@ -1,0 +1,59 @@
+{
+  "runId": "9e797c8c4c0945b2ab301e73822c3bd2",
+  "participantName": "Hoàng Hảo Nguyên Nguyên",
+  "participantSessionId": "5a19dd87034b42daaa8508f522242558",
+  "gameId": "lawyer",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T01:45:42.1827040Z",
+  "data": {
+    "lawyer": {
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 1,
+      "finalClueSet": [
+        {
+          "evidenceId": "clue-11",
+          "title": "Camera hành lang",
+          "strength": "weak"
+        },
+        {
+          "evidenceId": "clue-12",
+          "title": "Camera hành lang 16:08",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-21",
+          "title": "Sơ đồ vị trí của Lan",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-24",
+          "title": "Giám định ổ điện",
+          "strength": "strong"
+        }
+      ],
+      "completedEvidenceLinks": [],
+      "transcript": "",
+      "criterionScores": {
+        "evidenceUse": 0,
+        "logicalConnections": 0,
+        "conclusionFidelity": 0,
+        "clarityAndPersuasiveness": 0
+      },
+      "rawScore": null,
+      "restartPenaltyPercent": 0,
+      "finalScore": null,
+      "feedbackVi": "",
+      "recordingAtUtc": "2026-09-16T01:55:37.996271Z",
+      "assessmentCompletedAtUtc": "2026-09-16T01:55:37.996271Z",
+      "completionStatus": "processing"
+    }
+  },
+  "fragments": {
+    "lawyer:31fba0156748490db04795029698ae9e": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T01:55:38.031001Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T04:31:54.590760Z",
+  "requiredFields": []
+}

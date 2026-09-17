@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 import wave
@@ -75,6 +76,53 @@ class ConsoleLoggingTests(unittest.IsolatedAsyncioTestCase):
                 "prompt-safe-exit",
             ],
         )
+
+    def test_sales_part2_text_test_command_requires_non_blank_text(self):
+        self.assertEqual(
+            main.parse_sales_part2_test_command("test  Em xin lỗi chị."),
+            "Em xin lỗi chị.",
+        )
+        self.assertEqual(
+            main.parse_sales_part2_test_command("test\tEm xin lỗi chị."),
+            "Em xin lỗi chị.",
+        )
+        for command in ("test", "test   ", "test_llm", "other text"):
+            with self.subTest(command=command):
+                with self.assertRaises(ValueError):
+                    main.parse_sales_part2_test_command(command)
+
+    async def test_sales_part2_text_test_uses_responder_without_speech_or_storage(self):
+        calls: dict[str, object] = {}
+
+        class FakeResponder:
+            def __init__(self, service):
+                calls["service"] = service
+
+            async def respond(self, session, transcript):
+                calls["session"] = session
+                calls["transcript"] = transcript
+                return SimpleNamespace(
+                    customer_text="Chị hiểu rồi, em nói tiếp đi.",
+                    player_response_rating="good",
+                    active_objective=2,
+                    objective_completed=True,
+                )
+
+        service = SimpleNamespace(configured=True)
+        messages: list[str] = []
+        with (
+            patch.object(main, "llm_service", service),
+            patch.object(main, "LLMSalesResponder", FakeResponder),
+            patch.object(main, "log", side_effect=messages.append),
+        ):
+            result = await main.run_sales_part2_text_test("Em xin lỗi chị.")
+
+        self.assertTrue(result)
+        self.assertIs(calls["service"], service)
+        self.assertEqual(calls["transcript"], "Em xin lỗi chị.")
+        self.assertEqual(calls["session"]["phase"], 1)
+        self.assertEqual(calls["session"]["acceptedTurnCount"], 0)
+        self.assertEqual(messages[0], "[Sales Part 2 Test] Lan: Chị hiểu rồi, em nói tiếp đi.")
 
 
 class ApiRouteRegistrationTests(unittest.TestCase):

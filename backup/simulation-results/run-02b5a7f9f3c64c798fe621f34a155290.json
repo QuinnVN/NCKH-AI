@@ -1,0 +1,53 @@
+{
+  "_id": "02b5a7f9f3c64c798fe621f34a155290",
+  "runId": "02b5a7f9f3c64c798fe621f34a155290",
+  "participantName": "test",
+  "participantSessionId": "de27446f25b24b009805215b11e63baa",
+  "gameId": "lawyer",
+  "status": "completed",
+  "startedAtUtc": "2026-09-15T16:03:01.0848200Z",
+  "completedAtUtc": "2026-09-15T16:06:53.459814Z",
+  "data": {
+    "lawyer": {
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 0,
+      "finalClueSet": [
+        {
+          "evidenceId": "clue-08",
+          "title": "Kiểm tra cửa phòng",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-12",
+          "title": "Camera hành lang 16:08",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-18",
+          "title": "Camera cầu thang 16:07",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-23",
+          "title": "Báo cáo giám định cháy",
+          "strength": "strong"
+        }
+      ],
+      "completedEvidenceLinks": [],
+      "transcript": "OK BÂY GIỜ TÔI PHẢI TIẾN HÀNH ĐỂ BÀO CHỮA CHO NHÂN CHỤP EM COI QUÂN TÔI PHẢI TIẾN HÀNH BÀO CHỮA THÂN CHỦ CỦA TÔI THÌ THỨ NHẤT LÀ THÂN CHỦ CỦA TÔI ĐƯỢC CHO LÀ ĐÃ RỜI ĐI VÀ KHÔNG BƯỚC VÀO PHÒNG MỘT LẦN NỮA KỂ TỪ THỜI ĐIỂM RỜI ĐI MẶC DÙ SAU ĐÓ CẬU ẤY CÓ ĐỨNG TRƯỚC CỬA PHÒNG LÚC MƯỜI HAI LÚC MƯỜI SÁU GIỜ MƯỜI HAI PHÚT NHƯNG MÀ LÚC ĐÓ CẬU ẤY ĐÃ NGỬI THẤY MÙI CHÁY CHÁY CẬU ẤY ĐI LUÔN NGOÀI RA THÌ CAMERA HÀNH LANG MƯỜI SÁU GIỜ TÁM PHÚT CHO THẤY MỘT HỌC SINH KHÁC CÓ ĐI VÀO KHU VỰC PHÒNG CÂU LẠC BỘ VÀO KHOẢNG THỜI GIAN MƯỜI SÁU GIỜ TÁM PHÚT VÌ VẬY NÊN HỌC SINH NÀY CŨNG PHẢI BỊ TÍNH TRONG DIỆN TÌNH NGHI CHỨ KHÔNG CHỈ LÀ THÂN CHỦ CỦA TÔI NGOÀI RA THÌ DẤU CHÁY SỚM NHẤT ĐƯỢC PHÁT HIỆN LÀ PHẦN GIẤY Ở TRONG PHẠT RÁC CHỨ KHÔNG PHẢI LÀ Ở Ổ ĐIỆN MẶC DÙ Ổ ĐIỆN CÓ THỂ LÀ MỘT TRONG NHỮNG NGUYÊN NHÂN GÂY RA NHƯNG CÁC BẠN KHÔNG THỂ NÀO ĐỂ CÓ THỂ LOẠI TRỪ ĐƯỢC KHẢ NĂNG LÀ NÓ NẰM TRONG THÙNG RÁC ĐƯỢC NGOÀI RA THÌ TRONG BA LÔ CỦA CỦA MÌNH CÓ MỘT CỬ PHẠT VÀ DÂY PHẸT MÀU TRẮNG VÀ NÓ HOÀN TOÀN KHÔNG KHỚP VỚI LẠI CỬ PHẠT VÀ DÂY PHẠT ĐƯỢC TÌM THẤY Ở HIỆN TRƯỜNG VÌ VẬY NÊN TÔI CHO RẰNG THÂN CHỦ CỦA TÔI KHÔNG CÓ TỘI",
+      "criterionScores": {
+        "evidenceUse": 20,
+        "logicalConnections": 25,
+        "conclusionFidelity": 10,
+        "clarityAndPersuasiveness": 5
+      },
+      "rawScore": 60,
+      "restartPenaltyPercent": 0,
+      "finalScore": 60.0,
+      "feedbackVi": "Lời bào chữa không hoàn toàn rõ ràng và có thể thiếu sự logic trong lập luận. Một số điểm được nhấn mạnh như việc Minh không bước vào phòng sau khi rời đi và có người khác tiếp cận khu vực phòng trong thời gian đó được đưa ra, nhưng không có sự kết nối rõ ràng giữa các bằng chứng. Ngoài ra, việc chỉ ra rằng điểm phát cháy nằm ở sọt giấy và không phải ổ điện cũng được đề cập, nhưng không có sự triển khai đầy đủ để chứng minh rằng không thể kết luận Minh là nguyên nhân. Lời bào chữa cần được tổ chức lại để có sự liên kết logic giữa các bằng chứng và kết luận.",
+      "recordingAtUtc": "2026-09-15T16:06:33.547753Z",
+      "assessmentCompletedAtUtc": "2026-09-15T16:06:53.447629Z",
+      "completionStatus": "completed"
+    }
+  }
+}

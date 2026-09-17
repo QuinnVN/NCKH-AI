@@ -1,0 +1,32 @@
+{
+  "runId": "1d67018793f245d393b35446c81311c7",
+  "participantName": "test",
+  "participantSessionId": "8e4c36efe8bc45e18114e3fa7a5838e4",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T16:10:04.007962Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-3b590fc8dbad4e0b957298b238ebc674",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "DẠ THÌ MẶC DÙ LÀ ĐÚNG LÀ CÁI ĐÔI BA BÊ NÓ TRONG CÁ TÍNH VÀ BẮT MẮT HƠN",
+      "score": 75,
+      "feedbackVi": "Câu trả lời đã nhận diện được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Tuy nhiên, việc đề xuất 1A dù không phải là lựa chọn tối ưu nhưng vẫn phù hợp với ngân sách và nhu cầu. Câu trả lời cũng không giải thích rõ lý do chọn 1A thay vì 3B, nên cần làm rõ hơn để thuyết phục khách hàng.",
+      "createdAtUtc": "2026-09-16T16:10:04.004005Z",
+      "updatedAtUtc": "2026-09-16T16:10:13.019475Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-3b590fc8dbad4e0b957298b238ebc674": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T16:10:04.008054Z"
+    },
+    "sale.part1:sales-persuasion-3b590fc8dbad4e0b957298b238ebc674:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T16:10:13.027026Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T16:52:30.497626Z",
+  "requiredFields": []
+}

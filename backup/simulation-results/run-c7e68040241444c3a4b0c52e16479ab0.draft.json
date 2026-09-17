@@ -1,0 +1,32 @@
+{
+  "runId": "c7e68040241444c3a4b0c52e16479ab0",
+  "participantName": "test",
+  "participantSessionId": "2fed3ab8d9a1451998798f35d9a1de27",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T18:15:13.147894Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-1e52b43b618548ccab81c0a9484b3010",
+      "selectedShoeId": "3B",
+      "bestFitShoeId": "1A",
+      "transcript": "Ê KHÔNG TỤI TÔI CẦN TIỀN NÊN LÀ TỤI TÔI MUỐN MỚI MUỐN BÀ MUA ĐÔI ĐÓ CHỨ TÔI KHÔNG MUỐN BÀ MUA ĐÔI MỘT A THÌ SAO",
+      "score": 65,
+      "feedbackVi": "Khách hàng cần giày nhẹ, thoáng, phù hợp chạy bộ trên đường nhựa và có ngân sách dưới 1.5 triệu. Đôi 1A phù hợp hơn nhưng khách hàng phản đối vì 3B có giá thấp hơn và có thiết kế nổi bật. Thông tin sản phẩm được cung cấp rõ ràng, nhưng chưa giải thích được lý do chọn 3B. Cần giải thích rõ hơn về ưu điểm của 3B để thuyết phục khách hàng.",
+      "createdAtUtc": "2026-09-16T18:15:13.140769Z",
+      "updatedAtUtc": "2026-09-16T18:15:21.616559Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-1e52b43b618548ccab81c0a9484b3010": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T18:15:13.148079Z"
+    },
+    "sale.part1:sales-persuasion-1e52b43b618548ccab81c0a9484b3010:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T18:15:21.626809Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T18:24:00.212996Z",
+  "requiredFields": []
+}

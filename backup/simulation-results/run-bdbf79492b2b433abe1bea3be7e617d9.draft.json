@@ -1,0 +1,32 @@
+{
+  "runId": "bdbf79492b2b433abe1bea3be7e617d9",
+  "participantName": "test",
+  "participantSessionId": "6501480eaa8c4ef6a044f47e2357789b",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T20:20:08.816552Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-5772b5653159456dbded8d21198ba595",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "BLA BẸP LỆ",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Tuy nhiên, cần giải thích rõ hơn về lý do chọn 1A thay vì 3B, đặc biệt là khi khách hàng có sự nghi ngại về tính cá tính của 3B. Thông tin sản phẩm được trình bày chính xác và phù hợp với nhu cầu của khách hàng.",
+      "createdAtUtc": "2026-09-16T20:20:08.808694Z",
+      "updatedAtUtc": "2026-09-16T20:20:16.020963Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-5772b5653159456dbded8d21198ba595": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T20:20:08.816732Z"
+    },
+    "sale.part1:sales-persuasion-5772b5653159456dbded8d21198ba595:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T20:20:16.030781Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T20:31:39.681828Z",
+  "requiredFields": []
+}

@@ -1,0 +1,32 @@
+{
+  "runId": "f5b25e5f2d054f179c5eac9e494e79db",
+  "participantName": "test",
+  "participantSessionId": "9719e95917d145e7ab6100e903192fbd",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T14:53:35.299100Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-e767658dbaa64c099280ecd0a21e05b4",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "MẶC DÙ ĐÚNG LÀ ĐÔI BA B THÌ NÓ TRÔNG CÁ TÍNH VÀ BẮT MẮT HƠN NHƯNG MÀ ĐỐI VỚI NHU CẦU VẬN ĐỘNG CỦA MÌNH NHẤT CŨNG NHƯ LÀ VỀ VẤN ĐỀ GIÁ CẢ ĐI THÌ ĐÔI MỘT A NÓ VẪN PHÙ HỢP HƠN HẲN NHƯNG MẶC DÙ LÀ DÁNG NGƯỜI CỦA NÓ HƠI ĐƠN GIẢN TUY NHIÊN THÌ ĐƠN GIẢN NHƯ THẾ THÌ RẤT LÀ DỄ PHỐI ĐỒ TRONG NHỮNG CÁI BỘ ĐỒ ĐÓ PHÔ MỒ NÓ THƯỜNG NGÀY NÓ CASU MỘT TÍ THÌ EM VẪN NHẤT QUYẾT PHẢI TƯ VẤN ĐÔI MỘT A NHẤT TẠI VÌ SAO EM RẤT LÀ THÍCH CÁI ĐÔI NÀY Ở CHỖ LÀ NÓ ĐI RẤT LÀ ÊM CHÂN EM CÁ VỚI CHỊ ĐƠN CHỊ ĐI MỘT LẦN LÀ CHỊ GHIỀN CHỊ KHÔNG THỂ GIẾT RA ĐƯỢC TẠI VÌ SAO NÓ ÔM PHÁT CỔ CHÂN VẬY NÀY NÓ CÒN RẤT LÀ MỀM MẠI NỮA MÀ VỚI CÁI NHU CẦU MỘT KHÁCH HÀNG ĐI MÀ THƯỜNG XUYÊN NHƯ VẬY BÊN EM RẤT LÀ THÍCH LUÔN",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã giải thích rõ lý do chọn 1A phù hợp với nhu cầu chạy bộ, êm chân, nhẹ và thoáng. Đồng thời đã xử lý phản đối về ngoại hình của 3B bằng cách nhấn mạnh tính thực dụng và phù hợp với ngân sách. Thông tin sản phẩm được trình bày chính xác, nhưng có thể chi tiết hơn về sự khác biệt giữa 1A và 3B trong các tiêu chí cụ thể.",
+      "createdAtUtc": "2026-09-16T14:53:35.290179Z",
+      "updatedAtUtc": "2026-09-16T14:53:47.310580Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-e767658dbaa64c099280ecd0a21e05b4": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T14:53:35.299160Z"
+    },
+    "sale.part1:sales-persuasion-e767658dbaa64c099280ecd0a21e05b4:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T14:53:47.320133Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T15:37:03.365468Z",
+  "requiredFields": []
+}

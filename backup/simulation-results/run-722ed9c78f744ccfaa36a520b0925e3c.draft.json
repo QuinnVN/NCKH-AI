@@ -1,0 +1,32 @@
+{
+  "runId": "722ed9c78f744ccfaa36a520b0925e3c",
+  "participantName": "test",
+  "participantSessionId": "6bc8abb19cee486589f28c33af092076",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T17:37:41.745467Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-66968a67c12d465a9f8b5f4aa6b4c508",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "LÀ",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Đã giải thích rõ lý do chọn 1A so với 3B, nhấn mạnh ưu điểm phù hợp với nhu cầu chạy bộ trên đường nhựa và đi bộ. Thông tin sản phẩm được trình bày chính xác, phù hợp với ngân sách của khách hàng.",
+      "createdAtUtc": "2026-09-16T17:37:41.741510Z",
+      "updatedAtUtc": "2026-09-16T17:37:46.894834Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-66968a67c12d465a9f8b5f4aa6b4c508": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T17:37:41.745511Z"
+    },
+    "sale.part1:sales-persuasion-66968a67c12d465a9f8b5f4aa6b4c508:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T17:37:46.904296Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T17:41:19.965755Z",
+  "requiredFields": []
+}

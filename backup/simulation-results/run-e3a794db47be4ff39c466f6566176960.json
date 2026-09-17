@@ -1,0 +1,75 @@
+{
+  "runId": "e3a794db47be4ff39c466f6566176960",
+  "participantName": "Nguyễn Hồ Thu Giang",
+  "participantSessionId": "bb2093a796004754ae7580b710e40d64",
+  "gameId": "lawyer",
+  "status": "completed",
+  "startedAtUtc": "2026-09-17T04:46:05.0442540Z",
+  "data": {
+    "caseId": "club-room-fire",
+    "interviewRestartCount": 0,
+    "finalClueSet": [
+      {
+        "evidenceId": "clue-08",
+        "title": "Kiểm tra cửa phòng",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-16",
+        "title": "Camera timeline",
+        "strength": "weak"
+      },
+      {
+        "evidenceId": "clue-18",
+        "title": "Camera cầu thang 16:07",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-24",
+        "title": "Giám định ổ điện",
+        "strength": "strong"
+      }
+    ],
+    "completedEvidenceLinks": [],
+    "transcript": "KHU VỰC VÀ CŨNG LÀ XÁC ĐỊNH NƠI ĐÁM CHÁY BẮT ĐẦU TUY NHIÊN CAMERA CỦA CẦU THANG VÀO LÚC MƯỜI SÁU GIỜ KHÔNG BẢY THÌ CÓ GHI NHẬN LÀ TRONG BA LÔ CÓ MỘT CÁI DÂY SẠC CŨ VÀ MỘT CÁI DÂY MÀU TRẮNG TRONG KHI ĐÓ THÌ GIÁM ĐỊNH Ổ ĐIỆN LÀ CÓ NGHĨA LÀ CÁI DÂY BỊ HƯ HỎNG NÓ DO TÁC DỤNG NHIỆT BÊN NGOÀI NGUỒN TRƯỚC KHI MÀ NÓ XẢY RA CÁI SỰ KIỆN NÀY VÀ CAMERA TRONG CÁI TIME LINE NÀY THÌ NÓ LÀ TỪ LÚC MƯỜI SÁU GIỜ MƯỜI HAI PHÚT TỚI MƯỜI SÁU GIỜ MƯỜI BẢY NĂM MƯƠI HAI THÌ TRONG KHI ĐÓ LỜI KHAI CỦA MINH THÌ BẢN THÂN MINH CŨNG BẢO LÀ KIỂU TRONG CÁI BA LÔ CỦA MÌNH CÓ CÁI LAPTOP VỚI LẠI CÓ CÁI Ổ SẠC CHO NÊN THÀNH RA LÀ KIỂU ĐÃ CẦM CÁI Ổ SẠC TRƯỚC KHI VỀ ĐI VÀ CŨNG NHƯ LÀ KIỂU CÓ CÁI AVITON CÓ CÁI NHÂN CHỨNG LÀ VÀO LÚC MƯỜI SÁU GIỜ KHÔNG BẢY LÀ KIỂU ĐÃ CẦM THEO CÁI DÂY SẠC ĐÓ ĐI RỒI ĐỒNG THỜI LÀ Ở TRÊN CAMERA CỦA HÀNH LANG THÌ MỌI NGƯỜI CŨNG CÓ NÓI LÀ ĐÚNG LÀ CÓ THẤY MINH ĐI VÀO TRONG PHÒNG NHƯNG MÀ BỞI VÌ NHỮNG CÁI LỜI KHAI NÀY NÓ CŨNG CHƯA CÓ ĐỦ ĐỂ NÓ KẾT LUẬN LÀ MINH LÀ MỘT CÁI NGƯỜI ĐÃ GÂY RA CÁI VỤ CHÁY OK",
+    "criterionScores": {
+      "evidenceUse": 15,
+      "logicalConnections": 25,
+      "conclusionFidelity": 10,
+      "clarityAndPersuasiveness": 5
+    },
+    "rawScore": 55,
+    "restartPenaltyPercent": 0,
+    "finalScore": 55.0,
+    "feedbackVi": "Lời bào chữa không rõ ràng và không có kết luận rõ ràng. Người chơi đã cố gắng đưa ra một số điểm chính như: có vật chứng sạc trong balo, có camera ghi nhận Minh đứng trước cửa, và giám định ổ điện. Tuy nhiên, các điểm này không được liên kết một cách logic để đưa ra kết luận. Lời bào chữa thiếu sự rõ ràng và không có lập luận mạnh mẽ để chứng minh rằng Minh không phải là nguyên nhân vụ cháy. Cần có một kết luận rõ ràng và có cơ sở từ các bằng chứng đã được nêu ra.",
+    "recordingAtUtc": "2026-09-17T04:58:07.232714Z",
+    "assessmentCompletedAtUtc": "2026-09-17T04:58:29.551317Z",
+    "completionStatus": "completed",
+    "lawyer": {
+      "roundId": "4102885663cd4a328010ec4848506b63",
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 0,
+      "transcript": "",
+      "feedbackVi": "",
+      "recordingAtUtc": "",
+      "assessmentCompletedAtUtc": ""
+    }
+  },
+  "fragments": {
+    "lawyer:4102885663cd4a328010ec4848506b63": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T04:58:07.241665Z"
+    },
+    "lawyer:4102885663cd4a328010ec4848506b63:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T04:58:29.558684Z"
+    },
+    "4102885663cd4a328010ec4848506b63:defense": {
+      "kind": "lawyer.defense_completed",
+      "acceptedAtUtc": "2026-09-17T04:58:30.343571Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-17T05:01:46.866625Z",
+  "requiredFields": ["lawyer"],
+  "completionRequested": true
+}

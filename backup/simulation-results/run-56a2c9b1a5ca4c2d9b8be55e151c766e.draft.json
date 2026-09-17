@@ -1,0 +1,107 @@
+{
+  "runId": "56a2c9b1a5ca4c2d9b8be55e151c766e",
+  "participantName": "test",
+  "participantSessionId": "83ecd092ae004615a073548dff73d814",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T21:44:19.8791380Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-a700501a26d446ac9946c40ae2682b8c",
+      "salesSessionId": "c52656ea90e244cd9d320cb1e91248e8",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "TUY RẰNG ĐÔI NICK TRẺ EMMAS TRÔNG RẤT CÁ TÍNH VÀ BẮT MÁT NHƯNG ĐÔI ARUMAR SAMBA PHÙ HỢP VỚI BERT VÀ NHU CẦU ĐI BỘ CỦA ANH HƠN",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Đồng thời, đã giải quyết được phản đối của khách hàng về sự cá tính của Nyke Air Max bằng cách nhấn mạnh ưu điểm của Aduma Samba. Thông tin sản phẩm được trình bày rõ ràng và phù hợp với nhu cầu của khách hàng.",
+      "recordingAtUtc": "2026-09-16T21:44:50.728052Z",
+      "assessmentCompletedAtUtc": "2026-09-16T21:44:57.694219Z"
+    },
+    "turns": [
+      {
+        "turnId": "f3914a1e71ca4ad7bee6057da86f95cb",
+        "transcript": "EM XIN LỖI VÌ LÀ CHỊ THẤT VỌNG CHỊ CÓ THỂ MANG ĐÔI GIÀY MỚI ĐÓ ĐẾN ĐÂY VÀ EM CÓ SẼ HOÀN TOÀN ĐỔI CHO CHỊ MỘT ĐÔI GIÀY HỢP PHÙ HỢP VỚI CHỊ HƠN",
+        "customerReply": "Sao lần trước em tư vấn là phù hợp mà nó kỳ như vậy, làm sao chị dám tin em nữa",
+        "objective": "FindingRootCause",
+        "turnTimestampUtc": "2026-09-16T21:46:46.0147200Z"
+      },
+      {
+        "turnId": "4023ca5a66e7480e8ebba7de992cbc57",
+        "transcript": "EM XIN LỖI VÌ ĐÃ TƯ VẤN SAI LẦM VÀ EM HỨA EM SẼ KHẮC PHỤC Ạ",
+        "customerReply": "Chị đi bộ cả ngày từ bến xe đến trường và giữa các lớp, giày cũ nhẹ hơn, thích màu, nguyên nhân giày nặng không hợp nhu cầu, người bán cũ chưa hỏi lịch đi bộ",
+        "objective": "FindingRootCause",
+        "turnTimestampUtc": "2026-09-16T21:47:55.1066530Z"
+      },
+      {
+        "turnId": "e4d1b50b45684cd69e87ba511fb54919",
+        "transcript": "EM ĐÃ HIỂU RỒI VÌ THẾ EM SẼ GIỚI THIỆU VỚI CHỊ ĐÔI A DUMA SAMBA PHÙ HỢP VỚI NHU CẦU ĐI BỘ NHIỀU NHƯ CHỊ HƠN",
+        "customerReply": "Chị muốn kiểm tra giày mới có phù hợp với lịch đi bộ cả ngày không? Và có thể thử đi thử được không?",
+        "objective": "ProposeSuitableSolution",
+        "turnTimestampUtc": "2026-09-16T21:49:28.8621510Z"
+      },
+      {
+        "turnId": "491650931d5e490ca83882a0c4a51bb0",
+        "transcript": "HOÀN TOÀN ĐƯỢC HOÀN TOÀN ĐƯỢC Ạ CHỈ CÓ THUYỀN THỬ THOẢI MÁI Ở SHOOM CỦA E TUỔI CỦA TỤI EM",
+        "customerReply": "Chị không thích giày mới vì nó không phù hợp với lịch đi bộ cả ngày, chị muốn thử đi thử xem có phù hợp không",
+        "objective": "ProposeSuitableSolution",
+        "turnTimestampUtc": "2026-09-16T21:50:40.0555450Z"
+      },
+      {
+        "turnId": "88f60b45589d43f28fe7ced197c146b3",
+        "transcript": "ĐƯƠNG NHIÊN LÀ CHỊ CÓ THỂ CÓ THỂ THỬ VỀ TRƯỚC Ở ĐÂY RỒI XEM COI NÓ CÓ VỪA HỢP VỚI NHU CẦU CỦA CHỊ KHÔNG RỒI THAY ĐỔI",
+        "customerReply": "Chị không thích giày mới vì nó không phù hợp với lịch đi bộ cả ngày, chị muốn thử đi thử xem có phù hợp không",
+        "objective": "ProposeSuitableSolution",
+        "turnTimestampUtc": "2026-09-16T21:51:56.5337860Z"
+      },
+      {
+        "turnId": "e1a537afb9c143818baaa1574c48bd55",
+        "transcript": "VÂNG VẬY ĐỂ EM DẪN CHỊ ĐI THỬ GIỜ MỚI NHÉ",
+        "customerReply": "Chị không thích giày mới vì nó không phù hợp với lịch đi bộ cả ngày, chị muốn thử đi thử xem có phù hợp không",
+        "objective": "ProposeSuitableSolution",
+        "turnTimestampUtc": "2026-09-16T21:53:23.3300040Z"
+      }
+    ]
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-a700501a26d446ac9946c40ae2682b8c": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:44:50.743032Z"
+    },
+    "c52656ea90e244cd9d320cb1e91248e8:part1:sales-persuasion-a700501a26d446ac9946c40ae2682b8c": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-16T21:44:50.822269Z"
+    },
+    "sale.part1:sales-persuasion-a700501a26d446ac9946c40ae2682b8c:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T21:44:57.704572Z"
+    },
+    "sales.part2.turn_accepted:f3914a1e71ca4ad7bee6057da86f95cb:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-16T21:46:44.868139Z"
+    },
+    "sales.part2.turn_accepted:4023ca5a66e7480e8ebba7de992cbc57:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-16T21:47:53.971958Z"
+    },
+    "sales.part2.turn_accepted:e4d1b50b45684cd69e87ba511fb54919:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-16T21:49:27.720185Z"
+    },
+    "sales.part2.turn_accepted:491650931d5e490ca83882a0c4a51bb0:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-16T21:50:38.937511Z"
+    },
+    "sales.part2.turn_accepted:88f60b45589d43f28fe7ced197c146b3:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-16T21:51:55.398657Z"
+    },
+    "sales.part2.turn_accepted:e1a537afb9c143818baaa1574c48bd55:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-16T21:53:22.198450Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T21:56:16.260373Z",
+  "requiredFields": []
+}

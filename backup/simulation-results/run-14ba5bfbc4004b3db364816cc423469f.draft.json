@@ -1,0 +1,66 @@
+{
+  "runId": "14ba5bfbc4004b3db364816cc423469f",
+  "participantName": "test",
+  "participantSessionId": "f1143666bec14b2c9f3cce29b45933b1",
+  "gameId": "lawyer",
+  "status": "finalized",
+  "startedAtUtc": "2026-09-15T15:52:36.8208500Z",
+  "data": {
+    "lawyer": {
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 0,
+      "finalClueSet": [
+        {
+          "evidenceId": "clue-11",
+          "title": "Camera hành lang",
+          "strength": "weak"
+        },
+        {
+          "evidenceId": "clue-13",
+          "title": "Camera hành lang 16:12",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-19",
+          "title": "Ảnh hiện trường",
+          "strength": "strong"
+        },
+        {
+          "evidenceId": "clue-23",
+          "title": "Báo cáo giám định cháy",
+          "strength": "strong"
+        }
+      ],
+      "completedEvidenceLinks": [],
+      "transcript": "BÂY GIỜ ĐẦU TIÊN THÌ TÔI XIN PHÉP BÀO CHỮA CHO THÂN CHỦ CỦA TÔI ĐẦU TIÊN THÌ CAMERA HÀNH LANG VÀ MƯỜI SÁU GIỜ MƯỜI HAI PHÚT XÁC NHẬN LÀ THÂN CHỦ CỦA TÔI CHỈ ĐỨNG TRƯỚC CỬA PHÒNG KHOẢNG HAI MƯƠI GIÂY RỒI RỜI ĐI CHỨ KHÔNG HỀ BƯỚC VÀO PHÒNG CÁI THỨ HAI LÀ BÁO CÁO GIÁM ĐỊNH CHÁY LÀ DẤU CHÁY ĐƯỢC PHÁT HIỆN Ở PHẠT RÁC CHỨ KHÔNG PHẢI Ở NƠI Ổ ĐIỆN VÀ CÁI THỨ BA LÀ Ổ PHẠT ĐƯỢC TÌM THẤY TẠI Ổ ĐIỆN KHÔNG KHỚP VỚI PHẠT CỦA THÂN CHỦ TÔI NGOÀI RA THÌ THÌ MINH ĐÃ KHAI RA RẰNG LÀ EM ẤY ĐÃ LẤY PHẠT RA KHỎI ĐÓ RỒI VÀ EM ẤY KHÔNG HỀ VÀO PHÒNG LÚC VỀ DIỄN RA ĐÁM CHÁY HỆ THỐNG BÁO CHÁY CỦA TRƯỜNG ĐƯỢC KÍCH HOẠT VÀ LÀ MINH ĐÃ RỜI PHÒNG MƯỜI LĂM PHÚT TRƯỚC ĐÓ CÓ NGHĨA LÀ MƯỜI SÁU GIỜ HAI MƯƠI MỚI KÍCH HOẠT CHO NÊN LÀ KHÔNG ĐỦ ĐỂ MÀ CÓ THỂ KÊU LÀ THÂN CHỦ CỦA TÔI BỊ CÓ TỘI ĐƯỢC HIỂU KHÔNG VÀ BÂY GIỜ MINH MƯỜI SÁU GIỜ BA PHÚT ĐƯỢC GHI NHẬN LÀ SỬ DỤNG Ổ ĐIỆN CŨNG LÀ NƠI KHU VỰC CÁI BẮT ĐẦU PHÁT HƠI RỐI NHƯNG MÀ KHÔNG SAO THÌ DẤU CHÁY PHỚT HIỆN Ở PHẠT RÁC LÀ THÂN CHỦ TÔI KHÔNG CÓ TỘI ĐÚNG RỒI",
+      "criterionScores": {
+        "evidenceUse": 20,
+        "logicalConnections": 25,
+        "conclusionFidelity": 10,
+        "clarityAndPersuasiveness": 5
+      },
+      "rawScore": 60,
+      "restartPenaltyPercent": 0,
+      "finalScore": 60.0,
+      "feedbackVi": "Lời bào chữa của người chơi có một số điểm tích cực, nhưng vẫn còn thiếu sự logic và rõ ràng. Người chơi đã đề cập đến một số bằng chứng như camera hành lang, báo cáo giám định và vật chứng bộ sạc, nhưng chưa có sự liên kết rõ ràng giữa các bằng chứng này. Kết luận cuối cùng cũng chưa đủ thuyết phục để chứng minh rằng Minh không có lỗi. Lời nói còn mang tính chất lặp lại và chưa có sự phân tích sâu về các mối liên hệ giữa các bằng chứng. Cần có sự tổ chức lại lập luận và làm rõ các mối liên hệ giữa các bằng chứng để tăng tính thuyết phục.",
+      "recordingAtUtc": "2026-09-15T15:55:36.333512Z",
+      "assessmentCompletedAtUtc": "2026-09-15T15:56:00.224985Z",
+      "completionStatus": "completed"
+    }
+  },
+  "fragments": {
+    "lawyer:2f6d62d47aef470f8b7b33bc40cd8a70": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-15T15:55:36.344729Z"
+    },
+    "lawyer:2f6d62d47aef470f8b7b33bc40cd8a70:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-15T15:56:00.233274Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-15T15:56:00.233286Z",
+  "requiredFields": [
+    "lawyer"
+  ],
+  "completionRequested": true
+}

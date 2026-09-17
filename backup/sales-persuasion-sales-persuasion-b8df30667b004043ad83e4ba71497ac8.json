@@ -1,0 +1,41 @@
+{
+  "attemptId": "sales-persuasion-b8df30667b004043ad83e4ba71497ac8",
+  "runId": "55c68aa20ee04eccba4b4f53d2ebe94c",
+  "salesSessionId": "95c36a5cc713407d86176ae6a89c9dc8",
+  "scenarioId": "sales-part-1-persuasion",
+  "customerId": "Minh",
+  "selectedShoeId": "Aduma Samba",
+  "bestFitShoeId": "Aduma Samba",
+  "customerNeeds": "Chào bạn! Mình muốn tìm một đôi giày để chạy bộ nhẹ khoảng 3 đến 5 cây số mỗi sáng. Mình mới tập nên thích đôi nào êm chân, nhẹ và thoáng một chút.\nMình thường chạy trên đường nhựa, thỉnh thoảng đi bộ nữa. Ngân sách của mình khoảng một triệu rưỡi trở xuống. Bạn chọn giúp mình một đôi phù hợp nhé!",
+  "objection": "Đôi này hợp với nhu cầu của mình, nhưng đôi Nyke Air Max trông cá tính và bắt mắt hơn. Mình sợ Aduma Samba hơi đơn giản.",
+  "availableShoes": [
+    {
+      "shoeId": "Aduma Samba",
+      "name": "Aduma Samba",
+      "price": 1290000,
+      "details": "Chạy bộ đường nhựa\nĐệm êm · Nhẹ · Thoáng\nGiá: 1.290.000 đ"
+    },
+    {
+      "shoeId": "Nyke Air Max",
+      "name": "Nyke Air Max",
+      "price": 1450000,
+      "details": "Bóng rổ trong nhà\nÔm cổ chân · Đế chắc\nGiá: 1.450.000 đ"
+    },
+    {
+      "shoeId": "Columnia Crestwood",
+      "name": "Columnia Crestwood",
+      "price": 1890000,
+      "details": "Chạy địa hình\nĐế bám sâu · Chống nước\nGiá: 1.890.000 đ"
+    }
+  ],
+  "requestHash": "c864d70493d06521f1464a30eecd3ee925b6ae2cd270d4e1e1f6ca1c5cfcbce1",
+  "audioFile": "sales-persuasion-sales-persuasion-b8df30667b004043ad83e4ba71497ac8.wav",
+  "status": "completed",
+  "assessmentStatus": "completed",
+  "transcript": "TUY RẰNG ĐÔI NƠI KỲ EMAST TRÔNG CÁ TÍNH HƠN NHƯNG ĐÔI A DUMAS SAMBA PHÙ HỢP VỚI TÚI TIỀN VÀ CÁI NHU CẦU ĐI BỘ BẠN HƠN",
+  "score": 85,
+  "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng khí. Đồng thời, đã giải quyết được phản đối của khách hàng về sự cá tính của Nyke Air Max bằng cách nhấn mạnh ưu điểm của Aduma Samba phù hợp với ngân sách và nhu cầu sử dụng. Thông tin sản phẩm được trình bày rõ ràng và chính xác.",
+  "error": null,
+  "createdAtUtc": "2026-09-16T21:36:50.624529Z",
+  "updatedAtUtc": "2026-09-16T21:36:57.966028Z"
+}

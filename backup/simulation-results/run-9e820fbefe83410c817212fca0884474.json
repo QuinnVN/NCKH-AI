@@ -1,0 +1,76 @@
+{
+  "_id": "9e820fbefe83410c817212fca0884474",
+  "runId": "9e820fbefe83410c817212fca0884474",
+  "participantName": "Võ Nguyễn Xuân Phương",
+  "participantSessionId": "afe82b8340f34ea188c3f8b158a42ab9",
+  "gameId": "sale",
+  "status": "completed",
+  "startedAtUtc": "2026-09-17T08:35:12.5545170Z",
+  "completedAtUtc": "2026-09-17T08:38:36.051299Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-40bae9429fe145859254881aba9b7578",
+      "salesSessionId": "4402f9c0edd44a67980b31f496a8c24c",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "ĐÔI ADU SAMBA ĐÔI ADOBE SAMBA RẤT LÀ HỢP VỚI LẠI MINH CHO NÊN LÀ MINH MUA ĐI NHA MINH VỚI LẠI LÀ NÓ PHÙ HỢP VỚI NHU CẦU CỦA MINH LÀ HAY ĐI TRÊN ĐƯỜNG ĐƯỜNG GÌ TA ĐƯỜNG NHỰA ĐÓ MINH ỦA TẮT GHI ÂM ĐI RA SAO TA",
+      "score": 85,
+      "feedbackVi": "Câu trả lời thuyết phục được vì đã giải thích rõ lý do chọn Aduma Samba phù hợp với nhu cầu chạy bộ trên đường nhựa, êm chân, nhẹ và thoáng. Đồng thời đã giải quyết được phản đối về sự cá tính của Nyke Air Max bằng cách nhấn mạnh ưu điểm của Aduma Samba. Thông tin sản phẩm cũng được trình bày chính xác.",
+      "recordingAtUtc": "2026-09-17T08:36:26.527518Z",
+      "assessmentCompletedAtUtc": "2026-09-17T08:36:35.710761Z"
+    },
+    "turns": [
+      {
+        "turnId": "28e03c6f403942078eb1a692a574c18c",
+        "transcript": "NHÂN MANG VÀO ĐÔI CHÂN NÓ ĐÂU CÓ NGHE ĐƯỢC GIỌNG HAI MƯƠI GIÂY NHƯNG MÀ EM THẤY LÀ NÓ PHÙ HỢP VỚI CHỊ MÀ CHỊ LAN CHO NÊN LÀ CHỊ",
+        "customerReply": "Làm ăn vậy mà coi được á hả? Chị không cần giày mới, trả tiền lại cho chị.",
+        "objective": "ListeningAndClarifying",
+        "turnTimestampUtc": "2026-09-17T08:37:33.1151410Z"
+      },
+      {
+        "turnId": "4646ee1386af4086b68ccfcec263ce0b",
+        "transcript": "DẠ CHỊ ĐƯA HÓA ĐƠN CHO EM THÌ MỚI ĐƯỢC TRẢ LẠI NHA CHỊ NHƯNG MÀ CHỊ CÓ CHẮC CHẮN LÀ CHỊ KHÔNG LÀM GÌ TỔN HẠI ĐẾN ĐÔI GIÀY CỦA TỤI EM KHÔNG NẾU MÀ CÓ HÓA ĐƠN THÌ PHẢI TRẢ LẠI THÌ ĐƯỢC TRẢ",
+        "customerReply": "Em không tự giải quyết được thì kêu quản lý ra đây gặp chị bắt đền.",
+        "objective": "ListeningAndClarifying",
+        "turnTimestampUtc": "2026-09-17T08:38:15.1138970Z"
+      }
+    ],
+    "part2": {
+      "turns": [
+        {
+          "turnId": "28e03c6f403942078eb1a692a574c18c",
+          "transcript": "NHÂN MANG VÀO ĐÔI CHÂN NÓ ĐÂU CÓ NGHE ĐƯỢC GIỌNG HAI MƯƠI GIÂY NHƯNG MÀ EM THẤY LÀ NÓ PHÙ HỢP VỚI CHỊ MÀ CHỊ LAN CHO NÊN LÀ CHỊ",
+          "customerReply": "Làm ăn vậy mà coi được á hả? Chị không cần giày mới, trả tiền lại cho chị.",
+          "activeObjective": 1,
+          "objectiveActiveDuringTurn": 1,
+          "turnTimestampUtc": null
+        },
+        {
+          "turnId": "4646ee1386af4086b68ccfcec263ce0b",
+          "transcript": "DẠ CHỊ ĐƯA HÓA ĐƠN CHO EM THÌ MỚI ĐƯỢC TRẢ LẠI NHA CHỊ NHƯNG MÀ CHỊ CÓ CHẮC CHẮN LÀ CHỊ KHÔNG LÀM GÌ TỔN HẠI ĐẾN ĐÔI GIÀY CỦA TỤI EM KHÔNG NẾU MÀ CÓ HÓA ĐƠN THÌ PHẢI TRẢ LẠI THÌ ĐƯỢC TRẢ",
+          "customerReply": "Em không tự giải quyết được thì kêu quản lý ra đây gặp chị bắt đền.",
+          "activeObjective": 1,
+          "objectiveActiveDuringTurn": 1,
+          "turnTimestampUtc": "2026-09-17T08:38:00.791109Z"
+        }
+      ],
+      "score": 0,
+      "customerRating": "bad",
+      "criterionScores": {
+        "apologyAndPolicyRemedy": 0,
+        "adaptabilityAndDeescalation": 0
+      },
+      "trustState": "lost",
+      "emotionalHandling": false,
+      "causeIdentification": false,
+      "solutionSuitability": false,
+      "trustRebuilding": false,
+      "completionReason": "manager_escalation",
+      "acceptedTurnCount": 2,
+      "silenceCount": 0,
+      "completedAtUtc": "2026-09-17T08:38:36.9528860Z"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "attemptId": "sales-persuasion-4405e5aeac3a4b66b0c2171c7e994820",
+  "runId": "ebaae7f387d84c4583ff9345ab16bc69",
+  "salesSessionId": "1c8deb60eeee4773aa37ca8da8642897",
+  "scenarioId": "sales-part-1-persuasion",
+  "customerId": "Minh",
+  "selectedShoeId": "Aduma Samba",
+  "bestFitShoeId": "Aduma Samba",
+  "customerNeeds": "Chào bạn! Mình muốn tìm một đôi giày để chạy bộ nhẹ khoảng 3 đến 5 cây số mỗi sáng. Mình mới tập nên thích đôi nào êm chân, nhẹ và thoáng một chút.\nMình thường chạy trên đường nhựa, thỉnh thoảng đi bộ nữa. Ngân sách của mình khoảng một triệu rưỡi trở xuống. Bạn chọn giúp mình một đôi phù hợp nhé!",
+  "objection": "Đôi này hợp với nhu cầu của mình, nhưng đôi Nyke Air Max trông cá tính và bắt mắt hơn. Mình sợ Aduma Samba hơi đơn giản.",
+  "availableShoes": [
+    {
+      "shoeId": "Aduma Samba",
+      "name": "Aduma Samba",
+      "price": 1290000,
+      "details": "Chạy bộ đường nhựa\nĐệm êm · Nhẹ · Thoáng\nGiá: 1.290.000 đ"
+    },
+    {
+      "shoeId": "Nyke Air Max",
+      "name": "Nyke Air Max",
+      "price": 1450000,
+      "details": "Bóng rổ trong nhà\nÔm cổ chân · Đế chắc\nGiá: 1.450.000 đ"
+    },
+    {
+      "shoeId": "Columnia Crestwood",
+      "name": "Columnia Crestwood",
+      "price": 1890000,
+      "details": "Chạy địa hình\nĐế bám sâu · Chống nước\nGiá: 1.890.000 đ"
+    }
+  ],
+  "requestHash": "212889ae5234389737fa894170238b3e509ab7c3095361f321555f794b330be4",
+  "audioFile": "sales-persuasion-sales-persuasion-4405e5aeac3a4b66b0c2171c7e994820.wav",
+  "status": "completed",
+  "assessmentStatus": "completed",
+  "transcript": "EM THẤY THỜI GIAN ĐỂ CHUẨN BỊ Ồ EM THẤY NÓ GHI ÂM RỒI NÈ À ĐÔI NÀY EM NÊN NÓI GÌ TA PHẢI MUA CÁI ĐÔI NÀY HỢP LÝ NÀY NHÌN KHÔNG ĐƯỢC ĐÔI NÀY NHÌN KHÔNG ĐƯỢC BẮT MẮT LẮM NHƯNG MÀ NÓ KHÁ LÀ PHÙ HỢP VỚI LẠI NHU CẦU MÀ MÌNH MUỐN Ờ TẠI VÌ ANH MUỐN MUA MỘT CÁI ĐÔI GIÀY NÓ THOÁNG KHÍ VÀ PHÙ HỢP VỚI CHẠY BỘ TRONG KHI CÁI ĐÔI KIA NÓ SẼ KHÔNG ĐƯỢC PHÙ HỢP LẮM VỚI NHỮNG CÁI NHU CẦU ĐÓ CỦA ANH NÊN LÀ NẾU NHƯ MÀ ANH MUỐN NÓ THOẢI MÁI VÀ NÓ AN TOÀN NHẤT TRONG LÚC SỬ DỤNG THÌ EM NGHĨ LÀ ĐÔI A DUMA SAMBA SẼ LÀ LỰA CHỌN PHÙ HỢP NHẤT",
+  "score": 85,
+  "feedbackVi": "Đáp án phù hợp với nhu cầu chạy bộ nhẹ, êm chân và thoáng khí. Đã giải quyết phản đối về sự cá tính của Nyke Air Max bằng cách nhấn mạnh ưu điểm của Aduma Samba. Thông tin sản phẩm chính xác, phù hợp với ngân sách và nhu cầu của khách hàng.",
+  "error": null,
+  "createdAtUtc": "2026-09-17T01:54:33.832043Z",
+  "updatedAtUtc": "2026-09-17T01:54:42.249761Z"
+}

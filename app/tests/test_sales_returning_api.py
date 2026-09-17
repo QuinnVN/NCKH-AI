@@ -71,25 +71,23 @@ class ReturningApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(audio.exists())
         self.assertIsNone(json.loads(path.read_text(encoding="utf-8"))["transcript"])
 
-    async def test_scripted_conversation_obeys_four_objectives_and_mandatory_challenge(self):
+    async def test_scripted_conversation_obeys_four_turn_limit_and_mandatory_challenge(self):
         from app.sales_returning_customer import MANDATORY_CHALLENGE, TrustAnalysis
         await self.store.create_or_resume("scripted")
         replies = [
             response(activeObjective=2, objectiveCompleted=True, turnAssessment=assessment(emotionalAcknowledgment=True, openQuestion=True)),
-            response(activeObjective=2, disclosedFactIds=["walking_routine"], turnAssessment=assessment(useOrDurationQuestion=True)),
-            response(activeObjective=2, disclosedFactIds=["fit_condition", "lighter_preference"], turnAssessment=assessment(fitConditionOrPreferenceQuestion=True)),
+            response(activeObjective=2, disclosedFactIds=["walking_routine", "fit_condition", "lighter_preference"], turnAssessment=assessment(useOrDurationQuestion=True, fitConditionOrPreferenceQuestion=True)),
             response(activeObjective=3, objectiveCompleted=True, turnAssessment=assessment(causeStatement=True)),
             response(activeObjective=4, objectiveCompleted=True, turnAssessment=assessment(policyExchange=True, lightweightForWalking=True, fitOrWalkTrial=True)),
-            response(activeObjective=4, objectiveCompleted=True, conversationComplete=True, turnAssessment=assessment(originalSaleResponsibility=True, routineMatchExplanation=True, verificationStep=True)),
         ]
         class ScriptedResponder:
             async def respond(self, session, transcript): return replies.pop(0)
         responder = ScriptedResponder()
-        for index in range(6):
+        for index in range(4):
             turn = await submit_turn("scripted", request("turn-" + str(index)), store=self.store,
                 transcriber=FakeTranscriber("Em xin lỗi chị."), responder=responder)
             self.assertEqual(turn["status"], "accepted")
-            if index == 4: self.assertEqual(turn["customerText"], MANDATORY_CHALLENGE)
+            if index == 3: self.assertEqual(turn["customerText"], MANDATORY_CHALLENGE)
         class RestoredAnalyzer:
             async def analyze(self, session):
                 return TrustAnalysis(criterionScores={"apologyAndPolicyRemedy": 45, "adaptabilityAndDeescalation": 40}, emotionalHandling=True, causeIdentification=True, solutionSuitability=True, trustRebuilding=True)
@@ -97,7 +95,7 @@ class ReturningApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["trustState"], "restored")
         self.assertEqual(result["score"], 85)
         self.assertEqual(result["customerRating"], "good")
-        self.assertEqual(result["acceptedTurnCount"], 6)
+        self.assertEqual(result["acceptedTurnCount"], 4)
 
     async def test_terminal_turn_retry_remains_idempotent(self):
         await self.store.create_or_resume("terminal")

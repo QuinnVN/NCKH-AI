@@ -1,0 +1,32 @@
+{
+  "runId": "e032474e90c044efbd944f07130e0cec",
+  "participantName": "test",
+  "participantSessionId": "8e4c36efe8bc45e18114e3fa7a5838e4",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T15:48:47.961938Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-6d0a2a429efd47cd976c7ba675092986",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "VÂNG THÌ MẶC DÙ LÀ MẶC DÙ ĐÔI MỘT A NÓ HƠI ĐƠN GIẢN MỘT TÍ TUY NHIÊN THÌ VỚI CÁI PHONG CÁCH MÀ MÌNH CẦN PHẢI VẬN ĐỘNG NHIỀU CŨNG NHƯ LÀ CẦN PHẢI DÙNG NÓ ĐI BỘ HẰNG NGÀY THEO NHƯ NHU CẦU CỦA KHÁCH VÀ VỀ GIÁ CẢ THÌ ĐÔI MỘT A EM ĐẢM BẢO LUÔN LÀ HỢP LÝ NHẤT TẠI VÌ PHAO TẠI VÌ THỨ NHẤT LÀ ĐƯƠNG NHIÊN LÀ KHÔNG PHẢI NGÀY NÀO MÌNH CŨNG PHẢI MẶC ĐỒ ĂN DIỆN RỒI NHƯNG MÀ CÁI ĐÔI NÀY ĐẢM BẢO LÀ PHỐI VỚI BỘ ĐỒ NÀO CŨNG HỢP TẠI VÌ NÓ RẤT LÀ ĐƠN GIẢN MÀU SẮC RẤT LÀ TRUNG TÍNH NHẤT LÀ RẤT LÀ UNIFACE LUÔN RẤT LÀ HỢP VỚI STYLE CỦA KHÁCH HÀNG MÌNH HÔM NAY NHƯNG MÀ MỘT ĐIỂM NỮA CẦN PHẢI ĐẶC BIỆT CHÚ Ý LÀ TẠI VÌ CÁI ĐÔI NÀY NÓ RẤT LÀ ÔM CHÂN VÀ NÓ RẤT LÀ HỢP VỚI CÁI VIỆC MÌNH ĐI LẠI NHIỀU ÊM DỮ LẮM KHÁCH HÀNG QUÊN EM AI ĐI BỘ NHIỀU LÀ THÍCH DỮ LẮM MẤY ĐÔI MÀ ĐÔI BA B EM CÔNG NHẬN NÓ RẤT LÀ ĐẸP NHƯNG MÀ NÓ RẤT LÀ ĐI NHIỀU NÓ RẤT LÀ DỄ BỊ CHÀY CHÂN NÓ RẤT LÀ DỄ BỊ RỚT NHỮNG CÁI CHI TIẾT ĐÓ RA NÊN LÀ EM VẪN NGHĨ RẰNG LÀ MÌNH VẪN NÊN CÂN NHẮC VỀ GIÁ CẢ CÒN ĐÔI KIA THÌ NÓ VỪA PHÙ HỢP VỚI MỌI THỨ MÀ MÌNH CẦN RỒI NÊN LÀ EM NGHĨ LÀ NÊN CHỌN NƠI MỘT A NHẤT",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã giải thích rõ lý do chọn 1A phù hợp với nhu cầu chạy bộ, êm chân, nhẹ và thoáng. Đã phản đối 3B vì cá tính và không phù hợp với nhu cầu đi bộ. Thông tin sản phẩm được trình bày chính xác, nhưng có thể ngắn gọn hơn để dễ hiểu hơn.",
+      "createdAtUtc": "2026-09-16T15:48:47.956203Z",
+      "updatedAtUtc": "2026-09-16T15:49:01.951349Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-6d0a2a429efd47cd976c7ba675092986": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T15:48:47.962183Z"
+    },
+    "sale.part1:sales-persuasion-6d0a2a429efd47cd976c7ba675092986:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T15:49:01.959355Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T16:52:30.584193Z",
+  "requiredFields": []
+}

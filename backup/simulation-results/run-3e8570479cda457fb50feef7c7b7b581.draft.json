@@ -1,0 +1,57 @@
+{
+  "runId": "3e8570479cda457fb50feef7c7b7b581",
+  "participantName": "test",
+  "participantSessionId": "100eed823bf7449c92043b993ad5577d",
+  "gameId": "lawyer",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-15T04:05:09.6929220Z",
+  "data": {
+    "caseId": "club-room-fire",
+    "interviewRestartCount": 0,
+    "finalClueSet": [
+      {
+        "evidenceId": "clue-07",
+        "title": "Camera hành lang 16:05",
+        "strength": "weak"
+      },
+      {
+        "evidenceId": "clue-12",
+        "title": "Camera hành lang 16:08",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-19",
+        "title": "Ảnh hiện trường",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-24",
+        "title": "Giám định ổ điện",
+        "strength": "strong"
+      }
+    ],
+    "completedEvidenceLinks": [],
+    "transcript": "",
+    "criterionScores": {
+      "evidenceUse": 0,
+      "logicalConnections": 0,
+      "conclusionFidelity": 0,
+      "clarityAndPersuasiveness": 0
+    },
+    "rawScore": null,
+    "restartPenaltyPercent": 0,
+    "finalScore": null,
+    "feedbackVi": "",
+    "recordingAtUtc": "2026-09-15T04:09:51.770031Z",
+    "assessmentCompletedAtUtc": "2026-09-15T04:09:51.770031Z",
+    "completionStatus": "processing"
+  },
+  "fragments": {
+    "lawyer:f5751c4b28094baeb8c5ed5b3b386854": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-15T04:09:51.836578Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-15T04:10:53.411752Z",
+  "requiredFields": []
+}

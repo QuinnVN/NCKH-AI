@@ -1,0 +1,126 @@
+{
+  "runId": "2e97983770194f14b195dff8af92fbfb",
+  "participantName": "Âu Tú Vy",
+  "participantSessionId": "3760509b0a87490d8fd41834121489a1",
+  "gameId": "sale",
+  "status": "completed",
+  "startedAtUtc": "2026-09-17T05:12:52.2587380Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-d0e845d178794d3c87aa753b5a063c28",
+      "salesSessionId": "376f3929e8f047489870d85073fa4d9b",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "ĐÔI NÀY KHÔNG CÓ ĐƠN GIẢN ĐÂU NÓ VỪA PHÙ HỢP VỚI NGÂN SÁCH MÀ NÓ CÒN DÙNG CHO CHUYÊN ĐỂ CHẠY BỘ NHƯ BẠN NỮA ĐÔI NAY KỲ EM MẮC THÌ NÓ SẼ CHỦ YẾU CHO BÓNG RỔ NHIỀU HƠN NHƯNG MÀ NÓ SẼ RẤT LÀ ÔM CHÂN VÀ ĐI NÓ SẼ HƠI KHÓ CHỊU VÀ KHI MÀ MÌNH ĐI TRÊN ĐƯỜNG NHỰA NÓ SẼ RẤT LÀ DỄ MÒN CÁI ĐẾ NÊN LÀ ĐÔI A DUMA SAVA NÓ SẼ PHÙ HỢP NÓ SẼ HỢP NHẤT VỚI NHU CẦU VÀ CHI TIÊU CỦA KHÁCH HÀNG",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã phản ánh đúng nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Đã giải thích rõ lý do chọn Aduma Samba so với Nyke Air Max, nhấn mạnh tính phù hợp với nhu cầu và ngân sách. Tuy nhiên, có thể chi tiết hơn về ưu điểm của Aduma Samba so với đối thủ.",
+      "recordingAtUtc": "2026-09-17T05:14:37.204685Z",
+      "assessmentCompletedAtUtc": "2026-09-17T05:14:45.480230Z"
+    },
+    "turns": [
+      {
+        "turnId": "264e0ceee9af415182e1112c5d59d2a4",
+        "transcript": "DẠ EM CÓ EM ĐÃ TIẾP THU Ý KIẾN CỦA CHỊ NHƯNG THẬT RA LÀ DO CHẮC CHỊ MỚI MUA NÊN LÀ ĐÔI GIÀY NÓ CÒN CỨNG VỚI LẠI CHỊ MANG NHIỀU THÌ NÓ SẼ GIÃN RA NÊN CHỊ NÊN VỀ MANG THI THÊM MỘT HAI NGÀY NỮA THÌ NÓ SẼ VỪA VỚI CHÂN HƠN Ạ",
+        "customerReply": "Em giải thích kỹ hơn về chính sách đổi trả hàng đi.",
+        "objective": "FindingRootCause",
+        "turnTimestampUtc": "2026-09-17T05:15:38.6586120Z"
+      },
+      {
+        "turnId": "af1ca5deb58b4a029a4d2e79d18e9a31",
+        "transcript": "VỀ CHÍNH SÁCH ĐỔI TRẢ HÀNG CỦA TỤI EM THÌ TRONG BẢY NGÀY NẾU NHƯ GIÀY CỦA CHỊ CÒN NGUYÊN VẸN THÌ CHÚNG EM SẼ CÓ CHÍNH SÁCH HẠN TIỀN HOẶC GIẢM GIÁ ĐỐI VỚI ĐÔI GIÀY CỦA CHỊ Ạ",
+        "customerReply": "Chị không cần lời xin lỗi, chị cần lời giải thích về những gì em nói tốt về sản phẩm này trước đây, vì nó có tốt đâu.",
+        "objective": "FindingRootCause",
+        "turnTimestampUtc": "2026-09-17T05:16:08.0602120Z"
+      },
+      {
+        "turnId": "4ef20b2d4fbd48e38ecdfc8931925f5b",
+        "transcript": "NHỮNG GÌ EM NÓI LÀ ĐỀU DỰA TRÊN TRẢI NGHIỆM THỰC TẾ CỦA NHỮNG KHÁCH HÀNG TRƯỚC VÀ TỤI EM ĐÃ NGHIÊN CỨU THỰC TẾ RẤT LÀ KỸ LƯỠNG RỒI CHO NÊN LÀ CHỊ EM MONG LÀ CHỊ CÓ THỂ TRẢI NGHIỆM THÊM MỘT KHOẢNG THỜI GIAN NỮA NẾU NHƯ THÊM HAI BA NGÀY MÀ CHỊ VẪN KHÔNG PHÙ HỢP THÌ QUAY LẠI CHÚNG EM SẴN SÀNG",
+        "customerReply": "Em không tự giải quyết được thì kêu quản lý ra đây gặp chị bắt đền.",
+        "objective": "FindingRootCause",
+        "turnTimestampUtc": "2026-09-17T05:16:49.6321300Z"
+      }
+    ],
+    "part2": {
+      "turns": [
+        {
+          "turnId": "264e0ceee9af415182e1112c5d59d2a4",
+          "transcript": "DẠ EM CÓ EM ĐÃ TIẾP THU Ý KIẾN CỦA CHỊ NHƯNG THẬT RA LÀ DO CHẮC CHỊ MỚI MUA NÊN LÀ ĐÔI GIÀY NÓ CÒN CỨNG VỚI LẠI CHỊ MANG NHIỀU THÌ NÓ SẼ GIÃN RA NÊN CHỊ NÊN VỀ MANG THI THÊM MỘT HAI NGÀY NỮA THÌ NÓ SẼ VỪA VỚI CHÂN HƠN Ạ",
+          "customerReply": "Em giải thích kỹ hơn về chính sách đổi trả hàng đi.",
+          "activeObjective": 2,
+          "objectiveActiveDuringTurn": 1,
+          "turnTimestampUtc": null
+        },
+        {
+          "turnId": "af1ca5deb58b4a029a4d2e79d18e9a31",
+          "transcript": "VỀ CHÍNH SÁCH ĐỔI TRẢ HÀNG CỦA TỤI EM THÌ TRONG BẢY NGÀY NẾU NHƯ GIÀY CỦA CHỊ CÒN NGUYÊN VẸN THÌ CHÚNG EM SẼ CÓ CHÍNH SÁCH HẠN TIỀN HOẶC GIẢM GIÁ ĐỐI VỚI ĐÔI GIÀY CỦA CHỊ Ạ",
+          "customerReply": "Chị không cần lời xin lỗi, chị cần lời giải thích về những gì em nói tốt về sản phẩm này trước đây, vì nó có tốt đâu.",
+          "activeObjective": 2,
+          "objectiveActiveDuringTurn": 2,
+          "turnTimestampUtc": null
+        },
+        {
+          "turnId": "4ef20b2d4fbd48e38ecdfc8931925f5b",
+          "transcript": "NHỮNG GÌ EM NÓI LÀ ĐỀU DỰA TRÊN TRẢI NGHIỆM THỰC TẾ CỦA NHỮNG KHÁCH HÀNG TRƯỚC VÀ TỤI EM ĐÃ NGHIÊN CỨU THỰC TẾ RẤT LÀ KỸ LƯỠNG RỒI CHO NÊN LÀ CHỊ EM MONG LÀ CHỊ CÓ THỂ TRẢI NGHIỆM THÊM MỘT KHOẢNG THỜI GIAN NỮA NẾU NHƯ THÊM HAI BA NGÀY MÀ CHỊ VẪN KHÔNG PHÙ HỢP THÌ QUAY LẠI CHÚNG EM SẴN SÀNG",
+          "customerReply": "Em không tự giải quyết được thì kêu quản lý ra đây gặp chị bắt đền.",
+          "activeObjective": 2,
+          "objectiveActiveDuringTurn": 2,
+          "turnTimestampUtc": "2026-09-17T05:16:38.683851Z"
+        }
+      ],
+      "score": 0,
+      "customerRating": "bad",
+      "criterionScores": {
+        "apologyAndPolicyRemedy": 16,
+        "adaptabilityAndDeescalation": 14
+      },
+      "trustState": "lost",
+      "emotionalHandling": false,
+      "causeIdentification": false,
+      "solutionSuitability": false,
+      "trustRebuilding": false,
+      "completionReason": "manager_escalation",
+      "acceptedTurnCount": 3,
+      "silenceCount": 0,
+      "completedAtUtc": "2026-09-17T05:17:12.1440820Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-d0e845d178794d3c87aa753b5a063c28": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T05:14:37.217353Z"
+    },
+    "376f3929e8f047489870d85073fa4d9b:part1:sales-persuasion-d0e845d178794d3c87aa753b5a063c28": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-17T05:14:37.357783Z"
+    },
+    "sale.part1:sales-persuasion-d0e845d178794d3c87aa753b5a063c28:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T05:14:45.487252Z"
+    },
+    "sales.part2.turn_accepted:264e0ceee9af415182e1112c5d59d2a4:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-17T05:15:37.666362Z"
+    },
+    "sales.part2.turn_accepted:af1ca5deb58b4a029a4d2e79d18e9a31:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-17T05:16:07.054719Z"
+    },
+    "sales.part2.turn_accepted:4ef20b2d4fbd48e38ecdfc8931925f5b:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-17T05:16:48.630751Z"
+    },
+    "sale.part2:1a614453ea2a4b3ea981c64dd78e25ca": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T05:17:05.091313Z"
+    },
+    "sales.part2.completed:4ef20b2d4fbd48e38ecdfc8931925f5b:": {
+      "kind": "sales.part2.completed",
+      "acceptedAtUtc": "2026-09-17T05:17:11.140798Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-17T06:34:05.722929Z",
+  "requiredFields": ["part1", "part2"],
+  "completionRequested": true
+}

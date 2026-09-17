@@ -1,0 +1,43 @@
+{
+  "attemptId": "sales-persuasion-8a0a537a5d9b477296e5bf162f475dd6",
+  "salesSessionId": "e3a2c8d6c9f949979f195521b5e1ce92",
+  "scenarioId": "sales-part-1-persuasion",
+  "customerId": "Minh",
+  "selectedShoeId": "1A",
+  "bestFitShoeId": "1A",
+  "customerNeeds": "Chào bạn! Mình muốn tìm một đôi giày để chạy bộ nhẹ khoảng 3 đến 5 cây số mỗi sáng. Mình mới tập nên thích đôi nào êm chân, nhẹ và thoáng một chút.\nMình thường chạy trên đường nhựa, thỉnh thoảng đi bộ nữa. Ngân sách của mình khoảng một triệu rưỡi trở xuống. Bạn chọn giúp mình một đôi phù hợp nhé!",
+  "objection": "Đôi này hợp với nhu cầu của mình, nhưng đôi 3B trông cá tính và bắt mắt hơn. Mình sợ 1A hơi đơn giản.",
+  "availableShoes": [
+    {
+      "shoeId": "1A",
+      "name": "1A",
+      "price": 1290000,
+      "details": "Chạy bộ đường nhựa\nĐệm êm · Nhẹ · Thoáng\nGiá: 1.290.000 đ"
+    },
+    {
+      "shoeId": "3B",
+      "name": "3B",
+      "price": 1450000,
+      "details": "Bóng rổ trong nhà\nÔm cổ chân · Đế chắc\nGiá: 1.450.000 đ"
+    },
+    {
+      "shoeId": "8A",
+      "name": "8A",
+      "price": 1890000,
+      "details": "Chạy địa hình\nĐế bám sâu · Chống nước\nGiá: 1.890.000 đ"
+    }
+  ],
+  "requestHash": "1bb337c841308a1b96248f4322d1025ddf86687167b15669c12929c8ead69412",
+  "audioFile": "sales-persuasion-sales-persuasion-8a0a537a5d9b477296e5bf162f475dd6.wav",
+  "status": "failed",
+  "assessmentStatus": "failed",
+  "transcript": null,
+  "score": null,
+  "feedbackVi": null,
+  "error": {
+    "code": "assessment_failed",
+    "message": "Language-model assessment failed."
+  },
+  "createdAtUtc": "2026-09-14T01:14:25.598898Z",
+  "updatedAtUtc": "2026-09-14T01:14:39.507110Z"
+}

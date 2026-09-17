@@ -1,0 +1,110 @@
+{
+  "runId": "b3bee223f3594e0bbdecbaac85b7266b",
+  "participantName": "Phí Trịnh Phương Lan",
+  "participantSessionId": "3d7905523a494f2dbba6281c856ad4a1",
+  "gameId": "sale",
+  "status": "finalized",
+  "startedAtUtc": "2026-09-17T05:05:22.2666390Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-23af1f6c41824646b960cd30b4f02692",
+      "salesSessionId": "5186d89c54024b3c9fcef1a726028557",
+      "scenarioId": "sales-part-1-persuasion",
+      "customerId": "Minh",
+      "selectedShoeId": "Aduma Samba",
+      "bestFitShoeId": "Aduma Samba",
+      "transcript": "KỲ E TRONG CÁ TÍNH VÀ MẮT HƠN MÀ SỢ A DUMA HƠI ĐƠN GIẢN Ô LÀ SAO BÂY GIỜ Ê NÓ GHI ÂM THÌ MÌNH SAO TRỜI ƠI CÁI ĐÔI NÀY KÌA NÓ CHĂM GÌ AI BIẾT BÓNG RỔ ĐI KHÔNG CÓ ĐI BỘ ĐƯỢC NÓ KHÔNG CÓ ÊM CHÂN NÓ DỞ NÓ GÌ A DUMA SAMBA NÀY NÓ NÓ VỪA NHẸ CHÂN VỪA ÊM VỪA ĐI BỘ ĐƯỢC CÒN CÁI KIA NÓ CHỈ CHƠI BÓNG RỔ THÔI HẾT",
+      "score": 85,
+      "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ êm chân, nhẹ và thoáng. Đã giải thích rõ lý do chọn Aduma Samba so với Nyke Air Max, nhấn mạnh ưu điểm của sản phẩm phù hợp với nhu cầu chạy bộ trên đường nhựa và đi bộ. Thông tin sản phẩm được trình bày rõ ràng, nhưng có thể cần thêm giải thích về độ êm chân cụ thể hơn để tăng tính thuyết phục.",
+      "recordingAtUtc": "2026-09-17T05:07:12.290513Z",
+      "assessmentCompletedAtUtc": "2026-09-17T05:07:21.716164Z"
+    },
+    "turns": [
+      {
+        "turnId": "445c3aa609234cbe9665ceebcd5efc4b",
+        "transcript": "ÔI TRỜI ƠI EM XIN LỖI CHỊ EM EM THẬT LÒNG XIN LỖI CHỊ ĐỂ EM TƯ VẤN ĐÔI KHI KHÔNG NHƯNG MÀ ĐỨA NÀY EM THẤY RẤT HỢP CÓ THỂ LÀ ĐEO KIỂU MỚI MỚI NÊN LÀ CHƯA CÓ QUEN THÔI CHỊ VỀ CHỊ THỬ THÊM HAI NGÀY NỮA ĐI KHÔNG ĐƯỢC THÌ ĐỔI",
+        "customerReply": "Làm ăn vậy mà coi được á hả? Chị không cần giày mới, trả tiền lại cho chị.",
+        "objective": "ListeningAndClarifying",
+        "turnTimestampUtc": "2026-09-17T05:08:11.8107050Z"
+      },
+      {
+        "turnId": "5c820b6039de4cef8bc03287794c5ca6",
+        "transcript": "ỦA TRỜI ƠI CHỊ ƠI CÁI GÌ CHỊ KHÔNG CẦN GÌ NỮA CHỊ KHÔNG CHỊ VỀ CHỊ THỬ LẠI ĐI CHỊ THỬ ĐI CHỊ THỬ ĐI CHỊ",
+        "customerReply": "Em không tự giải quyết được thì kêu quản lý ra đây gặp chị bắt đền.",
+        "objective": "ListeningAndClarifying",
+        "turnTimestampUtc": "2026-09-17T05:08:49.3071730Z"
+      }
+    ],
+    "part2": {
+      "turns": [
+        {
+          "turnId": "445c3aa609234cbe9665ceebcd5efc4b",
+          "transcript": "ÔI TRỜI ƠI EM XIN LỖI CHỊ EM EM THẬT LÒNG XIN LỖI CHỊ ĐỂ EM TƯ VẤN ĐÔI KHI KHÔNG NHƯNG MÀ ĐỨA NÀY EM THẤY RẤT HỢP CÓ THỂ LÀ ĐEO KIỂU MỚI MỚI NÊN LÀ CHƯA CÓ QUEN THÔI CHỊ VỀ CHỊ THỬ THÊM HAI NGÀY NỮA ĐI KHÔNG ĐƯỢC THÌ ĐỔI",
+          "customerReply": "Làm ăn vậy mà coi được á hả? Chị không cần giày mới, trả tiền lại cho chị.",
+          "activeObjective": 1,
+          "objectiveActiveDuringTurn": 1,
+          "turnTimestampUtc": null
+        },
+        {
+          "turnId": "5c820b6039de4cef8bc03287794c5ca6",
+          "transcript": "ỦA TRỜI ƠI CHỊ ƠI CÁI GÌ CHỊ KHÔNG CẦN GÌ NỮA CHỊ KHÔNG CHỊ VỀ CHỊ THỬ LẠI ĐI CHỊ THỬ ĐI CHỊ THỬ ĐI CHỊ",
+          "customerReply": "Em không tự giải quyết được thì kêu quản lý ra đây gặp chị bắt đền.",
+          "activeObjective": 1,
+          "objectiveActiveDuringTurn": 1,
+          "turnTimestampUtc": "2026-09-17T05:08:38.801867Z"
+        }
+      ],
+      "score": 0,
+      "customerRating": "bad",
+      "criterionScores": {
+        "apologyAndPolicyRemedy": 0,
+        "adaptabilityAndDeescalation": 0
+      },
+      "trustState": "lost",
+      "emotionalHandling": false,
+      "causeIdentification": false,
+      "solutionSuitability": false,
+      "trustRebuilding": false,
+      "completionReason": "manager_escalation",
+      "acceptedTurnCount": 2,
+      "silenceCount": 0,
+      "completedAtUtc": "2026-09-17T05:09:11.8609310Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-23af1f6c41824646b960cd30b4f02692": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T05:07:12.306633Z"
+    },
+    "5186d89c54024b3c9fcef1a726028557:part1:sales-persuasion-23af1f6c41824646b960cd30b4f02692": {
+      "kind": "sales.part1_recording_uploaded",
+      "acceptedAtUtc": "2026-09-17T05:07:12.456745Z"
+    },
+    "sale.part1:sales-persuasion-23af1f6c41824646b960cd30b4f02692:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T05:07:21.725582Z"
+    },
+    "sales.part2.turn_accepted:445c3aa609234cbe9665ceebcd5efc4b:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-17T05:08:10.812843Z"
+    },
+    "sales.part2.turn_accepted:5c820b6039de4cef8bc03287794c5ca6:": {
+      "kind": "sales.part2.turn_accepted",
+      "acceptedAtUtc": "2026-09-17T05:08:48.301423Z"
+    },
+    "sale.part2:78c27538a3e64196a57176f46fe6a804": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-17T05:09:04.910383Z"
+    },
+    "sales.part2.completed:5c820b6039de4cef8bc03287794c5ca6:": {
+      "kind": "sales.part2.completed",
+      "acceptedAtUtc": "2026-09-17T05:09:10.868008Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-17T05:09:10.868035Z",
+  "requiredFields": [
+    "part1",
+    "part2"
+  ],
+  "completionRequested": true
+}

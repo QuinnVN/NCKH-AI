@@ -1,0 +1,41 @@
+{
+  "attemptId": "sales-persuasion-19ac261c0dc140be802e483b99a561e6",
+  "runId": "5e4b13cebd7542e8aa5a6cae0e079379",
+  "salesSessionId": "130a890594e14776b0911a17b1223061",
+  "scenarioId": "sales-part-1-persuasion",
+  "customerId": "Minh",
+  "selectedShoeId": "Aduma Samba",
+  "bestFitShoeId": "Aduma Samba",
+  "customerNeeds": "Chào bạn! Mình muốn tìm một đôi giày để chạy bộ nhẹ khoảng 3 đến 5 cây số mỗi sáng. Mình mới tập nên thích đôi nào êm chân, nhẹ và thoáng một chút.\nMình thường chạy trên đường nhựa, thỉnh thoảng đi bộ nữa. Ngân sách của mình khoảng một triệu rưỡi trở xuống. Bạn chọn giúp mình một đôi phù hợp nhé!",
+  "objection": "Đôi này hợp với nhu cầu của mình, nhưng đôi Nyke Air Max trông cá tính và bắt mắt hơn. Mình sợ Aduma Samba hơi đơn giản.",
+  "availableShoes": [
+    {
+      "shoeId": "Aduma Samba",
+      "name": "Aduma Samba",
+      "price": 1290000,
+      "details": "Chạy bộ đường nhựa\nĐệm êm · Nhẹ · Thoáng\nGiá: 1.290.000 đ"
+    },
+    {
+      "shoeId": "Nyke Air Max",
+      "name": "Nyke Air Max",
+      "price": 1450000,
+      "details": "Bóng rổ trong nhà\nÔm cổ chân · Đế chắc\nGiá: 1.450.000 đ"
+    },
+    {
+      "shoeId": "Columnia Crestwood",
+      "name": "Columnia Crestwood",
+      "price": 1890000,
+      "details": "Chạy địa hình\nĐế bám sâu · Chống nước\nGiá: 1.890.000 đ"
+    }
+  ],
+  "requestHash": "b70a8387ffe3df202e588420378e20ab7f8ffe4571a306b783e9cb8b3bc73b18",
+  "audioFile": "sales-persuasion-sales-persuasion-19ac261c0dc140be802e483b99a561e6.wav",
+  "status": "completed",
+  "assessmentStatus": "completed",
+  "transcript": "ĐÓ",
+  "score": 85,
+  "feedbackVi": "Câu trả lời đã đáp ứng được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng khí. Tuy nhiên, việc chọn Aduma Samba có thể không hoàn toàn phù hợp với sở thích cá tính của khách hàng. Nếu giải thích rõ hơn về ưu điểm của Aduma Samba so với Nyke Air Max, câu trả lời sẽ thuyết phục hơn.",
+  "error": null,
+  "createdAtUtc": "2026-09-17T03:58:48.654030Z",
+  "updatedAtUtc": "2026-09-17T03:58:55.873597Z"
+}

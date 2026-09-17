@@ -1,0 +1,28 @@
+{
+  "runId": "sales-persuasion-05c8bc757619409298066ac8946e2aa7",
+  "participantName": "test",
+  "participantSessionId": "3b2bcbe83d324d898ca0636d99f4580c",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T11:29:38.353005Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-05c8bc757619409298066ac8946e2aa7",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "ĐÔI BA B TUY CÁ TÍNH HƠN NHƯNG MÀ NÓ KHÔNG TRONG BUSINESS CỦA BẠN VÀ NÓ CŨNG KHÔNG MANG LẠI CHO CẢM GIÁC THOẢI MÁI KHI KHI CHẠY BỘ NHƯNG NHU CẦU CỦA BẠN TUY RẰNG VÌ THẾ DO MỘT A NÓ PHÙ HỢP VỚI LẠI CÁI SỞ THÍCH CÁI NHU CẦU CỦA BẠN HƠN VÀ",
+      "score": 70,
+      "feedbackVi": "Câu trả lời đã giải thích lý do chọn 1A phù hợp với nhu cầu chạy bộ đường nhựa, êm chân và nhẹ. Tuy nhiên, việc chỉ trích 3B về tính cá tính không phù hợp với nhu cầu thực tế của khách hàng. Thông tin sản phẩm được trình bày rõ ràng, nhưng cần nhấn mạnh hơn về lợi ích thực tế của 1A so với 3B.",
+      "createdAtUtc": "2026-09-16T11:29:28.995369Z",
+      "updatedAtUtc": "2026-09-16T11:29:38.350465Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-05c8bc757619409298066ac8946e2aa7:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T11:29:38.353047Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T13:48:06.881493Z",
+  "requiredFields": []
+}

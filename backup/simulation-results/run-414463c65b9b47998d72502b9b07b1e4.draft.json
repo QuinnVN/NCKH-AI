@@ -1,0 +1,77 @@
+{
+  "runId": "414463c65b9b47998d72502b9b07b1e4",
+  "participantName": "test",
+  "participantSessionId": "3ab96f02d7da41319c714b91ebaa0f3f",
+  "gameId": "lawyer",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-15T13:42:53.9740720Z",
+  "data": {
+    "caseId": "club-room-fire",
+    "interviewRestartCount": 0,
+    "finalClueSet": [
+      {
+        "evidenceId": "clue-08",
+        "title": "Kiểm tra cửa phòng",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-13",
+        "title": "Camera hành lang 16:12",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-17",
+        "title": "Vật chứng tại hiện trường",
+        "strength": "strong"
+      },
+      {
+        "evidenceId": "clue-24",
+        "title": "Giám định ổ điện",
+        "strength": "strong"
+      }
+    ],
+    "completedEvidenceLinks": [],
+    "transcript": "",
+    "criterionScores": {
+      "evidenceUse": 0,
+      "logicalConnections": 0,
+      "conclusionFidelity": 0,
+      "clarityAndPersuasiveness": 0
+    },
+    "rawScore": 0,
+    "restartPenaltyPercent": 0,
+    "finalScore": 0.0,
+    "feedbackVi": "Không phát hiện lời bào chữa trong bản ghi âm.",
+    "recordingAtUtc": "2026-09-15T13:45:23.487064Z",
+    "assessmentCompletedAtUtc": "2026-09-15T13:45:23.697447Z",
+    "completionStatus": "completed",
+    "lawyer": {
+      "roundId": "b1b5a76a3a7446c79c2620758e8d99c5",
+      "caseId": "club-room-fire",
+      "interviewRestartCount": 0,
+      "transcript": "",
+      "feedbackVi": "",
+      "recordingAtUtc": "",
+      "assessmentCompletedAtUtc": ""
+    }
+  },
+  "fragments": {
+    "lawyer:b1b5a76a3a7446c79c2620758e8d99c5": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-15T13:45:23.506927Z"
+    },
+    "lawyer:b1b5a76a3a7446c79c2620758e8d99c5:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-15T13:45:23.711159Z"
+    },
+    "b1b5a76a3a7446c79c2620758e8d99c5:defense": {
+      "kind": "lawyer.defense_completed",
+      "acceptedAtUtc": "2026-09-15T13:45:23.930638Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-15T14:04:50.590863Z",
+  "requiredFields": [
+    "lawyer"
+  ],
+  "completionRequested": true
+}

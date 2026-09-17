@@ -1,0 +1,41 @@
+{
+  "_id": "8485823a59b8456088435b08af653036",
+  "runId": "8485823a59b8456088435b08af653036",
+  "participantName": "Huỳnh Ngô Thiên Phúc",
+  "participantSessionId": "41f361a200c147039d61b2eef000afc6",
+  "gameId": "doctor",
+  "status": "completed",
+  "startedAtUtc": "2026-09-16T05:43:39.2896480Z",
+  "completedAtUtc": "2026-09-16T05:46:17.574143Z",
+  "data": {
+    "cases": [
+      {
+        "roundId": "07c51f3dcca04575a153cb4f721b5b61",
+        "caseId": "02 - COVID-19",
+        "scoreDelta": 8,
+        "scoreTotal": 8,
+        "patientName": "Trần Hoàng Nam",
+        "selectedQuestionsJson": "{\"items\":[{\"questionId\":\"covid-q1\",\"text\":\"Anh có sốt hoặc khó thở không?\",\"selectionOrder\":1},{\"questionId\":\"covid-q2\",\"text\":\"Gần đây anh có tiếp xúc với ca bệnh không?\",\"selectionOrder\":2},{\"questionId\":\"covid-q3\",\"text\":\"Anh đã làm xét nghiệm chưa?\",\"selectionOrder\":3},{\"questionId\":\"covid-q4\",\"text\":\"Anh có bệnh nền hoặc tiền sử tiêm chủng thế nào?\",\"selectionOrder\":4}]}",
+        "notesJson": "{\"items\":[{\"cardId\":\"covid-time\",\"text\":\"Khởi phát hai ngày trước\",\"isEssential\":true,\"selectedCategory\":\"time\",\"correctCategory\":\"time\",\"isCorrect\":true},{\"cardId\":\"covid-cough\",\"text\":\"Ho và đau họng\",\"isEssential\":true,\"selectedCategory\":\"symptoms\",\"correctCategory\":\"symptoms\",\"isCorrect\":true},{\"cardId\":\"covid-fatigue\",\"text\":\"Mệt mỏi\",\"isEssential\":true,\"selectedCategory\":\"symptoms\",\"correctCategory\":\"symptoms\",\"isCorrect\":true},{\"cardId\":\"covid-smell\",\"text\":\"Giảm khứu giác và vị giác\",\"isEssential\":true,\"selectedCategory\":\"symptoms\",\"correctCategory\":\"symptoms\",\"isCorrect\":true},{\"cardId\":\"covid-fever\",\"text\":\"Sốt nhẹ 38 độ\",\"isEssential\":true,\"selectedCategory\":\"symptoms\",\"correctCategory\":\"symptoms\",\"isCorrect\":true},{\"cardId\":\"covid-breath\",\"text\":\"Hụt hơi khi gắng sức\",\"isEssential\":true,\"selectedCategory\":\"symptoms\",\"correctCategory\":\"symptoms\",\"isCorrect\":true},{\"cardId\":\"covid-contact\",\"text\":\"Tiếp xúc ca COVID-19 bốn ngày trước\",\"isEssential\":true,\"selectedCategory\":\"travelhistory\",\"correctCategory\":\"travelhistory\",\"isCorrect\":true},{\"cardId\":\"covid-test\",\"text\":\"Test nhanh dương tính\",\"isEssential\":true,\"selectedCategory\":\"time\",\"correctCategory\":\"medicalhistory\",\"isCorrect\":false},{\"cardId\":\"covid-hypertension\",\"text\":\"Tiền sử tăng huyết áp\",\"isEssential\":true,\"selectedCategory\":\"medicalhistory\",\"correctCategory\":\"medicalhistory\",\"isCorrect\":true},{\"cardId\":\"covid-vaccine\",\"text\":\"Mũi vắc-xin gần nhất hơn một năm\",\"isEssential\":true,\"selectedCategory\":\"time\",\"correctCategory\":\"medicalhistory\",\"isCorrect\":false}]}",
+        "caseSubmittedAtUtc": "2026-09-16T05:45:43.3678620Z",
+        "correctCount": 8,
+        "incorrectCount": 2,
+        "unassignedCount": 0,
+        "essentialCorrectCount": 8,
+        "essentialIncorrectCount": 2,
+        "essentialUnassignedCount": 0,
+        "categorizationAccuracyPercent": "80",
+        "essentialCategorizationAccuracyPercent": "80",
+        "remainingTime": 35.52186584472656
+      }
+    ],
+    "round": {
+      "roundId": "07c51f3dcca04575a153cb4f721b5b61",
+      "scoreTotal": 8,
+      "roundStartedAtUtc": "2026-09-16T05:43:38.8733250Z",
+      "roundCompletedAtUtc": "2026-09-16T05:46:18.8840270Z",
+      "remainingTime": 0.0
+    },
+    "roundCompletedAtUtc": "2026-09-16T05:46:18.8840270Z"
+  }
+}

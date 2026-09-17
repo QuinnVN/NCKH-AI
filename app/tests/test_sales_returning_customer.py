@@ -21,7 +21,8 @@ from app.sales_returning_customer import (
     TrustAnalysis,
     THINKING_MORE_RESPONSE,
     complete_session,
-    _score_outcome,
+    _count_outcome,
+    _rating_from_assessment,
     submit_turn,
 )
 
@@ -61,6 +62,13 @@ def assessment(**overrides):
         "verificationStep": False, "unauthorizedPromise": False,
         "maintainsUnauthorizedPromise": False, "managerEscalation": False,
         "abuse": False,
+        "polite": True, "condescending": False,
+        "apology": True, "remedy": True,
+        "explanation": False, "correctiveAdvice": False,
+        "reasonableReturnPolicy": False,
+        "beggingWithoutExplanation": False, "apologyOnly": False,
+        "profanityOrInsult": False, "repeatedQuestion": False,
+        "policyViolations": [],
     }
     result.update(overrides)
     return result
@@ -282,7 +290,7 @@ class ReturningCustomerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(item["reasoning_effort"] == "none" for item in service.options))
         self.assertTrue(all(messages[-1]["content"].endswith("/no_think") for messages in service.messages))
         self.assertEqual(result["status"], "accepted")
-        self.assertEqual(result["customerText"], "Em giải thích kỹ hơn về chính sách đổi trả hàng đi.")
+        self.assertEqual(result["customerText"], "Chính sách đổi trả của tiệm là như thế nào? Có cho chị hoàn tiền không?")
 
     async def test_llm_responder_disables_thinking_for_rating_request(self):
         class CapturingService:
@@ -303,7 +311,7 @@ class ReturningCustomerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(service.messages[-1]["content"].endswith("/no_think"))
         self.assertIn("không được tự viết lời thoại", service.messages[0]["content"])
         self.assertIn("biện pháp khắc phục", service.messages[0]["content"])
-        self.assertEqual(result.customer_text, "Em giải thích kỹ hơn về chính sách đổi trả hàng đi.")
+        self.assertEqual(result.customer_text, "Chính sách đổi trả của tiệm là như thế nào? Có cho chị hoàn tiền không?")
 
     async def test_llm_analyzer_disables_reasoning_for_short_structured_response(self):
         class CapturingService:
@@ -406,31 +414,142 @@ class ReturningCustomerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(result["playerResponseRating"], "good")
-        self.assertEqual(result["customerText"], "Em giải thích kỹ hơn về chính sách đổi trả hàng đi.")
+        self.assertEqual(result["customerText"], "Chính sách đổi trả của tiệm là như thế nào? Có cho chị hoàn tiền không?")
 
-    async def test_second_bad_rating_uses_manager_line(self):
+    async def test_second_bad_without_return_policy_requests_policy(self):
         class BadService:
             configured = True
 
             async def generate(self, *args, **kwargs):
-                return draft(playerResponseRating="bad").model_dump_json(by_alias=True)
+                return draft(playerResponseRating="bad", turnAssessment=assessment(apology=False, remedy=False)).model_dump_json(by_alias=True)
 
         responder = LLMSalesResponder(BadService())
         first = await submit_turn("session-1", request("bad-1"), store=self.store, transcriber=FakeTranscriber("Em xin lỗi chị."), responder=responder)
         second = await submit_turn("session-1", request("bad-2"), store=self.store, transcriber=FakeTranscriber("Em chỉ xin lỗi chị."), responder=responder)
 
         self.assertIn(first["customerText"], (
-            "Làm ăn vậy mà coi được á hả? Chị không cần giày mới, trả tiền lại cho chị.",
-            "Chị không cần lời xin lỗi, chị cần lời giải thích về những gì em nói tốt về sản phẩm này trước đây, vì nó có tốt đâu.",
+            "Lần trước em thuyết phục đôi này hợp chị nhất, giờ nó thành ra thế này thì sao chị tin em được nữa?",
+            "Lỡ như giờ em lừa chị tiếp thì sao chị tin hả em?",
         ))
-        self.assertEqual(second["customerText"], "Em không tự giải quyết được thì kêu quản lý ra đây gặp chị bắt đền.")
-        self.assertTrue(second["conversationComplete"])
+        self.assertEqual(second["customerText"], "Tiệm mấy người làm ăn kiểu gì kì cục vậy, nhân viên thì không biết tư vấn. Em trả lời cho chị chính sách đền bù, đừng có dài dòng.")
+        self.assertFalse(second["conversationComplete"])
+
+    def test_rating_rules_reject_apology_only_and_accept_explanation_with_advice(self):
+        apology_only = draft(turnAssessment=assessment(
+            remedy=False,
+            apologyOnly=True,
+        )).turn_assessment
+        explanation_and_advice = draft(turnAssessment=assessment(
+            apology=False,
+            remedy=False,
+            explanation=True,
+            correctiveAdvice=True,
+        )).turn_assessment
+
+        self.assertEqual(_rating_from_assessment(apology_only), "bad")
+        self.assertEqual(_rating_from_assessment(explanation_and_advice), "good")
+
+    def test_repeated_customer_question_is_bad_even_with_a_remedy(self):
+        repeated_question = draft(turnAssessment=assessment(
+            remedy=True,
+            repeatedQuestion=True,
+        )).turn_assessment
+
+        self.assertEqual(_rating_from_assessment(repeated_question), "bad")
+
+    async def test_responder_receives_recent_player_questions_for_repeat_detection(self):
+        class CapturingService:
+            configured = True
+
+            async def generate(self, messages, **kwargs):
+                self.prompt = messages[-1]["content"]
+                return draft().model_dump_json(by_alias=True)
+
+        service = CapturingService()
+        session = dict(self.session, turns=[
+            {"transcript": "Chị thường đi đôi này trong bao lâu?"},
+            {"transcript": "Cỡ giày hiện tại có vừa chân chị không?"},
+        ])
+        await LLMSalesResponder(service).respond(
+            session,
+            "Chị đi đôi này được bao lâu rồi ạ?",
+        )
+
+        self.assertIn("previousPlayerTranscripts", service.prompt)
+        self.assertIn("Chị thường đi đôi này trong bao lâu?", service.prompt)
+
+    async def test_apology_only_flag_cannot_override_a_policy_compliant_remedy(self):
+        class ContradictoryService:
+            configured = True
+
+            async def generate(self, *args, **kwargs):
+                return draft(turnAssessment=assessment(
+                    apology=True,
+                    remedy=True,
+                    reasonableReturnPolicy=True,
+                    apologyOnly=True,
+                )).model_dump_json(by_alias=True)
+
+        result = await LLMSalesResponder(ContradictoryService()).respond(
+            self.session,
+            "Dạ, bên em sẽ hỗ trợ đổi đôi nguyên vẹn sang đôi cùng phân khúc giá. "
+            "Tiệm không hoàn tiền, em xin lỗi và sẽ tư vấn size kỹ cho chị ạ.",
+        )
+
+        self.assertEqual(result.player_response_rating, "good")
+        self.assertIn(result.customer_text, (
+            "Chính sách đổi trả của tiệm là như thế nào? Có cho chị hoàn tiền không?",
+            "Nếu lần tiếp đến cũng như thế thì em giải quyết thế nào?",
+            "Tư vấn cho chị vài mẫu mã khác đi. Tư vấn đàng hoàng đấy nhé.",
+            "Chị có được nhận voucher đền bù hay giảm giá mua tiếp theo không em?",
+        ))
+
+    async def test_abusive_turn_uses_warning_reply_and_records_violation(self):
+        class AbusiveService:
+            configured = True
+
+            async def generate(self, *args, **kwargs):
+                return draft(turnAssessment=assessment(
+                    apology=False,
+                    remedy=False,
+                    polite=False,
+                    abuse=True,
+                    profanityOrInsult=True,
+                )).model_dump_json(by_alias=True)
+
+        result = await submit_turn(
+            "session-1", request(), store=self.store,
+            transcriber=FakeTranscriber("Khách gì mà phiền quá."),
+            responder=LLMSalesResponder(AbusiveService()),
+        )
+        session = await self.store.get("session-1")
+
+        self.assertEqual(result["playerResponseRating"], "bad")
+        self.assertEqual(result["customerText"], "Nhân viên nói chuyện kiểu đó với khách hàng đấy hả? Có tin tôi đánh giá xấu không?")
+        self.assertFalse(result["conversationComplete"])
+        self.assertIsNone(result["deterministicEnding"])
+        self.assertEqual(session["status"], "active")
+        self.assertEqual(session["policyViolations"], [
+            {"turnId": "turn-1", "code": "abusive_language"},
+        ])
 
     async def test_duplicate_turn_is_idempotent(self):
         first = await submit_turn("session-1", request(), store=self.store, transcriber=FakeTranscriber("Xin lỗi chị."), responder=FakeResponder())
         second = await submit_turn("session-1", request(), store=self.store, transcriber=FakeTranscriber("Khác."), responder=FakeResponder())
         self.assertEqual(first, second)
         self.assertEqual((await self.store.get("session-1"))["acceptedTurnCount"], 1)
+
+    async def test_fourth_accepted_turn_requests_completion(self):
+        for index in range(4):
+            result = await submit_turn(
+                "session-1", request(f"turn-{index + 1}"), store=self.store,
+                transcriber=FakeTranscriber("Em cần hỏi thêm."), responder=FakeResponder(),
+            )
+            self.assertEqual(result["status"], "accepted")
+
+        session = await self.store.get("session-1")
+        self.assertEqual(session["acceptedTurnCount"], 4)
+        self.assertEqual(session["status"], "awaitingCompletion")
 
     async def test_silence_does_not_consume_accepted_turn(self):
         result = await submit_turn("session-1", request(amplitude=0), store=self.store, transcriber=FakeTranscriber("never"), responder=FakeResponder())
@@ -452,9 +571,17 @@ class ReturningCustomerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["customerRating"], "considering")
         self.assertEqual(result["criterionScores"], {"apologyAndPolicyRemedy": 35, "adaptabilityAndDeescalation": 20})
 
-    async def test_deterministic_failure_caps_score_at_bad_rating(self):
+    async def test_policy_violations_each_deduct_ten_points(self):
         session = await self.store.get("session-1")
-        session.update({"status": "finished", "trustState": "lost"})
+        session.update({
+            "status": "finished",
+            "goodResponseCount": 0,
+            "badResponseCount": 1,
+            "policyViolations": [
+                {"turnId": "turn-1", "code": "unauthorized_refund"},
+                {"turnId": "turn-1", "code": "unauthorized_discount"},
+            ],
+        })
         await self.store.save(session)
 
         class OvergenerousAnalyzer:
@@ -463,17 +590,36 @@ class ReturningCustomerTests(unittest.IsolatedAsyncioTestCase):
 
         result = await complete_session("session-1", type("Req", (), {"completion_id": "failed-ending", "reason": "natural"})(), store=self.store, analyzer=OvergenerousAnalyzer())
 
-        self.assertEqual(result["score"], 30)
+        self.assertEqual(result["rawScore"], 100)
+        self.assertEqual(result["policyViolationPenalty"], 20)
+        self.assertEqual(result["score"], 80)
         self.assertEqual(result["customerRating"], "bad")
-        self.assertEqual(sum(result["criterionScores"].values()), 30)
+        self.assertEqual(result["trustState"], "lost")
+        self.assertEqual(len(result["policyViolations"]), 2)
 
-    def test_score_boundaries_map_to_customer_rating(self):
-        self.assertEqual(_score_outcome(0), ("bad", "lost"))
-        self.assertEqual(_score_outcome(30), ("bad", "lost"))
-        self.assertEqual(_score_outcome(31), ("considering", "partially_restored"))
-        self.assertEqual(_score_outcome(60), ("considering", "partially_restored"))
-        self.assertEqual(_score_outcome(61), ("good", "restored"))
-        self.assertEqual(_score_outcome(100), ("good", "restored"))
+    async def test_good_majority_controls_trust_state_and_final_customer_line(self):
+        session = await self.store.get("session-1")
+        session.update({"goodResponseCount": 3, "badResponseCount": 1})
+        await self.store.save(session)
+
+        result = await complete_session(
+            "session-1",
+            type("Req", (), {"completion_id": "good-ending", "reason": "time_limit"})(),
+            store=self.store,
+            analyzer=FakeAnalyzer(),
+        )
+
+        self.assertEqual(result["trustState"], "restored")
+        self.assertEqual(result["customerRating"], "good")
+        self.assertIn(result["finalCustomerText"], (
+            "Được, lần sau chị vẫn sẽ đến.",
+            "Ok, chị sẽ về suy nghĩ thêm về việc mua tiếp.",
+        ))
+
+    def test_good_bad_counts_map_to_customer_rating(self):
+        self.assertEqual(_count_outcome(2, 1), ("good", "restored"))
+        self.assertEqual(_count_outcome(1, 2), ("bad", "lost"))
+        self.assertEqual(_count_outcome(2, 2), ("considering", "partially_restored"))
 
     async def test_later_phase_guess_cannot_advance_without_disclosed_investigation(self):
         class GuessingResponder:

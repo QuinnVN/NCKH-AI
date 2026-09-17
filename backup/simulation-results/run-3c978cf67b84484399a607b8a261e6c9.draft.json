@@ -1,0 +1,32 @@
+{
+  "runId": "3c978cf67b84484399a607b8a261e6c9",
+  "participantName": "test",
+  "participantSessionId": "6f0f7e63ffd840a0a09f8a97bf0a3c7a",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T19:51:41.966365Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-05a14644a2414fd5a69d3abfedeb5a65",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "TUY RẰNG ĐÔI BA B TRONG CÁ TÍNH VÀ BẮT PHÁT HƠN NHƯNG ĐÔI BA B KHIẾN CHO BẠN ĐI BỘ MỘT CÁCH ĐAU ĐỚN HƠN",
+      "score": 75,
+      "feedbackVi": "Câu trả lời đã nhận diện được nhu cầu của khách hàng về giày chạy bộ nhẹ, êm chân và thoáng. Tuy nhiên, việc chọn 1A thay vì 3B không phù hợp với phản đối của khách hàng về tính cá tính của 3B. Thông tin sản phẩm về 1A cũng không rõ ràng về tính năng phù hợp với nhu cầu chạy bộ trên đường nhựa. Cần giải thích rõ hơn về lý do chọn 1A và nhấn mạnh ưu điểm phù hợp với nhu cầu của khách hàng.",
+      "createdAtUtc": "2026-09-16T19:51:41.960543Z",
+      "updatedAtUtc": "2026-09-16T19:51:53.103422Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-05a14644a2414fd5a69d3abfedeb5a65": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T19:51:41.966409Z"
+    },
+    "sale.part1:sales-persuasion-05a14644a2414fd5a69d3abfedeb5a65:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T19:51:53.113543Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T19:58:08.423536Z",
+  "requiredFields": []
+}

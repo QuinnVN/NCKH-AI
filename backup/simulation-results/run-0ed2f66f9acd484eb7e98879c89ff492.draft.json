@@ -1,0 +1,32 @@
+{
+  "runId": "0ed2f66f9acd484eb7e98879c89ff492",
+  "participantName": "test",
+  "participantSessionId": "8e4c36efe8bc45e18114e3fa7a5838e4",
+  "gameId": "sale",
+  "status": "aborted",
+  "startedAtUtc": "2026-09-16T16:31:45.678987Z",
+  "data": {
+    "part1": {
+      "attemptId": "sales-persuasion-bbfc2dc1ba0045ac96c1e6011dd820d6",
+      "selectedShoeId": "1A",
+      "bestFitShoeId": "1A",
+      "transcript": "MẤY THẰNG NÀY GẶP MÀ MẤY THẰNG ĐÂY THÂN VỚI MÀY LUÔN Ê NÓI CHUNG LÀ MUA ĐÔI MỘT A ĐI NHA MỘT A ĐI ĐỪNG CÓ MUA ĐÔI BA B",
+      "score": 85,
+      "feedbackVi": "Câu trả lời phù hợp với nhu cầu của khách hàng, tập trung vào tính êm chân, nhẹ và thoáng. Đã giải quyết phản đối về sự cá tính của 3B bằng cách nhấn mạnh ưu điểm của 1A. Thông tin sản phẩm được trình bày rõ ràng và chính xác.",
+      "createdAtUtc": "2026-09-16T16:31:45.675168Z",
+      "updatedAtUtc": "2026-09-16T16:31:52.922800Z"
+    }
+  },
+  "fragments": {
+    "sale.part1:sales-persuasion-bbfc2dc1ba0045ac96c1e6011dd820d6": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T16:31:45.679026Z"
+    },
+    "sale.part1:sales-persuasion-bbfc2dc1ba0045ac96c1e6011dd820d6:completed": {
+      "kind": "result",
+      "acceptedAtUtc": "2026-09-16T16:31:52.929819Z"
+    }
+  },
+  "updatedAtUtc": "2026-09-16T16:52:30.465934Z",
+  "requiredFields": []
+}
