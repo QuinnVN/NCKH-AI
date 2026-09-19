@@ -30,6 +30,9 @@ class FakeProcess:
     async def wait(self) -> int:
         return self.returncode if self.returncode is not None else 0
 
+    def poll(self) -> int | None:
+        return self.returncode
+
 
 class AICommandParserTests(unittest.TestCase):
     def test_defaults_target_to_all(self):
@@ -138,6 +141,28 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.manager._processes, {})
         if os.name == "nt":
             self.assertEqual(llama_process.signals, [signal.CTRL_BREAK_EVENT])
+
+    async def test_detached_start_uses_popen_and_is_not_owned_by_event_loop(self):
+        llama_process = FakeProcess(301)
+
+        with (
+            patch.object(
+                self.manager,
+                "_port_is_available",
+                side_effect=[True, False],
+            ),
+            patch("app.ai_servers.subprocess.Popen", return_value=llama_process) as popen,
+        ):
+            started = await self.manager.start_detached("llama")
+
+        self.assertEqual(started, ("llama",))
+        self.assertEqual(self.manager._processes, {})
+        call = popen.call_args
+        self.assertEqual(call.args[0][:2], (str(self.llama), "serve"))
+        if os.name == "nt":
+            flags = call.kwargs["creationflags"]
+            self.assertTrue(flags & subprocess.CREATE_NEW_CONSOLE)
+            self.assertTrue(flags & subprocess.CREATE_NEW_PROCESS_GROUP)
 
     async def test_launch_failure_leaves_no_owned_process(self):
         process_factory = AsyncMock(side_effect=OSError("cannot create llama process"))

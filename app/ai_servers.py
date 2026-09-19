@@ -10,7 +10,7 @@ import shutil
 import signal
 import socket
 import subprocess
-from typing import Literal, Mapping
+from typing import Any, Literal, Mapping
 
 from app.config import BACKEND_ROOT
 
@@ -298,6 +298,58 @@ class AIServerManager:
         if failures:
             raise AIServerError("Start failed:\n" + "\n".join(failures))
         return tuple(started)
+
+    async def start_detached(
+        self, target: AIServerTarget = "all"
+    ) -> tuple[AIServerName, ...]:
+        """Start servers that must outlive the caller's asyncio event loop."""
+
+        names = self._names(target)
+        specs = self._preflight(names)
+        started: list[AIServerName] = []
+        processes: list[tuple[AIServerName, subprocess.Popen[bytes]]] = []
+        try:
+            for name in names:
+                spec = specs[name]
+                options: dict[str, Any] = {
+                    "cwd": str(self._root),
+                    "stdin": subprocess.DEVNULL,
+                }
+                if os.name == "nt":
+                    options["creationflags"] = self._creation_flags()
+                else:
+                    options["start_new_session"] = True
+                process = subprocess.Popen(spec.command, **options)
+                processes.append((name, process))
+                started.append(name)
+
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + self._startup_timeout
+            pending = {name for name, _ in processes}
+            while pending and loop.time() < deadline:
+                for name, process in processes:
+                    if name not in pending:
+                        continue
+                    if process.poll() is not None:
+                        raise AIServerError(
+                            f"{name} exited during startup with code {process.returncode}."
+                        )
+                    spec = specs[name]
+                    if not self._port_is_available(spec.host, spec.port):
+                        pending.remove(name)
+                if pending:
+                    await asyncio.sleep(0.25)
+            if pending:
+                names_text = ", ".join(sorted(pending))
+                raise AIServerError(
+                    f"Detached server startup timed out for: {names_text}."
+                )
+            return tuple(started)
+        except BaseException:
+            for _, process in processes:
+                if process.poll() is None:
+                    process.terminate()
+            raise
 
     async def _request_stop(self, process: asyncio.subprocess.Process) -> None:
         if process.returncode is not None:

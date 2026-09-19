@@ -599,7 +599,16 @@ class RunResultStore:
             if part2.get("customerRating") not in valid_ratings or not isinstance(criterion_scores, Mapping):
                 return False
             criterion_values = (criterion_scores.get("apologyAndPolicyRemedy"), criterion_scores.get("adaptabilityAndDeescalation"))
-            if any(not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 50 for value in criterion_values) or sum(criterion_values) != score:
+            if any(not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 50 for value in criterion_values):
+                return False
+            criterion_total = sum(criterion_values)
+            raw_score = part2.get("rawScore", criterion_total)
+            penalty = part2.get("policyViolationPenalty", 0)
+            if not isinstance(raw_score, int) or isinstance(raw_score, bool) or raw_score != criterion_total:
+                return False
+            if not isinstance(penalty, int) or isinstance(penalty, bool) or not 0 <= penalty <= raw_score:
+                return False
+            if raw_score - penalty != score:
                 return False
             turns = data.get("turns", [])
             if not isinstance(turns, list):
