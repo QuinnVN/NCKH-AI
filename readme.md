@@ -185,6 +185,10 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `MONGODB_URI` | unset | Optional MongoDB URI; unset keeps results local-only. |
 | `MONGODB_DATABASE` | `desmap` | MongoDB database for completed aggregates. |
 | `MONGODB_RESULTS_COLLECTION` | `game_results` | MongoDB collection for completed aggregates. |
+| `FINAL_EVALUATION_LLM_MODEL` | `qwen3-8b` | Qwen3 8B alias used only by the final-evaluation CLI. Other backend tasks keep `LLM_MODEL`. |
+| `FINAL_EVALUATION_MAX_PROMPT_CHARS` | `16000` | Maximum system prompt plus facts for one generated text field. |
+| `FINAL_EVALUATION_MAX_TOKENS` | `512` | Completion limit for one generated text field, bounded to 128–2,048. |
+| `FINAL_EVALUATION_LLM_START_TIMEOUT_SECONDS` | `900` | Time the CLI waits for an automatically started Qwen3 8B server, bounded to 30–3,600 seconds. |
 | `LAWYER_DIAGNOSTIC_TOKEN` | unset | Token required by the detailed Lawyer diagnostic result endpoint. |
 | `LLAMA_SERVER_BIN` | `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe` | Unified llama.cpp executable used by the operator console. The manager invokes its `serve` subcommand. |
 | `AI_SERVER_START_TIMEOUT_SECONDS` | `180` | Time allowed for each managed server to open its local port. |
@@ -216,6 +220,26 @@ For the interactive console (including `set_game`, `reset`, `test_llm`, and the 
 ```powershell
 py -m app.main
 ```
+
+### Generate a final career evaluation
+
+Run the interactive CLI:
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\generate_final_evaluation.py
+```
+
+If `qwen3-8b` is not available at `LLM_BASE_URL`, the CLI opens `run-qwen3-8b.ps1` in another PowerShell window and waits for the alias to appear at `/v1/models`. It does not start a second process when the requested model is already ready. If another model occupies the configured port, stop that server before retrying. Use `--no-start-llm` to disable automatic startup.
+
+You can still start the model manually:
+
+```powershell
+.\scripts\run-qwen3-8b.ps1
+```
+
+The CLI reads participant names from `questionnaire_submissions`, asks the operator to choose one, loads that participant's latest questionnaire and completed `game_results`, and upserts the result into `final_evaluations`. Use `--participant "Nguyễn Văn An"` to skip the menu or `--dry-run` to print the assembled result without writing MongoDB.
+
+Python calculates the 28 dimension levels, DESMAP group scores, rubric-based VR scores, behavioural alignment, comparison kinds, career ranking, and compatibility percentages. Qwen receives one bounded field-writing request at a time. It writes prose only and never returns the final JSON. The backend assembles and validates the `FinalAssessment` contract before the MongoDB write. The writing rules are in `prompts/final_evaluation_system.txt`.
 
 Use `test <text>` to send one typed player response through the Sales Part 2
 LLM responder. It bypasses speech recognition and does not create or alter a

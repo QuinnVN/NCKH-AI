@@ -579,25 +579,3 @@ Và **phần nhận xét chung của 6 chữ nên khác nhau một chút**, ch�
 ### **P — Pressure**
 
 > Kết quả cho thấy xu hướng phản ứng của bạn khi phải làm việc trong điều kiện có áp lực, thời gian hạn chế hoặc nhiều yêu cầu cùng lúc. Bạn có xu hướng **\[mô tả phản ứng chính\]**, trong khi **\[yếu tố khác\]** có thể xuất hiện khi áp lực tăng. Phần này không đánh giá khả năng chịu đựng của bạn là tốt hay xấu, mà giúp nhận diện điều kiện nào có thể ảnh hưởng đến cách bạn làm việc.
-
-Em nghĩ **UI đẹp nhất** sẽ là:
-
-**E — EXPERTISE**  
- `76 / 100 — Khá nổi bật`
-
-> *Bạn có xu hướng xử lý nhiệm vụ tốt nhất khi được phân tích thông tin, giải quyết vấn đề và tổ chức nguồn lực.*
-
-**Nổi bật nhất:**  
- `Complex Problem Solving 88%` · `Basic Skills 81%` · `Resource Management 72%`
-
-**Tóm lại:**  
- Bạn thiên về việc hiểu vấn đề trước khi hành động và có xu hướng tìm cách xử lý có cấu trúc. Những nhiệm vụ cần phân tích và đưa ra hướng giải quyết có thể là nơi bạn dễ phát huy hơn.
-
-**↓ Phân tích chi tiết 6 nhóm năng lực**
-
-Tức là thứ tự toàn bộ mỗi chữ sẽ là:
-
-**Tên chữ → Điểm/mức tổng quan → 1 đoạn nhận xét chung → 2–3 yếu tố nổi bật → 1 câu “Tóm lại” → Phân tích chi tiết từng subscale.**
-
-Cái này sẽ làm kết quả DESMAP đỡ cảm giác **“ném thẳng cho người dùng 30 cái chỉ số”**, mà giống một hồ sơ tâm lý–nghề nghiệp có hierarchy hơn.
-
