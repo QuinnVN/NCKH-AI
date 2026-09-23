@@ -8,8 +8,8 @@ param(
     [int]$ContextSize = 32768,
     [ValidateRange(1, 8)]
     [int]$ParallelSlots = 1,
-    [ValidateRange(0, 999)]
-    [int]$GpuLayers = 99,
+    [ValidateRange(-1, 999)]
+    [int]$GpuLayers = -1,
     [string]$ModelSource = "Qwen/Qwen3-8B-GGUF:Q4_K_M",
     [string]$Alias = "qwen3-8b"
 )
@@ -20,9 +20,17 @@ if ([string]::IsNullOrWhiteSpace($LlamaServerCommand)) {
     throw "LlamaServerCommand cannot be empty."
 }
 
+if (-not $PSBoundParameters.ContainsKey("LlamaServerCommand")) {
+    if (-not [string]::IsNullOrWhiteSpace($env:LLAMA_SERVER_BIN)) {
+        $LlamaServerCommand = $env:LLAMA_SERVER_BIN
+    } elseif (-not (Get-Command $LlamaServerCommand -ErrorAction SilentlyContinue) -and $env:LOCALAPPDATA) {
+        $LlamaServerCommand = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\llama.exe"
+    }
+}
+
 $serverCommand = Get-Command $LlamaServerCommand -ErrorAction SilentlyContinue
 if ($null -eq $serverCommand) {
-    throw "The '$LlamaServerCommand' command was not found on PATH."
+    throw "The llama executable '$LlamaServerCommand' was not found. Set LLAMA_SERVER_BIN or pass -LlamaServerCommand."
 }
 
 $serverArguments = @(
@@ -36,9 +44,11 @@ $serverArguments = @(
     "--reasoning", "auto",
     "--reasoning-format", "deepseek",
     "--reasoning-budget", "2048",
-    "--no-context-shift",
-    "-ngl", $GpuLayers
+    "--no-context-shift"
 )
+if ($GpuLayers -ge 0) {
+    $serverArguments += @("-ngl", $GpuLayers)
+}
 
 Write-Host "Starting Qwen3-8B as '$Alias' on http://${BindAddress}:$Port"
 Write-Host "The first run may download the selected GGUF from Hugging Face."

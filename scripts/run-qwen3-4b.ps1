@@ -20,9 +20,17 @@ if ([string]::IsNullOrWhiteSpace($LlamaServerCommand)) {
     throw "LlamaServerCommand cannot be empty."
 }
 
+if (-not $PSBoundParameters.ContainsKey("LlamaServerCommand")) {
+    if (-not [string]::IsNullOrWhiteSpace($env:LLAMA_SERVER_BIN)) {
+        $LlamaServerCommand = $env:LLAMA_SERVER_BIN
+    } elseif (-not (Get-Command $LlamaServerCommand -ErrorAction SilentlyContinue) -and $env:LOCALAPPDATA) {
+        $LlamaServerCommand = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\llama.exe"
+    }
+}
+
 $serverCommand = Get-Command $LlamaServerCommand -ErrorAction SilentlyContinue
 if ($null -eq $serverCommand) {
-    throw "The '$LlamaServerCommand' command was not found on PATH."
+    throw "The llama executable '$LlamaServerCommand' was not found. Set LLAMA_SERVER_BIN or pass -LlamaServerCommand."
 }
 
 $serverArguments = @(
@@ -42,5 +50,9 @@ $serverArguments = @(
 
 Write-Host "Starting Qwen3-4B as '$Alias' on http://${BindAddress}:$Port"
 Write-Host "The first run may download the selected GGUF from Hugging Face."
-& $serverCommand.Source @serverArguments
+$invocationArguments = $serverArguments
+if ([System.IO.Path]::GetFileNameWithoutExtension($serverCommand.Source) -eq "llama") {
+    $invocationArguments = @("serve") + $serverArguments
+}
+& $serverCommand.Source @invocationArguments
 exit $LASTEXITCODE
