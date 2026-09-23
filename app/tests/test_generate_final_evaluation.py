@@ -72,18 +72,16 @@ class CalculationTests(unittest.TestCase):
         self.assertEqual(len(summary.weighted_results), 3)
         self.assertEqual(summary.weighted_results[0]["runCount"], 2)
         self.assertEqual(summary.behaviours["decision-making"].score, 63)
-        self.assertGreaterEqual(len(summary.findings), 3)
-        self.assertEqual({item.kind for item in summary.findings}, {"confirmed", "emerging", "development"})
+        self.assertGreaterEqual(len(summary.findings), 2)
+        self.assertTrue({"confirmed", "emerging"}.issubset({item.kind for item in summary.findings}))
         self.assertEqual(len({item.behaviour_code for item in summary.findings}), len(summary.findings))
         self.assertTrue(all("(" not in item.title for item in summary.findings))
-        self.assertIn("development", {item.kind for item in summary.findings})
         self.assertTrue(any(item.kind in {"confirmed", "emerging"} for item in summary.findings))
 
-    def test_single_good_game_still_has_an_evidence_based_development_item(self):
+    def test_single_good_game_does_not_force_a_development_item(self):
         summary = combine_game_results([lawyer_game()], extract_dimensions(questionnaire()))
         kinds = {item.kind for item in summary.findings}
-        self.assertIn("development", kinds)
-        self.assertTrue(kinds & {"confirmed", "emerging"})
+        self.assertEqual(kinds, {"confirmed", "emerging"})
 
     def test_all_zero_vr_uses_relative_cards_without_claiming_absolute_strength(self):
         game = lawyer_game()
@@ -97,16 +95,17 @@ class CalculationTests(unittest.TestCase):
         self.assertIn("0/100", next(item for item in summary.findings if item.kind == "confirmed").vr_fact)
         self.assertIn("VR hiện chưa xác nhận", next(item for item in summary.findings if item.kind == "emerging").questionnaire_fact)
 
-    def test_two_observed_clinic_behaviours_still_produce_three_distinct_cards(self):
+    def test_two_observed_clinic_behaviours_produce_two_distinct_cards(self):
         clinic = {"gameId": "clinic", "data": {"patientResults": [
             {"scoreDelta": 1}, {"scoreDelta": -1},
         ]}}
         summary = combine_game_results([clinic], extract_dimensions(questionnaire()))
-        self.assertEqual(len(summary.findings), 3)
-        self.assertEqual(len({item.id for item in summary.findings}), 3)
+        self.assertEqual(len(summary.findings), 2)
+        self.assertEqual(len({item.id for item in summary.findings}), 2)
         self.assertEqual({item.kind for item in summary.findings},
-                         {"confirmed", "emerging", "development"})
+                         {"confirmed", "emerging"})
         self.assertTrue(all("(" not in item.title for item in summary.findings))
+        self.assertTrue(all("scoreDelta" not in item.vr_fact for item in summary.findings))
 
     def test_code_calculates_dimensions_and_weighted_behaviours(self):
         dimensions = extract_dimensions(questionnaire())
@@ -298,8 +297,10 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result.career_suggestions), 7)
         self.assertTrue(all(item.compatibility_percent == 82 for item in result.career_suggestions))
         self.assertEqual(result.behaviour_comparison.experience_name, "Luật sư, Bác sĩ")
-        self.assertGreaterEqual(len(result.behaviour_comparison.findings), 3)
-        self.assertEqual({item.kind for item in result.behaviour_comparison.findings}, {"confirmed", "emerging", "development"})
+        self.assertGreaterEqual(len(result.behaviour_comparison.findings), 2)
+        self.assertTrue({"confirmed", "emerging"}.issubset(
+            {item.kind for item in result.behaviour_comparison.findings}
+        ))
         self.assertTrue(all("(" not in item.title for item in result.behaviour_comparison.findings))
         self.assertTrue(all(item.icon == "analysis" for item in result.behaviour_comparison.findings))
         self.assertTrue(all(
@@ -337,6 +338,18 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
                 remedy_prompts[1]["facts"]["previousRemedies"],
                 [first_remedy],
             )
+        challenge_prompt = next(
+            json.loads(call.args[0][1]["content"].split("\n/no_think")[0])
+            for call in service.generate.await_args_list
+            if json.loads(call.args[0][1]["content"].split("\n/no_think")[0])["field"]
+            == "finalEvaluation.challenge"
+        )
+        has_development = any(
+            item.kind == "development" for item in result.behaviour_comparison.findings
+        )
+        self.assertEqual(challenge_prompt["facts"]["developmentFinding"] is not None,
+                         has_development)
+        self.assertIn("không gọi điểm thấp nhất là điểm yếu", challenge_prompt["instruction"])
         score_prompts = [
             json.loads(call.args[0][1]["content"].split("\n/no_think")[0])
             for call in service.generate.await_args_list

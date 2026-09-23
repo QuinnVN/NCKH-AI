@@ -52,6 +52,13 @@ class FinalEvaluationContractTests(unittest.TestCase):
         self.assertEqual(len(result.dimension_levels), 28)
         self.assertIsNone(result.behaviour_comparison.findings[0].remedy)
 
+    def test_contract_accepts_no_development_finding(self):
+        answer = valid_answer()
+        answer["behaviourComparison"]["findings"] = answer["behaviourComparison"]["findings"][:2]
+        result = FinalAssessment.model_validate(answer)
+        self.assertEqual({item.kind for item in result.behaviour_comparison.findings},
+                         {"confirmed", "emerging"})
+
     def test_finding_remedy_is_separate_from_summary(self):
         answer = valid_answer()
         finding = answer["behaviourComparison"]["findings"][2]
@@ -103,6 +110,7 @@ class FinalEvaluationContractTests(unittest.TestCase):
         self.assertIn('"field":"finalEvaluation.headline"', messages[1]["content"])
         self.assertTrue(messages[1]["content"].endswith("/no_think"))
         self.assertIn("Không trả JSON", messages[0]["content"])
+        self.assertIn("Không đưa nguyên văn các chuỗi như `scoreDelta`", messages[0]["content"])
 
     def test_text_parser_rejects_json_and_insufficient_evidence(self):
         self.assertEqual(parse_text_field("Một nhận xét cụ thể.", max_characters=100), "Một nhận xét cụ thể.")

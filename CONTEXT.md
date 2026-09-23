@@ -36,6 +36,18 @@ _Avoid_: Success probability, confidence score
 A playable VR experience related to an occupation. Simulation availability does not limit which careers may be suggested.
 _Avoid_: Career, job
 
+**Confirmed finding**:
+A relatively well-supported behaviour in the participant's questionnaire and VR results, without implying an absolute strength.
+_Avoid_: Guaranteed strength, universally good behaviour
+
+**Emerging finding**:
+A potential skill suggested by one or both sources that still needs exploration or confirmation in another setting.
+_Avoid_: Proven strength, hidden talent
+
+**Development finding**:
+An optional skill area supported by evidence of low VR performance or a meaningful gap with self-assessment. A profile can have no development findings.
+_Avoid_: Required weakness, bad behaviour
+
 ## Sales training
 
 **Sales simulation**:

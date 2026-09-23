@@ -288,8 +288,8 @@ def calculate_behaviours(game: Mapping[str, Any], dimensions: Mapping[str, Dimen
         deltas = [item.get("scoreDelta") for item in patients if isinstance(item, Mapping) and isinstance(item.get("scoreDelta"), (int, float))]
         if deltas:
             positive = round(sum(1 for value in deltas if value > 0) / len(deltas) * 100)
-            scores = {"decision-making": (positive, "tỷ lệ lượt xử lý bệnh nhân có scoreDelta dương"),
-                      "problem-solving": (positive, "tỷ lệ lượt xử lý bệnh nhân có scoreDelta dương")}
+            scores = {"decision-making": (positive, "tỷ lệ lượt xử lý bệnh nhân có điểm tăng"),
+                      "problem-solving": (positive, "tỷ lệ lượt xử lý bệnh nhân có điểm tăng")}
     result = {}
     for code, (score, evidence) in scores.items():
         self_values = [dimensions[item].score for item in BEHAVIOUR_DIMENSIONS[code] if item in dimensions]
@@ -329,7 +329,7 @@ def build_findings(behaviours: Mapping[str, BehaviourFact]) -> list[FindingPlan]
     plans = []
     for item in sorted(behaviours.values(), key=lambda value: abs(value.score - value.self_score), reverse=True):
         kind = (
-            "development" if item.score < 70 or item.self_score - item.score >= 15
+            "development" if item.score < 50 or (item.score < 70 and item.self_score - item.score >= 20)
             else "emerging" if item.self_score < 61 or item.score - item.self_score >= 10
             else "confirmed" if item.self_score >= 61
             else "emerging"
@@ -408,7 +408,7 @@ def combine_game_results(
 
 
 def select_balanced_findings(candidates: list[FindingPlan]) -> list[FindingPlan]:
-    """Choose three distinct perspectives, then add other observed factors."""
+    """Require confirmed and emerging perspectives; include only evidenced gaps."""
     if not candidates:
         raise ValueError("Không có bằng chứng hành vi VR để đối chiếu.")
     selected: list[FindingPlan] = []
@@ -431,8 +431,8 @@ def select_balanced_findings(candidates: list[FindingPlan]) -> list[FindingPlan]
             key=lambda item: (item.score, -(item.self_score - item.score)),
         ),
     }
-    for kind in ("confirmed", "emerging", "development"):
-        ranked = rankings[kind]
+    for kind in ("confirmed", "emerging"):
+        ranked = [item for item in rankings[kind] if item.kind == kind] or rankings[kind]
         source = next(
             (item for item in ranked if item.behaviour_code not in used_behaviours),
             next((item for item in ranked if item.id not in used_ids), ranked[0]),
@@ -448,20 +448,30 @@ def select_balanced_findings(candidates: list[FindingPlan]) -> list[FindingPlan]
         elif kind == "emerging":
             if source.score > source.self_score:
                 vr_fact += " Hành vi VR thể hiện rõ hơn mức tự đánh giá liên quan."
+            elif source.kind == "confirmed" and source.score >= 70:
+                questionnaire_fact += (
+                    " Cả hai nguồn đều cho thấy xu hướng tích cực; có thể thử kỹ năng này ở bối cảnh khác."
+                )
             else:
                 questionnaire_fact += (
                     " Đây là tiềm năng từ tự đánh giá; hành vi VR hiện chưa xác nhận mức đó."
                 )
-        else:
-            vr_fact += (
-                " Đây là yếu tố nên luyện hoặc kiểm chứng thêm trong nhiệm vụ khó hơn."
-            )
         selected.append(replace(
             source, id=finding_id, kind=kind, title=title,
             questionnaire_fact=questionnaire_fact, vr_fact=vr_fact,
         ))
         used_ids.add(finding_id)
         used_behaviours.add(source.behaviour_code)
+
+    development = next(
+        (item for item in rankings["development"]
+         if item.kind == "development" and item.behaviour_code not in used_behaviours),
+        None,
+    )
+    if development is not None:
+        selected.append(development)
+        used_ids.add(development.id)
+        used_behaviours.add(development.behaviour_code)
 
     for item in sorted(candidates, key=lambda fact: abs(fact.score - fact.self_score), reverse=True):
         if item.behaviour_code not in used_behaviours and len(selected) < 6:
