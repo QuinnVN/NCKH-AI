@@ -120,10 +120,10 @@ Mỗi phần tử trong `findings` cần có:
 Ý nghĩa `kind`:
 
 - `confirmed`: yếu tố có mức khớp hoặc mức thể hiện rõ nhất tương đối giữa các hành vi được chấm. Điểm thấp vẫn phải được mô tả đúng mức, không gọi là điểm mạnh tuyệt đối.
-- `emerging`: tiềm năng nổi bật hơn ở bảng hỏi hoặc VR. Nếu chỉ có ở bảng hỏi, phải nói rõ VR chưa xác nhận.
+- `emerging`: tiềm năng cần thử thêm, nổi bật ở một nguồn hoặc được hai nguồn cùng gợi ý nhưng chưa thử ở bối cảnh khác. Nếu chỉ có ở bảng hỏi, phải nói rõ VR chưa xác nhận.
 - `development`: yếu tố nên luyện hoặc kiểm chứng thêm dựa trên chênh lệch giữa hai nguồn hay mức thể hiện tương đối trong VR.
 
-Kết quả hoàn chỉnh có ít nhất ba thẻ, gồm ít nhất một thẻ cho mỗi loại `confirmed`, `emerging`, `development`; có thể thêm thẻ khi còn bằng chứng khác. Ba thẻ đầu dùng mức thể hiện tương đối và tiềm năng của chính hồ sơ để tránh gắn nhãn một chiều. `title` chỉ là tên hành vi hoặc năng lực, không nối tên nghề trong ngoặc. Gộp bằng chứng từ nhiều nhiệm vụ VR để chọn yếu tố tiêu biểu cho từng loại.
+Kết quả hoàn chỉnh có ít nhất hai thẻ, gồm ít nhất một thẻ `confirmed` và một thẻ `emerging`; chỉ thêm `development` khi có bằng chứng về yếu tố cần luyện. Không ép một điểm tốt hoặc một tiềm năng thành điểm yếu để đủ ba loại. `title` chỉ là tên hành vi hoặc năng lực, không nối tên nghề trong ngoặc. Gộp bằng chứng từ nhiều nhiệm vụ VR để chọn yếu tố tiêu biểu cho từng loại.
 
 ## Gợi ý nghề nghiệp
 

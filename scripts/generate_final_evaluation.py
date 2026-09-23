@@ -536,25 +536,35 @@ async def generate_assessment(
 
     strongest = max(behaviours.values(), key=lambda item: item.score) if behaviours else None
     weakest = min(behaviours.values(), key=lambda item: item.score) if behaviours else None
+    development_finding = next((item for item in findings if item.kind == "development"), None)
+    emerging_finding = next((item for item in findings if item.kind == "emerging"), None)
     common_facts = {"experienceName": experience_name, "groupScoresCalculatedByBackend": groups,
                     "behaviourScoresCalculatedByBackend": {key: value.score for key, value in behaviours.items()},
                     "behaviourEvidence": {key: value.evidence for key, value in behaviours.items()},
                     "weightedVrResults": weighted_vr,
-                    "alignmentCalculatedByBackend": alignment}
+                    "alignmentCalculatedByBackend": alignment,
+                    "developmentFinding": ({"title": development_finding.title,
+                                            "questionnaireFact": development_finding.questionnaire_fact,
+                                            "vrFact": development_finding.vr_fact}
+                                           if development_finding else None)}
     final_text = {}
     final_instructions = {
         "headline": "Viết một câu kết luận ngắn, dễ hiểu, không gắn nhãn tính cách.",
         "workStyle": "Viết 1-2 câu mô tả cách người tham gia xử lý nhiệm vụ VR.",
         "benefit": "Viết 1-2 câu về lợi ích của cách làm đã quan sát trong công việc tương tự.",
-        "challenge": "Viết 1-2 câu về điểm dễ gặp khó dựa trên score thấp nhất có sẵn. Không suy diễn ngoài facts.",
-        "improvement": "Viết 1-2 câu, đưa ra đúng một hành động thực hành cụ thể cho score thấp nhất.",
+        "challenge": "Nếu có developmentFinding, nêu một thách thức có căn cứ từ phát hiện đó; nếu không, nêu điều cần thử thêm trong bối cảnh khác mà không gọi điểm thấp nhất là điểm yếu.",
+        "improvement": "Nếu có developmentFinding, nêu một hành động luyện kỹ năng đó; nếu không, nêu một hoạt động giúp thử thêm năng lực đang có. Viết 1-2 câu cụ thể.",
         "evidence": "Tóm tắt bằng chứng hành vi VR trong 1-2 câu.",
     }
     for field, instruction in final_instructions.items():
         final_text[field] = await write(f"finalEvaluation.{field}", instruction, common_facts, 650)
 
     strength_label = strongest.label if strongest else f"Nhóm {max(groups, key=groups.get)}"
-    development_label = weakest.label if weakest else f"Nhóm {min(groups, key=groups.get)}"
+    development_label = (
+        development_finding.title if development_finding
+        else f"Khám phá thêm {emerging_finding.title.lower()}" if emerging_finding
+        else weakest.label if weakest else f"Nhóm {min(groups, key=groups.get)}"
+    )
     document = {"version": 1, "participantName": normalize_name(participant_name),
         "participantEmail": normalize_email(participant_email), "completedAt": completed_at,
         "stageAssessments": stage_assessments,

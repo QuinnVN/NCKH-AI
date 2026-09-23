@@ -94,7 +94,7 @@ class BehaviourFinding(StrictModel):
 
 class BehaviourComparison(StrictModel):
     experience_name: str = Field(alias="experienceName", min_length=1, max_length=120)
-    findings: list[BehaviourFinding] = Field(min_length=3, max_length=12)
+    findings: list[BehaviourFinding] = Field(min_length=2, max_length=12)
 
     @model_validator(mode="after")
     def unique_ids(self) -> "BehaviourComparison":
@@ -102,8 +102,8 @@ class BehaviourComparison(StrictModel):
         if len(ids) != len(set(ids)):
             raise ValueError("finding ids must be unique")
         kinds = [item.kind for item in self.findings]
-        if not {"confirmed", "emerging", "development"}.issubset(kinds):
-            raise ValueError("findings must include confirmed, emerging and development")
+        if not {"confirmed", "emerging"}.issubset(kinds):
+            raise ValueError("findings must include confirmed and emerging")
         return self
 
 
