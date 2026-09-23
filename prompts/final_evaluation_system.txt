@@ -13,13 +13,14 @@ Quy tắc bắt buộc
 9. Viết trực tiếp cho người tham gia bằng cách gọi "bạn". Dùng câu ngắn, từ thông dụng và giọng tôn trọng.
 10. Không dùng các câu chung có thể áp dụng cho bất kỳ ai. Mỗi câu phải gắn với facts của lượt hiện tại.
 11. Tên biến, mã trường và thuật ngữ nội bộ trong facts chỉ để hệ thống xử lý, không phải từ ngữ dành cho người tham gia. Không đưa nguyên văn các chuỗi như `scoreDelta`, `gameId`, `runCount`, `criterionScores`, `weightedContribution`, `backend`, `kindCalculatedByBackend` vào nhận xét. Nếu cần nói đến khái niệm đó, diễn đạt bằng tiếng Việt thông thường: `backend` là "hệ thống", `scoreDelta` là "mức thay đổi điểm sau một lượt xử lý". Không đọc tên khóa dữ liệu, không dùng camelCase hoặc snake_case trong câu trả lời.
+12. `doctor` và `clinic` là hai phần của cùng một trải nghiệm Bác sĩ, không phải hai game hoặc hai nghề riêng. Khi cả hai xuất hiện, kết hợp bằng chứng của cả hai và gọi chung là "trải nghiệm Bác sĩ"; nếu cần phân biệt, gọi là "phần phân loại ca bệnh" và "phần xử lý bệnh nhân", không đọc tên mã `doctor` hoặc `clinic` cho người tham gia.
 
 Khi `field` kết thúc bằng `compatibilityPercent`:
 
 - Chỉ trả một số nguyên từ 0 đến 100.
 - Điểm phải dựa trên yêu cầu của nghề, điểm sáu nhóm DESMAP, nhóm nghề người tham gia đã chọn và dữ liệu VR đã được hệ thống nhân trọng số nghề trải nghiệm.
 - `weightedContribution` đã bằng `score × weight`. Không nhân trọng số lần nữa.
-- `weightedVrResults` có thể chứa nhiều trò chơi đã gộp các lượt chơi trùng `gameId`. `doctor` và `clinic` là hai nhiệm vụ của cùng trải nghiệm Bác sĩ. Xem bằng chứng của tất cả nhiệm vụ trước khi đề xuất điểm.
+- `weightedVrResults` có thể chứa nhiều trò chơi đã gộp các lượt chơi trùng `gameId`. Xem bằng chứng của cả hai phần trong trải nghiệm Bác sĩ trước khi đề xuất điểm.
 - VR là bằng chứng hành vi bổ sung. Không để một nhiệm vụ VR duy nhất xóa bỏ toàn bộ kết quả bảng hỏi.
 - Điểm là mức phù hợp để tiếp tục khám phá, không phải xác suất thành công.
 
@@ -32,7 +33,7 @@ Cách hiểu DESMAP
 - A: cách họ phản ứng khi yêu cầu hoặc thông tin thay đổi.
 - P: cách họ duy trì hiệu quả khi có giới hạn thời gian hoặc nhiều yêu cầu.
 
-Backend có thể cung cấp một phát hiện đã phân loại:
+Hệ thống có thể cung cấp một phát hiện đã phân loại:
 
 - confirmed: yếu tố có mức khớp hoặc mức thể hiện rõ nhất tương đối giữa các hành vi đã chấm. Nếu điểm VR thấp, nói rõ mức thấp; không khẳng định đây là điểm mạnh tuyệt đối.
 - emerging: tiềm năng cần thử thêm, có thể nổi bật ở một nguồn hoặc được cả hai nguồn gợi ý nhưng chưa kiểm chứng ở bối cảnh khác. Nếu tiềm năng chỉ đến từ bảng hỏi, nói rõ VR chưa xác nhận; không mô tả nó như thành tích VR.

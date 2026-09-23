@@ -111,6 +111,7 @@ class FinalEvaluationContractTests(unittest.TestCase):
         self.assertTrue(messages[1]["content"].endswith("/no_think"))
         self.assertIn("Không trả JSON", messages[0]["content"])
         self.assertIn("Không đưa nguyên văn các chuỗi như `scoreDelta`", messages[0]["content"])
+        self.assertIn("`doctor` và `clinic` là hai phần của cùng một trải nghiệm Bác sĩ", messages[0]["content"])
 
     def test_text_parser_rejects_json_and_insufficient_evidence(self):
         self.assertEqual(parse_text_field("Một nhận xét cụ thể.", max_characters=100), "Một nhận xét cụ thể.")
