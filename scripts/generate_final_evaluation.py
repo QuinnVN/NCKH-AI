@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 from typing import Any, Iterable, Mapping, Protocol
 from urllib.parse import urlparse
 
@@ -27,21 +28,19 @@ if str(ROOT) not in sys.path:
 from app.config import get_settings  # noqa: E402
 from app.final_evaluation import (  # noqa: E402
     DIMENSION_IDS,
+    FINDING_ICON_IDS,
     FinalAssessment,
     FinalEvaluationOutputError,
     build_text_field_messages,
     normalize_email,
     normalize_name,
+    parse_score_field,
     parse_text_field,
     utc_now,
 )
 from app.final_evaluation_calculation import (  # noqa: E402
-    BEHAVIOUR_LABELS,
-    EXPERIENCE_NAMES,
-    behavioural_alignment,
-    build_careers,
-    build_findings,
-    calculate_behaviours,
+    career_candidates,
+    combine_game_results,
     dimension_level,
     extract_dimensions,
     group_scores,
@@ -56,6 +55,32 @@ DEFAULT_MODEL = "qwen3-8b"
 DEFAULT_MAX_PROMPT_CHARS = 16_000
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_LLM_START_TIMEOUT_SECONDS = 900
+REMEDY_LEARNING_ACTIVITIES = {
+    "information-processing": (
+        "Đọc một bài báo ngắn, gạch các dữ kiện chính rồi tóm tắt nội dung trong một câu.",
+        "Xem video về cách phân biệt dữ kiện và ý kiến, rồi tự phân loại các câu trong một bài viết.",
+    ),
+    "problem-solving": (
+        "Chọn một vấn đề trong học tập, viết hai cách xử lý và so sánh chúng theo một tiêu chí rõ ràng.",
+        "Tham gia một buổi giải tình huống theo nhóm và ghi lại vì sao nhóm chọn phương án cuối.",
+    ),
+    "decision-making": (
+        "Đọc tài liệu về cách đặt tiêu chí ra quyết định, rồi áp dụng hai tiêu chí cho một lựa chọn hằng ngày.",
+        "Ghi lựa chọn, lý do và kết quả của một quyết định nhỏ để tự xem lại sau một tuần.",
+    ),
+    "adaptability": (
+        "Thử nhận một vai trò mới trong hoạt động nhóm và ghi lại điều đã thay đổi trong cách làm.",
+        "Lập kế hoạch cho một việc hằng tuần, rồi tập điều chỉnh khi có yêu cầu mới mà vẫn giữ mục tiêu chính.",
+    ),
+    "pressure-response": (
+        "Lập danh sách việc trong ngày, đánh dấu hạn hoàn thành và chọn việc quan trọng nhất để làm trước.",
+        "Thử chia một bài tập lớn thành các phần ngắn có thời hạn và ghi lại phần nào thường bị chậm.",
+    ),
+    "social-interaction": (
+        "Tham gia một nhóm thảo luận và tập tóm tắt ý người khác trước khi trình bày ý mình.",
+        "Xem video về lắng nghe chủ động, rồi thử đặt một câu hỏi xác nhận trong cuộc trò chuyện.",
+    ),
+}
 
 
 class FinalEvaluationCLIError(RuntimeError):
@@ -220,10 +245,13 @@ def choose_participant(names: list[str], *, input_fn=input, output_fn=print) -> 
     output_fn("\nDanh sách người tham gia:")
     for index, name in enumerate(names, start=1):
         output_fn(f"  {index}. {name}")
+    output_fn("  all. Đánh giá tất cả người chưa có kết quả")
     while True:
-        answer = input_fn("\nChọn số thứ tự người cần đánh giá (hoặc q để thoát): ").strip()
+        answer = input_fn("\nChọn số thứ tự, all hoặc q để thoát: ").strip()
         if answer.casefold() in {"q", "quit", "exit"}:
             raise KeyboardInterrupt
+        if answer.casefold() == "all":
+            return "all"
         try:
             selected = int(answer)
         except ValueError:
@@ -339,24 +367,79 @@ async def _write_field(
     return parse_text_field(answer, max_characters=max_characters)
 
 
+async def _write_score(
+    service: Generator, *, field: str, facts: Mapping[str, Any], max_prompt_chars: int,
+) -> int:
+    messages = _bounded_messages(
+        build_text_field_messages(
+            field=field,
+            instruction=(
+                "Đề xuất một compatibilityPercent cho nghề này. Chỉ trả một số nguyên 0-100. "
+                "Dùng nhóm nghề quan tâm, điểm DESMAP và weighted VR facts đã cung cấp."
+            ),
+            facts=facts,
+            max_characters=3,
+        ),
+        max_prompt_chars,
+    )
+    answer = await service.generate(
+        messages,
+        options={"temperature": 0.0, "top_p": 1.0, "max_tokens": 16},
+        max_message_chars=max_prompt_chars,
+    )
+    return parse_score_field(answer)
+
+
+async def _write_icon(
+    service: Generator, *, field: str, facts: Mapping[str, Any], max_prompt_chars: int,
+) -> str | None:
+    messages = _bounded_messages(
+        build_text_field_messages(
+            field=field,
+            instruction="Chọn đúng một icon phù hợp với năng lực được mô tả trong facts.",
+            facts=facts,
+            max_characters=20,
+        ),
+        max_prompt_chars,
+    )
+    answer = await service.generate(
+        messages,
+        options={"temperature": 0.0, "top_p": 1.0, "max_tokens": 16},
+        max_message_chars=max_prompt_chars,
+    )
+    try:
+        icon = parse_text_field(answer, max_characters=20)
+    except FinalEvaluationOutputError:
+        return None
+    return icon if icon in FINDING_ICON_IDS else None
+
+
 async def generate_assessment(
     service: Generator, *, participant_name: str, participant_email: str,
     questionnaire: Mapping[str, Any], game_results: list[Mapping[str, Any]],
     completed_at: str, max_prompt_chars: int, max_tokens: int,
 ) -> FinalAssessment:
-    """Calculate every score in code, ask Qwen for one prose value per request, then assemble."""
+    """Weight VR in code, ask Qwen for isolated values, then assemble the contract."""
     dimensions = extract_dimensions(questionnaire)
     missing = sorted(set(DIMENSION_IDS) - set(dimensions))
     if missing:
         raise FinalEvaluationCLIError("Questionnaire thiếu điểm cho: " + ", ".join(missing))
     groups = group_scores(dimensions)
-    primary_game = game_results[-1]
-    game_id = str(primary_game.get("gameId", "")).casefold()
-    experience_name = EXPERIENCE_NAMES.get(game_id, game_id or "Trải nghiệm VR")
-    behaviours = calculate_behaviours(primary_game, dimensions)
-    alignment = behavioural_alignment(game_id, behaviours)
-    findings = build_findings(behaviours)
-    careers = build_careers(groups, game_id, alignment)
+    try:
+        vr = combine_game_results(game_results, dimensions)
+    except ValueError as exc:
+        raise FinalEvaluationCLIError(str(exc)) from exc
+    experience_name = vr.experience_name
+    behaviours = vr.behaviours
+    alignment = vr.alignment
+    weighted_vr = vr.weighted_results
+    findings = vr.findings
+    selected_interests = questionnaire.get("careerInterests", [])
+    candidates = career_candidates(selected_interests)
+    if len(candidates) < 7:
+        raise FinalEvaluationCLIError(
+            "Không có đủ bảy nghề ứng viên cho các nhóm careerInterests đã chọn."
+        )
 
     async def write(field: str, instruction: str, facts: Mapping[str, Any], limit: int) -> str:
         return await _write_field(service, field=field, instruction=instruction, facts=facts,
@@ -384,7 +467,12 @@ async def generate_assessment(
     finding_values = []
     for plan in findings:
         base_facts = {"kindCalculatedByBackend": plan.kind,
-                      "questionnaireFact": plan.questionnaire_fact, "vrFact": plan.vr_fact}
+                      "findingTitle": plan.title, "questionnaireFact": plan.questionnaire_fact,
+                      "vrFact": plan.vr_fact}
+        icon = await _write_icon(
+            service, field=f"behaviourComparison.findings.{plan.id}.icon",
+            facts=base_facts, max_prompt_chars=max_prompt_chars,
+        )
         questionnaire_result = await write(
             f"behaviourComparison.findings.{plan.id}.questionnaireResult",
             "Viết một câu mô tả đúng kết quả tự đánh giá. Không nhắc đến VR.", base_facts, 500)
@@ -393,26 +481,65 @@ async def generate_assessment(
             "Viết một câu mô tả đúng bằng chứng VR. Không biến phần không quan sát được thành điểm yếu.", base_facts, 500)
         summary = await write(
             f"behaviourComparison.findings.{plan.id}.summary",
-            "Viết một câu kết luận đối chiếu hai nguồn theo đúng kind đã được backend tính.", base_facts, 500)
-        finding_values.append({"id": plan.id, "kind": plan.kind, "title": plan.title,
-            "questionnaireResult": questionnaire_result, "vrEvidence": vr_evidence, "summary": summary})
+            "Viết một câu kết luận đối chiếu hai nguồn theo đúng kind đã được backend tính; không đưa lời khuyên.", base_facts, 500)
+        finding = {"id": plan.id, "kind": plan.kind, "title": plan.title,
+            "questionnaireResult": questionnaire_result, "vrEvidence": vr_evidence,
+            "summary": summary}
+        if plan.kind in {"emerging", "development"}:
+            previous_remedies = [item["remedy"] for item in finding_values if "remedy" in item]
+            finding["remedy"] = await write(
+                f"behaviourComparison.findings.{plan.id}.remedy",
+                "Gợi ý một hoạt động học tập hoặc luyện tập cụ thể để phát triển kỹ năng này ngoài VR. "
+                "Viết một câu ghép ngắn; không lặp ý, cách mở đầu hoặc cấu trúc của previousRemedies.",
+                {"kindCalculatedByBackend": plan.kind, "findingTitle": plan.title,
+                 "summary": summary, "behaviourCode": plan.behaviour_code,
+                 "learningActivities": REMEDY_LEARNING_ACTIVITIES.get(plan.behaviour_code, ()),
+                 "previousRemedies": previous_remedies}, 300)
+        if icon is not None:
+            finding["icon"] = icon
+        finding_values.append(finding)
+
+    scored_candidates = []
+    for candidate in candidates:
+        score = await _write_score(
+            service,
+            field=f"careerSuggestions.{candidate.id}.compatibilityPercent",
+            facts={
+                "careerName": candidate.name,
+                "careerInterestGroup": candidate.interest_group,
+                "selectedCareerInterests": selected_interests,
+                "careerRequirements": candidate.requirements,
+                "desmapGroupScores": groups,
+                "vrExperienceName": experience_name,
+                "weightedVrResults": weighted_vr,
+                "weightedVrAlignment": alignment,
+            },
+            max_prompt_chars=max_prompt_chars,
+        )
+        scored_candidates.append((score, candidate))
+    top_careers = sorted(
+        scored_candidates, key=lambda item: (-item[0], item[1].name)
+    )[:7]
 
     career_values = []
-    for career in careers:
+    for score, career in top_careers:
         description = await write(
             f"careerSuggestions.{career.id}.description",
             "Viết 2 câu giải thích vì sao đây là nghề nên khám phá. Nêu rõ đây không phải bảo đảm thành công.",
-            {"careerName": career.name, "compatibilityPercentCalculatedByBackend": career.compatibility_percent,
-             "calculationRationale": career.rationale, "groupScoresCalculatedByBackend": groups,
-             "experienceName": experience_name}, 800)
+            {"careerName": career.name, "careerInterestGroup": career.interest_group,
+             "careerRequirements": career.requirements, "compatibilityPercentSuggestedByAI": score,
+             "selectedCareerInterests": selected_interests, "desmapGroupScores": groups,
+             "vrExperienceName": experience_name, "weightedVrResults": weighted_vr,
+             "weightedVrAlignment": alignment}, 800)
         career_values.append({"id": career.id, "name": career.name,
-            "compatibilityPercent": career.compatibility_percent, "description": description})
+            "compatibilityPercent": score, "description": description})
 
     strongest = max(behaviours.values(), key=lambda item: item.score) if behaviours else None
     weakest = min(behaviours.values(), key=lambda item: item.score) if behaviours else None
     common_facts = {"experienceName": experience_name, "groupScoresCalculatedByBackend": groups,
                     "behaviourScoresCalculatedByBackend": {key: value.score for key, value in behaviours.items()},
                     "behaviourEvidence": {key: value.evidence for key, value in behaviours.items()},
+                    "weightedVrResults": weighted_vr,
                     "alignmentCalculatedByBackend": alignment}
     final_text = {}
     final_instructions = {
@@ -440,7 +567,7 @@ async def generate_assessment(
 
 
 def save_assessment(collection: Collection, assessment: FinalAssessment) -> None:
-    document = assessment.model_dump(mode="json", by_alias=True)
+    document = assessment.model_dump(mode="json", by_alias=True, exclude_none=True)
     collection.create_index(
         [("participantName", ASCENDING), ("participantEmail", ASCENDING)],
         unique=True,
@@ -472,7 +599,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Chọn người tham gia từ MongoDB và tạo đánh giá cuối bằng Qwen3 8B."
     )
-    parser.add_argument("--participant", help="Chọn trực tiếp participantName, bỏ qua menu.")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--participant", help="Chọn trực tiếp participantName, bỏ qua menu.")
+    selection.add_argument("--all", action="store_true", help="Đánh giá tất cả người chưa có kết quả.")
     parser.add_argument("--dry-run", action="store_true", help="In JSON nhưng không ghi MongoDB.")
     parser.add_argument(
         "--no-start-llm",
@@ -509,7 +638,10 @@ async def run(args: argparse.Namespace) -> int:
         database = client[settings.mongodb_database]
         questionnaire_collection = database[QUESTIONNAIRE_COLLECTION]
         game_collection = database[GAME_RESULTS_COLLECTION]
+        evaluation_collection = database[FINAL_EVALUATIONS_COLLECTION]
         names = list_participant_names(questionnaire_collection)
+        if not names:
+            raise FinalEvaluationCLIError("Không tìm thấy participantName trong questionnaire_submissions.")
         if args.participant:
             requested = normalize_name(args.participant)
             participant_name = next(
@@ -519,48 +651,89 @@ async def run(args: argparse.Namespace) -> int:
                 raise FinalEvaluationCLIError(
                     f"Không tìm thấy participantName '{requested}' trong questionnaire_submissions."
                 )
+            selected_names = [participant_name]
         else:
-            participant_name = choose_participant(names)
-
-        questionnaire, email, game_results, game_participant_name = load_participant_data(
-            questionnaire_collection, game_collection, participant_name
-        )
-        if game_participant_name != participant_name:
-            print(
-                "Đã nối game_results theo tên có cùng các thành phần: "
-                f"'{participant_name}' -> '{game_participant_name}'."
-            )
-        await ensure_qwen_server(
-            service,
-            model,
-            auto_start=not args.no_start_llm,
-            timeout_seconds=llm_start_timeout,
-        )
-        completed_at = utc_now()
-        print(
-            f"\nĐang đánh giá {participant_name} với {len(game_results)} game_result hoàn tất "
-            f"bằng model '{model}'..."
-        )
-        assessment = await generate_assessment(
-            service,
-            participant_name=participant_name,
-            participant_email=email,
-            questionnaire=questionnaire,
-            game_results=game_results,
-            completed_at=completed_at,
-            max_prompt_chars=max_prompt_chars,
-            max_tokens=max_tokens,
-        )
-        if args.dry_run:
-            print(json.dumps(assessment.model_dump(mode="json", by_alias=True), ensure_ascii=False, indent=2))
-            print("\nDry run: chưa ghi MongoDB.")
-        else:
-            save_assessment(database[FINAL_EVALUATIONS_COLLECTION], assessment)
-            print(
-                "Đã lưu đánh giá vào collection final_evaluations cho "
-                f"{assessment.participant_name} ({assessment.participant_email})."
-            )
-        return 0
+            selected = "all" if args.all else choose_participant(names)
+            selected_names = names if selected == "all" else [selected]
+        batch = args.all or (not args.participant and selected == "all")
+        existing_names = set()
+        for name in evaluation_collection.distinct(
+            "participantName", {"participantName": {"$type": "string"}}
+        ):
+            try:
+                existing_names.add(normalize_name(name).casefold())
+            except ValueError:
+                continue
+        model_ready = False
+        model_starting = False
+        completed_count = skipped_count = failed_count = 0
+        for participant_name in selected_names:
+            if participant_name.casefold() in existing_names:
+                print(f"Bỏ qua {participant_name}: đã có dữ liệu trong final_evaluations.")
+                skipped_count += 1
+                continue
+            try:
+                questionnaire, email, game_results, game_participant_name = load_participant_data(
+                    questionnaire_collection, game_collection, participant_name
+                )
+                if evaluation_collection.count_documents({"participantEmail": email}, limit=1):
+                    print(f"Bỏ qua {participant_name}: email đã có dữ liệu trong final_evaluations.")
+                    skipped_count += 1
+                    continue
+                if game_participant_name != participant_name:
+                    print(
+                        "Đã nối game_results theo tên có cùng các thành phần: "
+                        f"'{participant_name}' -> '{game_participant_name}'."
+                    )
+                if not model_ready:
+                    model_starting = True
+                    await ensure_qwen_server(
+                        service, model, auto_start=not args.no_start_llm,
+                        timeout_seconds=llm_start_timeout,
+                    )
+                    model_ready = True
+                    model_starting = False
+                completed_at = utc_now()
+                print(
+                    f"\nĐang đánh giá {participant_name} với {len(game_results)} game_result hoàn tất "
+                    f"bằng model '{model}'...",
+                    end="", flush=True,
+                )
+                analysis_started_at = time.perf_counter()
+                try:
+                    assessment = await generate_assessment(
+                        service, participant_name=participant_name, participant_email=email,
+                        questionnaire=questionnaire, game_results=game_results,
+                        completed_at=completed_at, max_prompt_chars=max_prompt_chars,
+                        max_tokens=max_tokens,
+                    )
+                except BaseException:
+                    print()
+                    raise
+                analysis_seconds = round(time.perf_counter() - analysis_started_at)
+                print(f" Hoàn thành ({analysis_seconds}s).")
+                if args.dry_run:
+                    print(json.dumps(assessment.model_dump(mode="json", by_alias=True, exclude_none=True), ensure_ascii=False, indent=2))
+                    print("Dry run: chưa ghi MongoDB.")
+                else:
+                    save_assessment(evaluation_collection, assessment)
+                    existing_names.add(participant_name.casefold())
+                    print(
+                        "Đã lưu đánh giá vào collection final_evaluations cho "
+                        f"{assessment.participant_name} ({assessment.participant_email})."
+                    )
+                completed_count += 1
+            except Exception as exc:
+                if not batch or model_starting:
+                    raise
+                failed_count += 1
+                message = str(exc)
+                if "mongodb" in message.casefold() or "auth" in message.casefold():
+                    message = "Không thể kết nối hoặc xác thực MongoDB. Kiểm tra MONGODB_URI."
+                print(f"Không thể đánh giá {participant_name}: {message}", file=sys.stderr)
+        if batch:
+            print(f"Tổng kết: hoàn thành {completed_count}, bỏ qua {skipped_count}, lỗi {failed_count}.")
+        return 1 if failed_count else 0
     finally:
         await service.close()
         client.close()

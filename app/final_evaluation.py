@@ -30,6 +30,14 @@ DimensionLevel = Literal[
     "well-compatible",
 ]
 FindingKind = Literal["confirmed", "emerging", "development"]
+FINDING_ICON_IDS = frozenset({
+    "analysis", "adaptability", "priority", "communication", "collaboration",
+    "creativity", "resilience", "leadership",
+})
+FindingIcon = Literal[
+    "analysis", "adaptability", "priority", "communication", "collaboration",
+    "creativity", "resilience", "leadership",
+]
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -64,9 +72,11 @@ class BehaviourFinding(StrictModel):
     id: str = Field(min_length=1, max_length=80)
     kind: FindingKind
     title: str = Field(min_length=1, max_length=120)
+    icon: FindingIcon | None = None
     questionnaire_result: str = Field(alias="questionnaireResult", min_length=1, max_length=600)
     vr_evidence: str = Field(alias="vrEvidence", min_length=1, max_length=600)
     summary: str = Field(min_length=1, max_length=600)
+    remedy: str | None = Field(default=None, min_length=1, max_length=300)
 
     @field_validator("id")
     @classmethod
@@ -75,16 +85,25 @@ class BehaviourFinding(StrictModel):
             raise ValueError("finding id must be a lowercase ASCII slug")
         return value
 
+    @model_validator(mode="after")
+    def remedy_only_for_emerging_or_development(self) -> "BehaviourFinding":
+        if self.kind == "confirmed" and self.remedy is not None:
+            raise ValueError("confirmed findings must not have remedy")
+        return self
+
 
 class BehaviourComparison(StrictModel):
     experience_name: str = Field(alias="experienceName", min_length=1, max_length=120)
-    findings: list[BehaviourFinding] = Field(max_length=12)
+    findings: list[BehaviourFinding] = Field(min_length=3, max_length=12)
 
     @model_validator(mode="after")
     def unique_ids(self) -> "BehaviourComparison":
         ids = [item.id for item in self.findings]
         if len(ids) != len(set(ids)):
             raise ValueError("finding ids must be unique")
+        kinds = [item.kind for item in self.findings]
+        if not {"confirmed", "emerging", "development"}.issubset(kinds):
+            raise ValueError("findings must include confirmed, emerging and development")
         return self
 
 
@@ -122,7 +141,7 @@ class FinalAssessment(StrictModel):
     stage_assessments: dict[str, str] = Field(alias="stageAssessments")
     dimension_levels: dict[str, DimensionLevel] = Field(alias="dimensionLevels")
     behaviour_comparison: BehaviourComparison = Field(alias="behaviourComparison")
-    career_suggestions: list[CareerSuggestion] = Field(alias="careerSuggestions", min_length=1, max_length=3)
+    career_suggestions: list[CareerSuggestion] = Field(alias="careerSuggestions", min_length=7, max_length=7)
     final_evaluation: FinalEvaluationSummary = Field(alias="finalEvaluation")
 
     @field_validator("participant_name")
@@ -216,3 +235,12 @@ def parse_text_field(content: str, *, max_characters: int) -> str:
     if text.startswith(('{', '[')) or len(text) > max_characters:
         raise FinalEvaluationOutputError("The model returned an invalid single-field value.")
     return text
+
+
+def parse_score_field(content: str) -> int:
+    text = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL | re.IGNORECASE).strip()
+    if re.fullmatch(r"(?:100|[1-9]?\d)", text) is None:
+        raise FinalEvaluationOutputError(
+            "The model must return one integer from 0 through 100 for a compatibility score."
+        )
+    return int(text)

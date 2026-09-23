@@ -95,6 +95,7 @@ Frontend tự hiển thị nhãn tiếng Việt và phần diễn giải cho t�
       "id": "analytical-thinking",
       "kind": "confirmed",
       "title": "Tư duy phân tích",
+      "icon": "analysis",
       "questionnaireResult": "Bạn tự đánh giá cao khả năng phân tích thông tin trước khi hành động.",
       "vrEvidence": "Trong VR, bạn kiểm tra dữ kiện chính trước khi chọn thứ tự ưu tiên.",
       "summary": "Kết quả VR củng cố điểm mạnh đã thể hiện trong bảng câu hỏi."
@@ -110,21 +111,23 @@ Mỗi phần tử trong `findings` cần có:
 | `id` | Mã duy nhất, ổn định trong cùng một kết quả. |
 | `kind` | `confirmed`, `emerging` hoặc `development`. |
 | `title` | Tên ngắn của hành vi hoặc năng lực. |
+| `icon` | Tùy chọn. Biểu tượng phù hợp với năng lực: `analysis`, `adaptability`, `priority`, `communication`, `collaboration`, `creativity`, `resilience`, `leadership`. Nếu bỏ trống hoặc không hợp lệ, thẻ dùng biểu tượng theo `kind`. |
 | `questionnaireResult` | Kết quả tự đánh giá liên quan. |
 | `vrEvidence` | Hành vi quan sát được trong VR. |
 | `summary` | Kết luận từ việc đối chiếu hai nguồn. |
+| `remedy` | Chỉ có ở thẻ `emerging` và `development`, là hoạt động học tập hoặc luyện tập cụ thể ngoài VR để phát triển kỹ năng; viết ngắn gọn trong một câu ghép, riêng với `summary`. Kết quả cũ có thể chưa có trường này. |
 
 Ý nghĩa `kind`:
 
-- `confirmed`: bảng hỏi và hành vi VR cùng cho thấy một điểm mạnh.
-- `emerging`: hành vi VR cho thấy điểm mạnh chưa rõ trong tự đánh giá.
-- `development`: hành vi VR cho thấy một điểm cần luyện thêm.
+- `confirmed`: yếu tố có mức khớp hoặc mức thể hiện rõ nhất tương đối giữa các hành vi được chấm. Điểm thấp vẫn phải được mô tả đúng mức, không gọi là điểm mạnh tuyệt đối.
+- `emerging`: tiềm năng nổi bật hơn ở bảng hỏi hoặc VR. Nếu chỉ có ở bảng hỏi, phải nói rõ VR chưa xác nhận.
+- `development`: yếu tố nên luyện hoặc kiểm chứng thêm dựa trên chênh lệch giữa hai nguồn hay mức thể hiện tương đối trong VR.
 
-Chỉ trả về phát hiện có căn cứ. Không cần tạo đủ ba loại.
+Kết quả hoàn chỉnh có ít nhất ba thẻ, gồm ít nhất một thẻ cho mỗi loại `confirmed`, `emerging`, `development`; có thể thêm thẻ khi còn bằng chứng khác. Ba thẻ đầu dùng mức thể hiện tương đối và tiềm năng của chính hồ sơ để tránh gắn nhãn một chiều. `title` chỉ là tên hành vi hoặc năng lực, không nối tên nghề trong ngoặc. Gộp bằng chứng từ nhiều nhiệm vụ VR để chọn yếu tố tiêu biểu cho từng loại.
 
 ## Gợi ý nghề nghiệp
 
-`careerSuggestions` có từ một đến ba nghề, đã sắp xếp từ phù hợp nhất đến thấp hơn.
+`careerSuggestions` có bảy nghề, đã sắp xếp từ phù hợp nhất đến thấp hơn.
 
 ```json
 [
