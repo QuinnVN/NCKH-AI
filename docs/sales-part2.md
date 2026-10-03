@@ -1,5 +1,15 @@
 # Sales Part 2 backend
 
+## Versioned OpenRouter pipeline
+
+New sessions can opt into the Sales-only OpenRouter v2 pipeline. Jev recognizes independent player acts, backend evidence rules own progression and assessment, Qwen writes Lan's response from an approved plan, and local Supertonic speaks committed text. The rollout default remains legacy. Shadow mode observes Jev without changing legacy gameplay.
+
+V2 uses eight evaluable turns by default and requires a player response after the trust challenge. Neutral turns have no good/bad rating; uncertain turns preserve their unresolved status without spending the evaluable-turn budget or creating a penalty. Critical uncertainty can hold completion for review. The rubric credits each contextual skill once and keeps violation events separate from outstanding promises.
+
+Sessions freeze all assessment versions, reuse successful checkpoints for retry, and preserve backend terminal authority in the simulation aggregate. Historical sessions retain their old rules and final scorer. The four-turn behavior and classifier keyword grounding described in the legacy sections below do not apply to v2. See [rollout and verification](verification/sales-openrouter-v2.md) and [the assessment decision](adr/0003-versioned-sales-evidence-assessment.md).
+
+## Legacy pipeline
+
 The `sale` scene links Part 1 and Lan's returning-customer conversation with a pseudonymous `sessionId`. The backend stores the authoritative conversation, phase, accepted-turn count, silence count, and final evaluation. Customer replies and final analysis use separate constrained LLM requests.
 
 The final analysis scores two criteria from 0 to 50 each. `apologyAndPolicyRemedy` measures whether the player apologizes or acknowledges the disappointment and offers a complete remedy allowed by store policy. `adaptabilityAndDeescalation` measures relevant questioning, adaptation to the customer's answers, calm objection handling, and de-escalation. Their sum is stored as `rawScore`. Each recorded store-policy violation deducts 10 points, down to zero, and the final value is stored as `score`. The result also stores `policyViolationPenalty` and the violation list.

@@ -6,7 +6,7 @@ network.  Values are read when :func:`get_settings` is called, which also
 makes configuration changes straightforward to exercise in tests.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
 
@@ -86,6 +86,13 @@ class Settings:
     mongodb_uri: str | None
     mongodb_database: str
     mongodb_results_collection: str
+    sales_pipeline_mode: str = "legacy"
+    openrouter_api_key: str | None = field(default=None, repr=False)
+    sales_max_turns: int = 8
+    sales_jev_timeout_seconds: float = 3.0
+    sales_writer_timeout_seconds: float = 4.0
+    sales_openrouter_data_collection: str = "deny"
+    sales_openrouter_zdr: bool = False
 
 
 def get_settings() -> Settings:
@@ -168,4 +175,13 @@ def get_settings() -> Settings:
         mongodb_uri=os.environ.get("MONGODB_URI", "").strip() or None,
         mongodb_database=os.environ.get("MONGODB_DATABASE", "desmap").strip() or "desmap",
         mongodb_results_collection=os.environ.get("MONGODB_RESULTS_COLLECTION", "game_results").strip() or "game_results",
+        sales_pipeline_mode=(os.environ.get("SALES_PIPELINE_MODE", "legacy").strip().lower()
+                             if os.environ.get("SALES_PIPELINE_MODE", "legacy").strip().lower()
+                             in {"legacy", "shadow", "openrouter"} else "legacy"),
+        openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", "").strip() or None,
+        sales_max_turns=_env_int("SALES_MAX_TURNS", 8, minimum=4, maximum=32),
+        sales_jev_timeout_seconds=_env_float("SALES_JEV_TIMEOUT_SECONDS", 3.0, minimum=0.1, maximum=30.0),
+        sales_writer_timeout_seconds=_env_float("SALES_WRITER_TIMEOUT_SECONDS", 4.0, minimum=0.1, maximum=30.0),
+        sales_openrouter_data_collection=("allow" if os.environ.get("SALES_OPENROUTER_DATA_COLLECTION", "deny").strip().lower() == "allow" else "deny"),
+        sales_openrouter_zdr=_env_bool("SALES_OPENROUTER_ZDR"),
     )

@@ -94,6 +94,9 @@ sales_transcriber = SherpaOnnxTranscriber()
 sales_processing_tasks: dict[str, asyncio.Task[object]] = {}
 sales_returning_store = ReturningSessionStore()
 sales_returning_transcriber = sales_transcriber
+# Dedicated injectable services; other simulations keep their existing LLM.
+sales_returning_classifier = None
+sales_returning_writer = None
 tts_service = TTSService()
 lawyer_attempt_store = LawyerAttemptStore()
 lawyer_processing_tasks: dict[str, asyncio.Task[object]] = {}
@@ -1287,6 +1290,8 @@ async def submit_sales_returning_turn(
             store=sales_returning_store,
             transcriber=sales_returning_transcriber,
             responder=LLMSalesResponder(llm_service),
+            classifier=sales_returning_classifier,
+            writer=sales_returning_writer,
         )
         return _speech_for_response(session_id, result)
     except KeyError as exception:
@@ -1343,9 +1348,11 @@ async def complete_sales_session(
         participant = participant_manager.active
         if participant is not None and result.get("completionStatus") == "completed":
             try:
+                part2 = project_sales_part2(result)
                 await run_result_store.accept_fragment({
                     "runId": result.get("runId") or session_id, "gameId": "sale", "fragmentId": f"sale.part2:{request.completion_id}",
-                    "data": {"part2": project_sales_part2(result)},
+                    "complete": True, "requiredFields": ["part1", "part2"],
+                    "data": {"part2": part2, "turns": part2["turns"]},
                 }, participant=participant)
             except (ValueError, RuntimeError):
                 logger.warning("Unable to project completed Sales Part 2 result")

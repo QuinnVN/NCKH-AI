@@ -111,12 +111,21 @@ class ReturningSessionRequest(BaseModel):
         return value
 
 
+class CaptureEvidence(BaseModel):
+    """Client capture facts, checked against a nonzero valid PCM payload."""
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    device_ready: bool = Field(alias="deviceReady")
+    permission_granted: bool = Field(alias="permissionGranted")
+    speech_detected: bool = Field(alias="speechDetected")
+
+
 class ReturningTurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
     turn_id: str = Field(alias="turnId", min_length=1, max_length=128)
     audio: SalesAudio
     client_version: str = Field(default="unknown", alias="clientVersion", max_length=64)
     retry_count: int = Field(default=0, alias="retryCount", ge=0, le=20)
+    capture: CaptureEvidence | None = None
 
     @field_validator("turn_id")
     @classmethod
@@ -369,6 +378,8 @@ class ReturningSessionStore:
                     self._save_unlocked(session)
                 return session
             session = {"sessionId": session_id, "runId": run_id, "part1AttemptId": part1_attempt_id, "participantName": participant_name, "phase": 1, "acceptedTurnCount": 0, "goodResponseCount": 0, "badResponseCount": 0, "missingReturnPolicyCount": 0, "policyViolations": [], "silenceCount": 0, "turnIds": [], "turns": [], "completedTurns": {}, "pendingTurns": {}, "openingComplaint": OPENING_COMPLAINT, "status": "active", "trustState": None, "createdAtUtc": _now(), "updatedAtUtc": _now()}
+            from app.sales_rubric import initialize
+            initialize(session, get_settings())
             return self._save_unlocked(session)
 
     async def get(self, session_id: str) -> dict[str, Any] | None:
@@ -378,6 +389,17 @@ class ReturningSessionStore:
     async def save(self, session: dict[str, Any]) -> dict[str, Any]:
         async with self._lock:
             return self._save_unlocked(session)
+
+    async def save_checkpoint(self, session_id: str, turn_id: str, checkpoint: dict) -> None:
+        """Merge a stage under the store lock without resurrecting a tombstone."""
+        async with self._lock:
+            session = self._read_unlocked(session_id)
+            if session is None:
+                raise KeyError("session_not_found")
+            if session.get("diagnosticsDeleted"):
+                raise RuntimeError("diagnostics_deleted")
+            session.setdefault("turnCheckpoints", {})[turn_id] = copy.deepcopy(checkpoint)
+            self._save_unlocked(session)
 
     async def begin_turn(self, session_id: str, turn_id: str, request_hash: str, pending: dict[str, Any], audio: bytes) -> tuple[dict[str, Any], dict[str, Any] | None]:
         """Persist pending input before STT, or return the cached completed response."""
@@ -390,13 +412,21 @@ class ReturningSessionStore:
             if completed is not None:
                 if completed.get("requestHash") not in (None, request_hash):
                     raise ValueError("turnId was already used with different audio")
+                if "captureEvidence" in completed and completed["captureEvidence"] != pending.get("captureEvidence"):
+                    raise ValueError("turnId was already used with different capture evidence")
                 if completed.get("status") not in ("failed",):
                     return session, completed
             if session.get("status") in ("finished", "awaitingCompletion"):
                 raise RuntimeError("session_not_accepting_turns")
+            if any(key != turn_id for key in session.get("pendingTurns", {})):
+                raise RuntimeError("another_turn_pending")
+            if any(key != turn_id for key in session.get("turnCheckpoints", {})):
+                raise RuntimeError("another_turn_pending")
             previous = session.setdefault("pendingTurns", {}).get(turn_id) or completed
             if previous is not None and previous.get("requestHash") not in (None, request_hash):
                 raise ValueError("turnId was already used with different audio")
+            if previous is not None and "captureEvidence" in previous and previous["captureEvidence"] != pending.get("captureEvidence"):
+                raise ValueError("turnId was already used with different capture evidence")
             session["completedTurns"].pop(turn_id, None)
             session["pendingTurns"][turn_id] = pending
             self._save_unlocked(session)
@@ -416,6 +446,11 @@ class ReturningSessionStore:
                 raise RuntimeError("diagnostics_deleted")
             if mutate is not None:
                 mutate(session)
+            if session.get("pipelineMode") in {"legacy", "shadow"}:
+                from app.sales_rubric import remaining
+                session["evaluableTurnCount"] = session["acceptedTurnCount"]
+                result.update(maxTurns=session.get("maxTurns", MAX_TURNS), remainingTurns=remaining(session),
+                              evaluableTurnCount=session["acceptedTurnCount"], assessmentStatus=session["assessmentStatus"])
             result["acceptedTurnCount"] = session["acceptedTurnCount"]
             result["silenceCount"] = session["silenceCount"]
             session.setdefault("pendingTurns", {}).pop(turn_id, None)
@@ -432,7 +467,7 @@ class ReturningSessionStore:
                 if path.exists():
                     path.unlink()
                     count += 1
-        session.update(turns=[], turnIds=[], completedTurns={}, pendingTurns={}, diagnosticsDeleted=True,
+        session.update(turns=[], turnIds=[], completedTurns={}, pendingTurns={}, turnCheckpoints={}, shadowAssessments={}, shadowState={}, diagnosticsDeleted=True,
             diagnosticsDeletedAtUtc=_now(), diagnosticDeletionAudit={"deletedFiles": count, "atUtc": _now()})
         self._save_unlocked(session)
         return count
@@ -799,7 +834,8 @@ _LOCKS: dict[str, asyncio.Lock] = {}
 
 
 def _turn_record(session_id: str, request: ReturningTurnRequest, request_hash: str, phase: int) -> dict[str, Any]:
-    return {"sessionId": session_id, "turnId": request.turn_id, "requestHash": request_hash, "status": "processing", "accepted": False, "retryCount": request.retry_count, "clientVersion": request.client_version, "activeObjective": phase, "createdAtUtc": _now()}
+    return {"sessionId": session_id, "turnId": request.turn_id, "requestHash": request_hash, "status": "processing", "accepted": False, "retryCount": request.retry_count, "clientVersion": request.client_version, "activeObjective": phase, "createdAtUtc": _now(),
+            "captureEvidence": request.capture.model_dump(by_alias=True) if request.capture is not None else None}
 
 
 def _count_outcome(good_count: int, bad_count: int) -> tuple[str, str]:
@@ -844,7 +880,62 @@ def _assessment_violation_codes(assessment: TurnAssessment) -> list[str]:
     return sorted(codes)
 
 
-async def submit_turn(session_id: str, request: ReturningTurnRequest, *, store: ReturningSessionStore, transcriber: ReturningTranscriber, responder: ReturningResponder) -> dict[str, Any]:
+async def submit_turn(session_id: str, request: ReturningTurnRequest, *, store: ReturningSessionStore, transcriber: ReturningTranscriber, responder: ReturningResponder, classifier: Any = None, writer: Any = None) -> dict[str, Any]:
+    session = await store.get(session_id)
+    if session is not None and session.get("pipelineMode") == "openrouter":
+        from app.sales_pipeline import process_turn
+        return await process_turn(session_id, request, store=store, transcriber=transcriber, classifier=classifier, writer=writer)
+    result = await _submit_legacy_turn(session_id, request, store=store, transcriber=transcriber, responder=responder)
+    if session is not None and session.get("pipelineMode") == "shadow" and result.get("accepted"):
+        await _record_shadow(session_id, result, store, classifier)
+    return result
+
+
+async def _record_shadow(session_id: str, result: dict, store: ReturningSessionStore, classifier: Any) -> None:
+    """Compare classifier labels without changing legacy game state or scoring."""
+    async with _LOCKS.setdefault(session_id, asyncio.Lock()):
+        session = await store.get(session_id)
+        if session is None or session.get("diagnosticsDeleted") or result["turnId"] in session.get("shadowAssessments", {}):
+            return
+        from app.sales_rubric import supports_versions
+        if not supports_versions(session.get("shadowVersions", {})) or (
+                session.get("shadowState") and not supports_versions(session["shadowState"])):
+            session.setdefault("shadowAssessments", {})[result["turnId"]] = {"error": "shadow_version_unsupported"}
+            await store.save(session)
+            return
+        try:
+            if classifier is None:
+                from app.sales_openrouter import JevSalesClassifier
+                classifier = JevSalesClassifier()
+            from app.sales_rubric import initialize, normalized_labels, evaluate, outcome
+            from app.sales_pipeline import plan_reply
+            shadow = session.get("shadowState")
+            if not shadow:
+                from types import SimpleNamespace
+                shadow = {"phase": 1, "policyViolations": [], "investigationEvidence": [], "status": "active"}
+                initialize(shadow, SimpleNamespace(sales_pipeline_mode="openrouter"))
+            classified = await asyncio.wait_for(classifier.classify(result.get("transcript", ""), {
+                "objective": shadow["phase"], "knownFacts": shadow.get("investigationEvidence", []),
+                "unresolvedPromiseTypes": shadow.get("unresolvedPromises", [])}),
+                getattr(get_settings(), "sales_jev_timeout_seconds", 3))
+            labels = normalized_labels(classified)
+            proposed, decision = evaluate(shadow, labels, result["turnId"])
+            plan_reply(shadow, proposed, decision, labels)
+            diagnostic = {"labels": labels, "metadata": classified.get("metadata", {}),
+                          "proposedDecision": decision, "proposedOutcome": outcome(proposed)}
+        except Exception:
+            diagnostic = {"error": "shadow_classifier_unavailable"}
+            proposed = None
+        session = await store.get(session_id)
+        if session is None or session.get("diagnosticsDeleted"):
+            return
+        session.setdefault("shadowAssessments", {})[result["turnId"]] = diagnostic
+        if proposed is not None:
+            session["shadowState"] = proposed
+        await store.save(session)
+
+
+async def _submit_legacy_turn(session_id: str, request: ReturningTurnRequest, *, store: ReturningSessionStore, transcriber: ReturningTranscriber, responder: ReturningResponder) -> dict[str, Any]:
     async with _LOCKS.setdefault(session_id, asyncio.Lock()):
         session = await store.get(session_id)
         if session is None:
@@ -970,6 +1061,10 @@ async def submit_turn(session_id: str, request: ReturningTurnRequest, *, store: 
 
 
 async def complete_session(session_id: str, request: CompletionRequest, *, store: ReturningSessionStore, analyzer: ReturningAnalyzer) -> dict[str, Any]:
+    session = await store.get(session_id)
+    if session is not None and session.get("pipelineMode") == "openrouter":
+        from app.sales_pipeline import complete
+        return await complete(session_id, request, store=store)
     async with _LOCKS.setdefault(session_id, asyncio.Lock()):
         session = await store.get(session_id)
         if session is None:
@@ -1014,7 +1109,7 @@ async def complete_session(session_id: str, request: CompletionRequest, *, store
             final_customer_text = BAD_ENDING_RESPONSES[0]
         analysis_data = analysis.model_dump(by_alias=True)
         analysis_data["criterionScores"] = criterion_scores.model_dump(by_alias=True)
-        session.update({"status": "finished", "completionId": request.completion_id, "completionReason": request.reason, "completionStatus": "completed", **analysis_data, "rawScore": raw_score, "policyViolationPenalty": policy_violation_penalty, "score": score, "customerRating": customer_rating, "trustState": trust_state, "finalCustomerText": final_customer_text})
+        session.update({"status": "finished", "completionId": request.completion_id, "completionReason": request.reason, "completionStatus": "completed", "assessmentStatus": "completed", **analysis_data, "rawScore": raw_score, "policyViolationPenalty": policy_violation_penalty, "score": score, "customerRating": customer_rating, "trustState": trust_state, "finalCustomerText": final_customer_text})
         return await store.save(session)
 
 
@@ -1023,6 +1118,18 @@ def public_session(session: Mapping[str, Any]) -> dict[str, Any]:
     result.pop("turns", None)
     result.pop("completedTurns", None)
     result.pop("pendingTurns", None)
+    result.pop("turnCheckpoints", None)
+    result.pop("shadowAssessments", None)
+    result.pop("jevDeadlineSeconds", None)
+    result.pop("writerDeadlineSeconds", None)
+    from app.sales_rubric import remaining
+    result["maxTurns"] = session.get("maxTurns", MAX_TURNS)
+    result["remainingTurns"] = remaining(session)
+    if session.get("pipelineMode") == "openrouter" and session.get("completionStatus") != "completed":
+        from app.sales_rubric import supports_versions
+        result["pipelineSupported"] = supports_versions(session)
+        if not result["pipelineSupported"]:
+            result["pipelineUnavailableReason"] = "pipeline_version_unsupported"
     result["activeObjective"] = session.get("phase", 1)
     turns = session.get("turns", [])
     final_customer_text = session.get("finalCustomerText")

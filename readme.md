@@ -33,6 +33,14 @@ The liveness endpoint is `GET /api/health`. It always reports `status: "ok"` whe
 
 ## HTTP API
 
+Sales returning-customer sessions also support an opt-in OpenRouter pipeline.
+Inject `OPENROUTER_API_KEY` into this backend and choose `SALES_PIPELINE_MODE`
+as `legacy`, `shadow`, or `openrouter` for newly created sessions. The default
+is `legacy`. Jev recognizes acts, backend rules score them, Qwen writes Lan's
+planned response, and Supertonic remains local. Existing sessions preserve
+their frozen versions. See [Sales v2 verification and rollout](docs/verification/sales-openrouter-v2.md)
+for retry behavior, rubric, independent review tooling and remaining live checks.
+
 When `BACKEND_API_TOKEN` is set, telemetry and AI clients must send `Authorization: Bearer <token>`. Health endpoints remain unauthenticated for probes. Authentication is disabled when the variable is unset, which preserves the documented local-development behavior.
 
 ### `POST /api/telemetry`
