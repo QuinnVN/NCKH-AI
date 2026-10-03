@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: implemented; rollout-validation-pending
 
 # Nâng cấp hội thoại Sales, pipeline OpenRouter và logic chấm điểm
 

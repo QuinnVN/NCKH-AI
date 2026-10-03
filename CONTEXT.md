@@ -61,3 +61,15 @@ _Avoid_: Sale Part 2, difficult-customer game
 **Customer speech**:
 Synthesized Vietnamese audio through which Lan delivers a customer reply during the returning-customer conversation. The corresponding customer text remains the authoritative reply.
 _Avoid_: TTS response, voice output, audio reply
+
+**Sales evidence**:
+An independently recognized player act tied to a particular utterance and its conversation objective. Uncertain recognition remains unresolved and does not count as an accepted act.
+_Avoid_: Model opinion, customer reply
+
+**Sales rubric component**:
+A skill demonstrated in its required conversation context and credited once for the returning-customer conversation.
+_Avoid_: Good-turn count, trust score
+
+**Outstanding promise**:
+An unauthorized commitment the participant has made and has not withdrawn. Withdrawing it resolves the commitment but does not erase its earlier violation.
+_Avoid_: Policy violation count

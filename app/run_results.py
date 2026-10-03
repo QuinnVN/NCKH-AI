@@ -45,6 +45,11 @@ _EVENT_FIELDS: dict[str, frozenset[str]] = {
     "sales.part2.turn_accepted": frozenset({"turnId", "transcript", "customerReply", "playerResponseRating", "policyViolations", "objective", "activeObjective", "objectiveActiveDuringTurn", "turnTimestampUtc"}),
     "sales.part2.completed": frozenset({"rawScore", "policyViolationPenalty", "policyViolations", "score", "customerRating", "criterionScores", "trustState", "finalCustomerText", "goodResponseCount", "badResponseCount", "emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding", "completionReason", "acceptedTurnCount", "silenceCount", "completedAtUtc"}),
 }
+SALES_PROVENANCE_FIELDS = frozenset({"pipelineVersion", "rubricVersion", "scenarioVersion", "questionSetVersion",
+    "thresholdVersion", "promptVersion", "assessmentStatus", "endingReason", "maxTurns", "evaluableTurnCount",
+    "supplementalTurnGranted"})
+_EVENT_FIELDS["sales.part2.completed"] |= SALES_PROVENANCE_FIELDS
+_EVENT_FIELDS["sales.part2.turn_accepted"] |= SALES_PROVENANCE_FIELDS | {"turnQuality"}
 
 
 def _approved_event_data(event_type: str, value: Any) -> dict[str, Any]:
@@ -116,6 +121,7 @@ def _event_payload(event_type: str, source: Mapping[str, Any], occurred_at: str)
     if event_type == "sales.part2.completed":
         source = source.get("part2") if isinstance(source.get("part2"), Mapping) else source
         return {key: _approved_data(value) for key, value in {
+            **{key: source.get(key) for key in SALES_PROVENANCE_FIELDS},
             "rawScore": source.get("rawScore"), "policyViolationPenalty": source.get("policyViolationPenalty"),
             "policyViolations": source.get("policyViolations"), "score": source.get("score"), "customerRating": source.get("customerRating"),
             "criterionScores": source.get("criterionScores"), "trustState": source.get("trustState"), "emotionalHandling": source.get("emotionalHandling"),
@@ -425,7 +431,10 @@ def project_sales_part2(session: Mapping[str, Any]) -> dict[str, Any]:
                 "objectiveActiveDuringTurn": turn.get("objectiveActiveDuringTurn"),
                 "turnTimestampUtc": turn.get("timestampUtc") or turn.get("createdAtUtc"),
             })
-    return {"turns": turns, "rawScore": session.get("rawScore"),
+    provenance = {key: session[key] for key in ("pipelineVersion", "rubricVersion", "scenarioVersion",
+        "questionSetVersion", "thresholdVersion", "promptVersion", "assessmentStatus", "endingReason",
+        "maxTurns", "evaluableTurnCount", "supplementalTurnGranted") if key in session}
+    return {**provenance, "turns": turns, "rawScore": session.get("rawScore"),
             "policyViolationPenalty": session.get("policyViolationPenalty", 0),
             "policyViolations": session.get("policyViolations", []),
             "score": session.get("score"),
@@ -527,7 +536,34 @@ class RunResultStore:
                 raise ValueError("data must be an object")
             # Fragments are keyed by stable IDs.  Later retries replace nothing;
             # distinct fragments merge shallowly while preserving prior fields.
+            backend_part2 = None
+            if game_id == "sale" and any(key.startswith("sale.part2:") for key in draft["fragments"]):
+                candidate = draft.get("data", {}).get("part2")
+                if isinstance(candidate, Mapping):
+                    backend_part2 = dict(candidate)
             draft["data"] = merge_result_data(draft.get("data", {}), _approved_data(dict(data)))
+            if game_id == "sale":
+                session_authority = self._sales_session(draft)
+                if session_authority is not None and session_authority.get("pipelineMode") == "openrouter":
+                    # Every fragment is subordinate to the frozen v2 session,
+                    # including generic fragments carrying default client scores.
+                    draft["data"]["part2"] = project_sales_part2(session_authority)
+                    draft["data"]["turns"] = draft["data"]["part2"]["turns"]
+                    draft["requiredFields"] = sorted(set(draft.get("requiredFields", [])) | {"part1", "part2"})
+                elif isinstance(draft["data"].get("part2"), Mapping) and draft["data"]["part2"].get("pipelineVersion") == "sales-openrouter-v2":
+                    # A claimed v2 terminal without a linked completed session
+                    # cannot become research authority through a client fragment.
+                    draft["data"]["part2"]["assessmentStatus"] = "pending"
+                    draft["requiredFields"] = sorted(set(draft.get("requiredFields", [])) | {"part1", "part2"})
+            if (
+                game_id == "sale"
+                and fragment.get("kind") == "sales.part2.completed"
+            ):
+                # The completed backend session owns the score. Unity's terminal
+                # telemetry can carry its default score (zero) after that result.
+                authoritative = self._read_sales_part2_session(draft) or backend_part2
+                if authoritative is not None:
+                    draft["data"]["part2"].update(authoritative)
             required = fragment.get("requiredFields", [])
             if required is not None:
                 if not isinstance(required, list) or any(not isinstance(item, str) for item in required):
@@ -542,6 +578,25 @@ class RunResultStore:
             if draft.get("completionRequested") and self._ready_to_finalize(draft):
                 return await self._finalize_unlocked(draft)
             return draft
+
+    def _read_sales_part2_session(self, draft: Mapping[str, Any]) -> dict[str, Any] | None:
+        session = self._sales_session(draft)
+        if not session or session.get("completionStatus") != "completed":
+            return None
+        if session.get("pipelineMode") == "openrouter" and session.get("assessmentStatus") != "completed":
+            return None
+        return {key: value for key, value in project_sales_part2(session).items() if value is not None}
+
+    def _sales_session(self, draft: Mapping[str, Any]) -> dict[str, Any] | None:
+        part1 = draft.get("data", {}).get("part1", {})
+        session_id = part1.get("salesSessionId") if isinstance(part1, Mapping) else None
+        if not isinstance(session_id, str) or RUN_ID.fullmatch(session_id) is None:
+            return None
+        path = self.directory.parent / f"sales-session-{session_id}.json"
+        session = self._read(path)
+        if not session or session.get("runId") != draft.get("runId"):
+            return None
+        return session
 
     @staticmethod
     def _ready_to_finalize(draft: Mapping[str, Any]) -> bool:
@@ -575,6 +630,8 @@ class RunResultStore:
         if game_id == "sale" and "part2" in required:
             part1 = data.get("part1")
             part2 = data.get("part2")
+            if isinstance(part2, Mapping) and part2.get("assessmentStatus") in {"pending", "needs-review"}:
+                return False
             part1_fields = {
                 "attemptId", "selectedShoeId", "bestFitShoeId", "transcript",
                 "score", "feedbackVi", "recordingAtUtc",
@@ -719,9 +776,36 @@ class RunResultStore:
         async with self._lock:
             draft = self._read(self._path(run_id, ".draft.json"))
             if draft is not None and draft.get("status") != "finalized":
+                if await self._recover_completed_unlocked(draft):
+                    return
                 draft["status"] = "aborted"
                 draft["updatedAtUtc"] = self.clock()
                 _atomic_json(self._path(run_id, ".draft.json"), draft)
+
+    async def recover_completed(self, run_id: str) -> dict[str, Any] | None:
+        """Finalize a run only when its stored result proves completion."""
+        async with self._lock:
+            draft = self._read(self._path(run_id, ".draft.json"))
+            if draft is None:
+                return self._read(self._path(run_id, ".json"))
+            return await self._recover_completed_unlocked(draft)
+
+    async def _recover_completed_unlocked(self, draft: dict[str, Any]) -> dict[str, Any] | None:
+        if draft.get("status") == "finalized":
+            return self._read(self._path(draft["runId"], ".json"))
+        if draft.get("gameId") == "sale":
+            authoritative = self._read_sales_part2_session(draft)
+            if authoritative is not None:
+                data = draft.setdefault("data", {})
+                part2_turns = authoritative.get("turns", [])
+                data["part2"] = merge_result_data(data, {"part2": authoritative})["part2"]
+                data["turns"] = _merge_keyed(data.get("turns"), part2_turns, "turnId")
+                draft["requiredFields"] = sorted(set(draft.get("requiredFields", [])) | {"part1", "part2"})
+                draft["completionRequested"] = True
+        if not draft.get("completionRequested") or not self._ready_to_finalize(draft):
+            return None
+        _atomic_json(self._path(draft["runId"], ".draft.json"), draft)
+        return await self._finalize_unlocked(draft)
 
     async def abort_unfinished(self) -> int:
         count = 0
@@ -730,6 +814,9 @@ class RunResultStore:
                 return 0
             for path in self.directory.glob("run-*.draft.json"):
                 draft = self._read(path)
+                if draft and draft.get("status") in {"draft", "aborted"}:
+                    if await self._recover_completed_unlocked(draft):
+                        continue
                 if draft and draft.get("status") == "draft":
                     draft["status"] = "aborted"
                     draft["updatedAtUtc"] = self.clock()
