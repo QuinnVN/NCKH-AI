@@ -1,0 +1,617 @@
+[
+  {
+    "scores": {
+      "D1": 20,
+      "D2": 37,
+      "D3": 54,
+      "D4": 71,
+      "D5": 88,
+      "D6": 24,
+      "E1": 41,
+      "E2": 58,
+      "E3": 75,
+      "E4": 92,
+      "E5": 28,
+      "E6": 45,
+      "S1": 62,
+      "S2": 79,
+      "S3": 96,
+      "M1": 32,
+      "M2": 49,
+      "M3": 66,
+      "A1": 83,
+      "A2": 100,
+      "A3": 36,
+      "A4": 53,
+      "P1": 70,
+      "P2": 87,
+      "P3": 23,
+      "P4": 40,
+      "P5": 57,
+      "P6": 74
+    },
+    "behaviours": [],
+    "interests": [
+      "media-communication",
+      "technology-engineering"
+    ],
+    "expected": [
+      {
+        "id": "chuyen-vien-quan-he-cong-chung",
+        "score": 55.465039315857425,
+        "percentage": 55
+      },
+      {
+        "id": "ky-su-phan-mem",
+        "score": 55.46242141795782,
+        "percentage": 55
+      },
+      {
+        "id": "nha-sang-tao-noi-dung",
+        "score": 55.39415414270566,
+        "percentage": 55
+      },
+      {
+        "id": "quan-tri-he-thong",
+        "score": 53.50575227016274,
+        "percentage": 54
+      },
+      {
+        "id": "ky-su-tu-dong-hoa",
+        "score": 50.25656874797102,
+        "percentage": 50
+      },
+      {
+        "id": "bien-kich",
+        "score": 49.34683329665892,
+        "percentage": 49
+      },
+      {
+        "id": "automotive-engineer",
+        "score": 48.9532348433062,
+        "percentage": 49
+      }
+    ]
+  },
+  {
+    "scores": {
+      "D1": 33,
+      "D2": 50,
+      "D3": 67,
+      "D4": 84,
+      "D5": 20,
+      "D6": 37,
+      "E1": 54,
+      "E2": 71,
+      "E3": 88,
+      "E4": 24,
+      "E5": 41,
+      "E6": 58,
+      "S1": 75,
+      "S2": 92,
+      "S3": 28,
+      "M1": 45,
+      "M2": 62,
+      "M3": 79,
+      "A1": 96,
+      "A2": 32,
+      "A3": 49,
+      "A4": 66,
+      "P1": 83,
+      "P2": 100,
+      "P3": 36,
+      "P4": 53,
+      "P5": 70,
+      "P6": 87
+    },
+    "behaviours": [
+      {
+        "code": "information-processing",
+        "label": "Xử lý thông tin",
+        "score": 12,
+        "evidence": "tiêu chí sử dụng bằng chứng"
+      }
+    ],
+    "interests": [
+      "exploring"
+    ],
+    "expected": [
+      {
+        "id": "chuyen-vien-quan-he-cong-chung",
+        "score": 71.39778128778441,
+        "percentage": 71
+      },
+      {
+        "id": "dieu-duong",
+        "score": 70.55451840426385,
+        "percentage": 71
+      },
+      {
+        "id": "thiet-ke-do-hoa",
+        "score": 68.17204015610906,
+        "percentage": 68
+      },
+      {
+        "id": "tu-van-huong-nghiep",
+        "score": 68.0656274213764,
+        "percentage": 68
+      },
+      {
+        "id": "chuyen-vien-nhan-su",
+        "score": 67.88758744811258,
+        "percentage": 68
+      },
+      {
+        "id": "thiet-ke-noi-that",
+        "score": 67.1753342298473,
+        "percentage": 67
+      },
+      {
+        "id": "giao-vien-giao-duc-dac-biet",
+        "score": 65.9025548979474,
+        "percentage": 66
+      }
+    ]
+  },
+  {
+    "scores": {
+      "D1": 46,
+      "D2": 63,
+      "D3": 80,
+      "D4": 97,
+      "D5": 33,
+      "D6": 50,
+      "E1": 67,
+      "E2": 84,
+      "E3": 20,
+      "E4": 37,
+      "E5": 54,
+      "E6": 71,
+      "S1": 88,
+      "S2": 24,
+      "S3": 41,
+      "M1": 58,
+      "M2": 75,
+      "M3": 92,
+      "A1": 28,
+      "A2": 45,
+      "A3": 62,
+      "A4": 79,
+      "P1": 96,
+      "P2": 32,
+      "P3": 49,
+      "P4": 66,
+      "P5": 83,
+      "P6": 100
+    },
+    "behaviours": [],
+    "interests": [
+      "exploring"
+    ],
+    "expected": [
+      {
+        "id": "thiet-ke-san-pham",
+        "score": 65.05122494575456,
+        "percentage": 65
+      },
+      {
+        "id": "dieu-phoi-san-xuat",
+        "score": 65.0407408797851,
+        "percentage": 65
+      },
+      {
+        "id": "duoc-si",
+        "score": 63.65108330416293,
+        "percentage": 64
+      },
+      {
+        "id": "chuyen-vien-chuoi-cung-ung",
+        "score": 61.283250863344726,
+        "percentage": 61
+      },
+      {
+        "id": "nha-bao",
+        "score": 60.16610891007284,
+        "percentage": 60
+      },
+      {
+        "id": "chuyen-vien-phong-thi-nghiem",
+        "score": 58.9645707451093,
+        "percentage": 59
+      },
+      {
+        "id": "thiet-ke-ux-ui",
+        "score": 58.47296190232161,
+        "percentage": 58
+      }
+    ]
+  },
+  {
+    "scores": {
+      "D1": 59,
+      "D2": 76,
+      "D3": 93,
+      "D4": 29,
+      "D5": 46,
+      "D6": 63,
+      "E1": 80,
+      "E2": 97,
+      "E3": 33,
+      "E4": 50,
+      "E5": 67,
+      "E6": 84,
+      "S1": 20,
+      "S2": 37,
+      "S3": 54,
+      "M1": 71,
+      "M2": 88,
+      "M3": 24,
+      "A1": 41,
+      "A2": 58,
+      "A3": 75,
+      "A4": 92,
+      "P1": 28,
+      "P2": 45,
+      "P3": 62,
+      "P4": 79,
+      "P5": 96,
+      "P6": 32
+    },
+    "behaviours": [
+      {
+        "code": "information-processing",
+        "label": "Xử lý thông tin",
+        "score": 36,
+        "evidence": "tiêu chí sử dụng bằng chứng"
+      }
+    ],
+    "interests": [
+      "media-communication",
+      "technology-engineering"
+    ],
+    "expected": [
+      {
+        "id": "chuyen-gia-an-ninh-mang",
+        "score": 70.28747906456805,
+        "percentage": 70
+      },
+      {
+        "id": "nha-san-xuat-truyen-thong",
+        "score": 66.33662052456782,
+        "percentage": 66
+      },
+      {
+        "id": "bien-kich",
+        "score": 64.61687594995925,
+        "percentage": 65
+      },
+      {
+        "id": "ky-su-dien-tu",
+        "score": 63.61975135674966,
+        "percentage": 64
+      },
+      {
+        "id": "quan-tri-he-thong",
+        "score": 62.73338260774462,
+        "percentage": 63
+      },
+      {
+        "id": "ky-su-ai",
+        "score": 58.237503890320085,
+        "percentage": 58
+      },
+      {
+        "id": "ky-su-tu-dong-hoa",
+        "score": 57.38457738237445,
+        "percentage": 57
+      }
+    ]
+  },
+  {
+    "scores": {
+      "D1": 72,
+      "D2": 89,
+      "D3": 25,
+      "D4": 42,
+      "D5": 59,
+      "D6": 76,
+      "E1": 93,
+      "E2": 29,
+      "E3": 46,
+      "E4": 63,
+      "E5": 80,
+      "E6": 97,
+      "S1": 33,
+      "S2": 50,
+      "S3": 67,
+      "M1": 84,
+      "M2": 20,
+      "M3": 37,
+      "A1": 54,
+      "A2": 71,
+      "A3": 88,
+      "A4": 24,
+      "P1": 41,
+      "P2": 58,
+      "P3": 75,
+      "P4": 92,
+      "P5": 28,
+      "P6": 45
+    },
+    "behaviours": [],
+    "interests": [
+      "exploring"
+    ],
+    "expected": [
+      {
+        "id": "chuyen-vien-quan-ly-chat-luong",
+        "score": 67.37453587164721,
+        "percentage": 67
+      },
+      {
+        "id": "chuyen-vien-phong-thi-nghiem",
+        "score": 66.79102498267727,
+        "percentage": 67
+      },
+      {
+        "id": "chuyen-vien-tai-chinh",
+        "score": 66.73012463889953,
+        "percentage": 67
+      },
+      {
+        "id": "dieu-phoi-san-xuat",
+        "score": 65.93974941106651,
+        "percentage": 66
+      },
+      {
+        "id": "duoc-si",
+        "score": 64.44601219100967,
+        "percentage": 64
+      },
+      {
+        "id": "chuyen-vien-phan-tich-du-lieu",
+        "score": 63.44513743033371,
+        "percentage": 63
+      },
+      {
+        "id": "quan-tri-he-thong",
+        "score": 62.49433546644302,
+        "percentage": 62
+      }
+    ]
+  },
+  {
+    "scores": {
+      "D1": 85,
+      "D2": 21,
+      "D3": 38,
+      "D4": 55,
+      "D5": 72,
+      "D6": 89,
+      "E1": 25,
+      "E2": 42,
+      "E3": 59,
+      "E4": 76,
+      "E5": 93,
+      "E6": 29,
+      "S1": 46,
+      "S2": 63,
+      "S3": 80,
+      "M1": 97,
+      "M2": 33,
+      "M3": 50,
+      "A1": 67,
+      "A2": 84,
+      "A3": 20,
+      "A4": 37,
+      "P1": 54,
+      "P2": 71,
+      "P3": 88,
+      "P4": 24,
+      "P5": 41,
+      "P6": 58
+    },
+    "behaviours": [
+      {
+        "code": "information-processing",
+        "label": "Xử lý thông tin",
+        "score": 60,
+        "evidence": "tiêu chí sử dụng bằng chứng"
+      }
+    ],
+    "interests": [
+      "exploring"
+    ],
+    "expected": [
+      {
+        "id": "chuyen-vien-quan-ly-chat-luong",
+        "score": 71.28452813299701,
+        "percentage": 71
+      },
+      {
+        "id": "ky-thuat-vien-dien",
+        "score": 71.11639769451575,
+        "percentage": 71
+      },
+      {
+        "id": "ky-thuat-vien-xet-nghiem",
+        "score": 67.36530360382457,
+        "percentage": 67
+      },
+      {
+        "id": "ky-thuat-vien-co-khi",
+        "score": 57.01623493130978,
+        "percentage": 57
+      },
+      {
+        "id": "quan-tri-he-thong",
+        "score": 55.72882263433828,
+        "percentage": 56
+      },
+      {
+        "id": "chuyen-vien-phong-thi-nghiem",
+        "score": 55.6585249296681,
+        "percentage": 56
+      },
+      {
+        "id": "ky-su-phan-mem",
+        "score": 54.722818577056714,
+        "percentage": 55
+      }
+    ]
+  },
+  {
+    "scores": {
+      "D1": 98,
+      "D2": 34,
+      "D3": 51,
+      "D4": 68,
+      "D5": 85,
+      "D6": 21,
+      "E1": 38,
+      "E2": 55,
+      "E3": 72,
+      "E4": 89,
+      "E5": 25,
+      "E6": 42,
+      "S1": 59,
+      "S2": 76,
+      "S3": 93,
+      "M1": 29,
+      "M2": 46,
+      "M3": 63,
+      "A1": 80,
+      "A2": 97,
+      "A3": 33,
+      "A4": 50,
+      "P1": 67,
+      "P2": 84,
+      "P3": 20,
+      "P4": 37,
+      "P5": 54,
+      "P6": 71
+    },
+    "behaviours": [],
+    "interests": [
+      "media-communication",
+      "technology-engineering"
+    ],
+    "expected": [
+      {
+        "id": "chuyen-vien-quan-he-cong-chung",
+        "score": 56.09003931585742,
+        "percentage": 56
+      },
+      {
+        "id": "ky-su-phan-mem",
+        "score": 55.73742141795782,
+        "percentage": 56
+      },
+      {
+        "id": "nha-sang-tao-noi-dung",
+        "score": 55.26915414270565,
+        "percentage": 55
+      },
+      {
+        "id": "quan-tri-he-thong",
+        "score": 53.305752270162735,
+        "percentage": 53
+      },
+      {
+        "id": "ky-su-tu-dong-hoa",
+        "score": 50.53156874797103,
+        "percentage": 51
+      },
+      {
+        "id": "automotive-engineer",
+        "score": 49.8157348433062,
+        "percentage": 50
+      },
+      {
+        "id": "bien-kich",
+        "score": 49.72183329665892,
+        "percentage": 50
+      }
+    ]
+  },
+  {
+    "scores": {
+      "D1": 30,
+      "D2": 47,
+      "D3": 64,
+      "D4": 81,
+      "D5": 98,
+      "D6": 34,
+      "E1": 51,
+      "E2": 68,
+      "E3": 85,
+      "E4": 21,
+      "E5": 38,
+      "E6": 55,
+      "S1": 72,
+      "S2": 89,
+      "S3": 25,
+      "M1": 42,
+      "M2": 59,
+      "M3": 76,
+      "A1": 93,
+      "A2": 29,
+      "A3": 46,
+      "A4": 63,
+      "P1": 80,
+      "P2": 97,
+      "P3": 33,
+      "P4": 50,
+      "P5": 67,
+      "P6": 84
+    },
+    "behaviours": [
+      {
+        "code": "information-processing",
+        "label": "Xử lý thông tin",
+        "score": 84,
+        "evidence": "tiêu chí sử dụng bằng chứng"
+      }
+    ],
+    "interests": [
+      "exploring"
+    ],
+    "expected": [
+      {
+        "id": "chuyen-vien-quan-he-cong-chung",
+        "score": 72.12763321798009,
+        "percentage": 72
+      },
+      {
+        "id": "dieu-duong",
+        "score": 71.96609496416015,
+        "percentage": 72
+      },
+      {
+        "id": "tu-van-huong-nghiep",
+        "score": 70.60666414525323,
+        "percentage": 71
+      },
+      {
+        "id": "thiet-ke-do-hoa",
+        "score": 69.52622391328708,
+        "percentage": 70
+      },
+      {
+        "id": "chuyen-vien-nhan-su",
+        "score": 68.93589726277138,
+        "percentage": 69
+      },
+      {
+        "id": "thiet-ke-noi-that",
+        "score": 68.10552308549427,
+        "percentage": 68
+      },
+      {
+        "id": "giao-vien-giao-duc-dac-biet",
+        "score": 67.34093951333202,
+        "percentage": 67
+      }
+    ]
+  }
+]

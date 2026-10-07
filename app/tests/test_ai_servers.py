@@ -43,7 +43,7 @@ class AICommandParserTests(unittest.TestCase):
 
     def test_accepts_each_action_and_target(self):
         for action in ("start", "status", "stop", "restart"):
-            for target in ("all", "llama", "supertonic"):
+            for target in ("all", "llama", "hybrid", "supertonic"):
                 with self.subTest(action=action, target=target):
                     parsed = parse_ai_command(f"ai {action} {target}")
                     self.assertEqual((parsed.action, parsed.target), (action, target))
@@ -92,6 +92,106 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
             "1",
         )
         self.assertEqual(self.manager._specs()["supertonic"].executable, self.supertonic)
+
+    def test_hybrid_flag_changes_all_target(self):
+        manager = AIServerManager(root=self.root, environment={
+            **self.environment, "LLM_USE_AMD_HYBRID": "true",
+        })
+        self.assertEqual(manager._names("all"), ("hybrid", "supertonic"))
+        self.assertEqual(manager._names("llama"), ("llama",))
+
+    async def test_start_openrouter_does_not_load_hybrid(self):
+        manager = AIServerManager(root=self.root, environment={
+            **self.environment,
+            "LLM_USE_AMD_HYBRID": "true",
+            "SALES_PIPELINE_MODE": "openrouter",
+        })
+        command = parse_ai_command("ai start")
+        with (
+            patch.object(manager, "_start_hybrid", new=AsyncMock(return_value=True)) as hybrid,
+            patch.object(manager, "_port_is_available", return_value=True),
+            patch.object(manager, "_wait_until_ready", new=AsyncMock()),
+            patch("app.ai_servers.asyncio.create_subprocess_exec",
+                  new=AsyncMock(return_value=FakeProcess(401))) as process_factory,
+        ):
+            started = await manager.start(command.target)
+
+        hybrid.assert_not_awaited()
+        self.assertEqual(started, ("supertonic",))
+        process_factory.assert_awaited_once()
+        self.assertEqual(process_factory.await_args.args[0], str(self.supertonic))
+
+    def test_all_targets_follow_pipeline_mode_and_local_runtime(self):
+        for mode in ("legacy", "shadow", "openrouter", " OpenRouter ", "invalid", ""):
+            for hybrid in ("false", "true"):
+                with self.subTest(mode=mode, hybrid=hybrid):
+                    manager = AIServerManager(root=self.root, environment={
+                        **self.environment,
+                        "LLM_USE_AMD_HYBRID": hybrid,
+                        "SALES_PIPELINE_MODE": mode,
+                    })
+                    expected = (("supertonic",) if mode.strip().lower() == "openrouter"
+                                else ("hybrid" if hybrid == "true" else "llama", "supertonic"))
+                    self.assertEqual(manager._names("all"), expected)
+                    for target in ("llama", "hybrid", "supertonic"):
+                        self.assertEqual(manager._names(target), (target,))
+
+    async def test_openrouter_status_stop_and_restart_do_not_contact_hybrid(self):
+        manager = AIServerManager(root=self.root, environment={
+            **self.environment,
+            "LLM_USE_AMD_HYBRID": "true",
+            "SALES_PIPELINE_MODE": "openrouter",
+        })
+        with (
+            patch.object(manager, "_hybrid_health", new=AsyncMock()) as health,
+            patch.object(manager, "_stop_hybrid", new=AsyncMock()) as stop_hybrid,
+            patch.object(manager, "_start_hybrid", new=AsyncMock()) as start_hybrid,
+            patch.object(manager, "_port_is_available", return_value=True),
+            patch.object(manager, "_wait_until_ready", new=AsyncMock()),
+            patch("app.ai_servers.asyncio.create_subprocess_exec",
+                  new=AsyncMock(return_value=FakeProcess(402))),
+        ):
+            self.assertEqual(tuple(status.name for status in await manager.status()), ("supertonic",))
+            self.assertEqual(await manager.stop(), ())
+            self.assertEqual(await manager.restart(), ("supertonic",))
+
+        health.assert_not_awaited()
+        stop_hybrid.assert_not_awaited()
+        start_hybrid.assert_not_awaited()
+
+    async def test_openrouter_detached_start_only_starts_supertonic(self):
+        manager = AIServerManager(root=self.root, environment={
+            **self.environment,
+            "LLM_USE_AMD_HYBRID": "false",
+            "SALES_PIPELINE_MODE": "openrouter",
+        })
+        with (
+            patch.object(manager, "_port_is_available", side_effect=[True, False]),
+            patch("app.ai_servers.subprocess.Popen", return_value=FakeProcess(403)) as popen,
+        ):
+            self.assertEqual(await manager.start_detached(), ("supertonic",))
+
+        popen.assert_called_once()
+        self.assertEqual(popen.call_args.args[0][0], str(self.supertonic))
+
+    async def test_hybrid_start_requires_hybrid_checkpoint(self):
+        manager = AIServerManager(root=self.root, environment={
+            **self.environment, "LLM_USE_AMD_HYBRID": "true",
+        })
+        hybrid = {"all_models_loaded": [{
+            "model_name": "Qwen3-4B-Hybrid", "recipe": "ryzenai-llm",
+            "checkpoint": "amd/Qwen3-4B-awq-quant-onnx-ryzenai-1.7-hybrid",
+            "launch_command": ["ryzenai-server.exe", "--ctx-size", "16384"],
+        }]}
+        self.assertFalse(manager._hybrid_loaded({"all_models_loaded": [{
+            "model_name": "Qwen3-4B-Hybrid", "recipe": "llamacpp", "device": "gpu",
+        }]}))
+        with patch.object(manager, "_hybrid_health", new=AsyncMock(return_value=None)):
+            with self.assertRaises(AIServerError):
+                await manager.start("hybrid")
+        with patch.object(manager, "_hybrid_health", new=AsyncMock(return_value=hybrid)):
+            self.assertEqual(await manager.start("hybrid"), ())
+            self.assertTrue((await manager.status("hybrid"))[0].running)
 
     def test_preflight_reports_all_missing_dependencies(self):
         manager = AIServerManager(

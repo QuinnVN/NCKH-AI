@@ -2,7 +2,7 @@
 
 This repository contains the Python backend for a Unity VR training project. It accepts telemetry and recorded voice clips from Unity, exposes an optional OpenAI-compatible LLM response endpoint, and maintains a control WebSocket that lets the backend request a scene change and wait for Unity to acknowledge it.
 
-The sales endpoints perform speech-to-text with an embedded sherpa-onnx recognizer and the pinned Vietnamese Zipformer 30M INT8 model. The general `/api/ai/respond` route still accepts a client-provided transcript. The interactive operator console installs the speech model and supervises the local llama.cpp server.
+The sales endpoints perform speech-to-text with an embedded sherpa-onnx recognizer and the pinned Vietnamese Zipformer 30M INT8 model. The general `/api/ai/respond` route still accepts a client-provided transcript. The interactive operator console installs the speech model and manages the selected local Qwen3-4B runtime.
 
 ## Architecture and data flow
 
@@ -25,13 +25,21 @@ fragment with `complete: true` finalizes one immutable aggregate. Use
 `db sync` to retry unsynchronized aggregates. Local drafts, finalized JSON,
 WAV/processing records, and synchronization sidecars are retained indefinitely.
 
-`app/main.py` owns the FastAPI routes, the single active Unity control connection, command sequencing, and the small operator console. `app/ai_servers.py` owns llama.cpp preflight, startup, status, and shutdown. `app/sherpa_stt.py` owns the serialized in-process recognizer, while `app/sherpa_setup.py` verifies and installs its model bundle. `app/save_recording.py` validates the recording contract and writes files with a temporary file followed by an atomic replace. `app/llm_service.py` is a bounded, error-normalizing HTTP client. `app/config.py` centralizes environment-driven settings.
+`app/main.py` owns the FastAPI routes, the single active Unity control connection, command sequencing, and the small operator console. `app/ai_servers.py` manages llama.cpp or the Lemonade hybrid model, plus Supertonic. `app/sherpa_stt.py` owns the serialized in-process recognizer, while `app/sherpa_setup.py` verifies and installs its model bundle. `app/save_recording.py` validates the recording contract and writes files with a temporary file followed by an atomic replace. `app/llm_service.py` is a bounded, error-normalizing HTTP client. `app/config.py` centralizes environment-driven settings.
 
 `app/sales_persuasion.py` owns the sales recording contract and attempt store. `app/lawyer_assessment.py` provides the equivalent durable workflow for the Lawyer closing defense, including bounded case context, four scoring criteria, and the interview-restart penalty. A successful submission means the WAV and JSON attempt record have been persisted; it does not wait for transcription or assessment. Reusing an attempt ID with the same payload is idempotent, while changed immutable data returns 409.
 
 The liveness endpoint is `GET /api/health`. It always reports `status: "ok"` when the process is serving; `ready` and `llmConfigured` indicate whether an LLM service was initialized. `GET /api/health/ready` returns 503 until the LLM is configured. Unity connectivity is reported as `unityConnected`. TTS fields report whether Supertonic is configured, has recently produced a valid WAV, and requires the backend bearer token. TTS does not affect general readiness.
 
 ## HTTP API
+
+Sales returning-customer sessions also support an opt-in OpenRouter pipeline.
+Inject `OPENROUTER_API_KEY` into this backend and choose `SALES_PIPELINE_MODE`
+as `legacy`, `shadow`, or `openrouter` for newly created sessions. The default
+is `legacy`. Jev recognizes acts, backend rules score them, Qwen writes Lan's
+planned response, and Supertonic remains local. Existing sessions preserve
+their frozen versions. New sessions use v3, in which Lan reacts to customer concerns and one ledger scorer decides every rating and result ([verification](docs/verification/sales-customer-state-v3-2026-10-05.md)). See [Sales v2 verification and rollout](docs/verification/sales-openrouter-v2.md)
+for retry behavior, rubric, independent review tooling and remaining live checks.
 
 When `BACKEND_API_TOKEN` is set, telemetry and AI clients must send `Authorization: Bearer <token>`. Health endpoints remain unauthenticated for probes. Authentication is disabled when the variable is unset, which preserves the documented local-development behavior.
 
@@ -71,7 +79,7 @@ The recording must be a non-empty PCM WAV with signed 16-bit samples, 16,000 Hz,
 
 The background worker detects silence, transcribes Vietnamese speech, and scores `evidence_use` out of 40, `logical_connections` out of 35, `conclusion_fidelity` out of 15, and `clarity_and_persuasiveness` out of 10. The raw total is preserved. Zero through three interview restarts have no penalty; four or more apply one 50% deduction to the raw total, retaining half points. `GET /api/lawyer/defense-recordings/<roundId>` exposes only gameplay-safe processing status. The diagnostic endpoint at the same path plus `/diagnostic` returns the detailed result only when `X-Diagnostic-Token` matches `LAWYER_DIAGNOSTIC_TOKEN`.
 
-Unity sales uploads use the same telemetry route with `eventType: "sales.persuasion_recording"`. Its payload uses `roundId`, `questionId`, `caseId`, `cardId`, a JSON-string `resolution` containing `selectedShoe`, `bestFitShoe`, `customerNeeds`, `objection`, and `availableShoes`, plus the WAV `audio` object. The adapter validates this envelope and maps it to the sales attempt contract below. Unity audio metadata such as `fileName`, `durationSeconds`, and `endedEarly` is accepted but does not replace WAV validation. Sales Part 2 completion scores apology plus policy-compliant remedy out of 50 and adaptability plus de-escalation out of 50. Each store-policy violation deducts 10 points. The final customer rating and `trustState` come from whether good turns outnumber bad turns, bad turns outnumber good turns, or the counts are tied.
+Unity sales uploads use the same telemetry route with `eventType: "sales.persuasion_recording"`. Its payload uses `roundId`, `questionId`, `caseId`, `cardId`, a JSON-string `resolution` containing `selectedShoe`, `bestFitShoe`, `customerNeeds`, `objection`, and `availableShoes`, plus the WAV `audio` object. The adapter validates this envelope and maps it to the sales attempt contract below. Unity audio metadata such as `fileName`, `durationSeconds`, and `endedEarly` is accepted but does not replace WAV validation. Sales Part 2 completion scores apology plus policy-compliant remedy out of 50 and adaptability plus de-escalation out of 50. Each store-policy violation deducts 10 points. In the legacy pipeline the final customer rating and `trustState` come from whether good turns outnumber bad turns, bad turns outnumber good turns, or the counts are tied. OpenRouter sessions compute them from the evidence ledger instead; see [Sales Part 2](docs/sales-part2.md).
 
 ### `POST /api/ai/respond`
 
@@ -106,7 +114,7 @@ This endpoint accepts up to 28 categorized questionnaire dimensions, then uses Q
 
 Unity opens one authenticated connection to `WS /ws/ctrl`. The token can be supplied as the `Authorization: Bearer <token>` header or the `token=<token>` query parameter. A newer connection replaces the older one, and pending commands belonging to the old connection fail rather than accepting an ACK from the wrong client.
 
-The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, and `sale`. For a gameplay scene, the backend sends `load_scene`, waits for a `ready` acknowledgement, then sends `start_scene` and waits for a `running` acknowledgement. Standby requires only `load_scene`. The console also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai setup`, `ai setup stt`, or `ai setup supertonic` to install speech dependencies. Use `ai start`, `ai status`, `ai stop`, or `ai restart` with `all`, `llama`, or `supertonic` to manage local model services. The remaining commands are `status` and `exit`. The first command is:
+The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, `sale`, and `tutorial`. For a gameplay scene, the backend sends `load_scene`, waits for a `ready` acknowledgement, then sends `start_scene` and waits for a `running` acknowledgement. Clinic and Doctor load acknowledgements can also report `running` when the scene has already started automatically; the follow-up start command remains idempotent. Standby requires only `load_scene`. The console also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai setup`, `ai setup stt`, or `ai setup supertonic` to install speech dependencies. Use `ai start`, `ai status`, `ai stop`, or `ai restart` with `all`, `llama`, `hybrid`, or `supertonic` to manage local model services. With `SALES_PIPELINE_MODE=openrouter`, `all` selects only Supertonic. In `legacy` or `shadow` mode, `all` selects the LLM runtime chosen by `LLM_USE_AMD_HYBRID`, together with Supertonic. Explicit targets still select the named service in every mode. The remaining commands are `status` and `exit`. The first command is:
 
 ```json
 {
@@ -118,7 +126,7 @@ The operator console accepts `set_game <scene_id>`, where the scene catalog is `
 }
 ```
 
-After Unity acknowledges the gameplay scene with phase `ready`, the backend sends:
+After Unity acknowledges an allowed gameplay load phase, the backend sends:
 
 ```json
 {
@@ -174,8 +182,9 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `MAX_MESSAGE_CHARS` | `4000` | Maximum conversation message length. |
 | `MAX_CONVERSATION_MESSAGES` | `20` | Maximum conversation history items. |
 | `COMMAND_TIMEOUT_SECONDS` | `5` | Unity command ACK timeout, capped at 60 seconds. |
-| `LLM_BASE_URL` | `http://127.0.0.1:8080/v1` | Separately hosted llama.cpp `llama-server` OpenAI-compatible base URL. |
-| `LLM_MODEL` | `qwen3-4b` | Model alias sent upstream; must match the server's `--alias` value. |
+| `LLM_USE_AMD_HYBRID` | `false` | Set to `true` in `.env` to run backend Qwen3-4B through Lemonade's NPU + iGPU hybrid model. Restart the backend after changing it. |
+| `LLM_BASE_URL` | `http://127.0.0.1:8080/v1` | llama.cpp base URL when hybrid mode is off; also used by the final-evaluation CLI even when the backend hybrid flag is on. |
+| `LLM_MODEL` | `qwen3-4b` | llama.cpp model alias when hybrid mode is off. Hybrid mode uses `Qwen3-4B-Hybrid` at `http://127.0.0.1:13305/v1` automatically. |
 | `LLM_READ_TIMEOUT_SECONDS` | `120` | LLM response timeout, capped at 600 seconds. |
 | `LLM_MAX_TOKENS` | `100` | Maximum completion tokens, capped at 2,048. |
 | `LLM_CAREER_MAX_TOKENS` | `4096` | Completion budget for thinking plus career JSON, capped at 8,192. |
@@ -185,12 +194,12 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `MONGODB_URI` | unset | Optional MongoDB URI; unset keeps results local-only. |
 | `MONGODB_DATABASE` | `desmap` | MongoDB database for completed aggregates. |
 | `MONGODB_RESULTS_COLLECTION` | `game_results` | MongoDB collection for completed aggregates. |
-| `FINAL_EVALUATION_LLM_MODEL` | `qwen3-8b` | Qwen3 8B alias used only by the final-evaluation CLI. Other backend tasks keep `LLM_MODEL`. |
+| `OPENROUTER_API_KEY` | unset | Private OpenRouter key used by the final-evaluation writer and Sales v2 adapters. |
 | `FINAL_EVALUATION_MAX_PROMPT_CHARS` | `16000` | Maximum system prompt plus facts for one generated text field. |
-| `FINAL_EVALUATION_MAX_TOKENS` | `512` | Completion limit for one generated text field, bounded to 128–2,048. |
-| `FINAL_EVALUATION_LLM_START_TIMEOUT_SECONDS` | `900` | Time the CLI waits for an automatically started Qwen3 8B server, bounded to 30–3,600 seconds. |
+| `FINAL_EVALUATION_MAX_TOKENS` | `1024` | Completion limit for one generated text field, bounded to 128–2,048. |
+| `FINAL_EVALUATION_REQUEST_TIMEOUT_SECONDS` | `45` | Timeout for each OpenRouter request, bounded to 5–120 seconds. |
 | `LAWYER_DIAGNOSTIC_TOKEN` | unset | Token required by the detailed Lawyer diagnostic result endpoint. |
-| `LLAMA_SERVER_BIN` | `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe` | Unified llama.cpp executable used by the operator console. The manager invokes its `serve` subcommand. |
+| `LLAMA_SERVER_BIN` | `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe` | Unified llama.cpp executable used by local backend tasks when hybrid mode is off. |
 | `AI_SERVER_START_TIMEOUT_SECONDS` | `180` | Time allowed for each managed server to open its local port. |
 | `AI_SERVER_SHUTDOWN_TIMEOUT_SECONDS` | `15` | Time allowed for a managed server to exit before it is force-closed. |
 | `SHERPA_MODEL_DIR` | `models/sherpa-onnx-zipformer-vi-30M-int8-2026-02-09` | Directory containing the verified encoder, decoder, joiner, and token files. |
@@ -221,6 +230,8 @@ For the interactive console (including `set_game`, `reset`, `test_llm`, and the 
 py -m app.main
 ```
 
+`start_server.ps1` runs the same backend with the repository's virtual environment. When launched without an attached terminal, it serves the API without the operator console.
+
 ### Generate a final career evaluation
 
 Run the interactive CLI:
@@ -229,20 +240,16 @@ Run the interactive CLI:
 .\.venv\Scripts\python.exe .\scripts\generate_final_evaluation.py
 ```
 
-If `qwen3-8b` is not available at `LLM_BASE_URL`, the CLI opens `run-qwen3-8b.ps1` in another PowerShell window and waits for the alias to appear at `/v1/models`. It does not start a second process when the requested model is already ready. If another model occupies the configured port, stop that server before retrying. Use `--no-start-llm` to disable automatic startup.
+The CLI sends final-assessment writing requests directly to OpenRouter with `deepseek/deepseek-v4.1-flash` and reasoning disabled. Configure `OPENROUTER_API_KEY` in the backend process or this repository's `.env`; the key is never sent to the browser. No local model or Python HTTP backend needs to be running for this CLI. `LLM_BASE_URL`, `LLM_MODEL`, `LLM_USE_AMD_HYBRID`, and the old `FINAL_EVALUATION_LLM_MODEL` / `FINAL_EVALUATION_LLM_START_TIMEOUT_SECONDS` settings do not control it. The old `--no-start-llm` option is accepted as a no-op for command compatibility.
 
-You can still start the model manually:
+The OpenRouter adapter retries a temporary rate limit or provider/network failure once, with at most a three-second delay. Authentication and credit failures return safe error messages. Invalid or truncated completions stop generation before any incomplete assessment is saved. Provider safety annotations are removed from participant text, and providers are restricted to routes that deny data collection. No other model is silently substituted. Existing validated text-field repair and career-evidence checks still apply.
 
-```powershell
-.\scripts\run-qwen3-8b.ps1
-```
+The CLI reads participant names from `questionnaire_submissions`. Choose a number for one person or `all` for everyone, or pass `--participant "Nguyễn Văn An"` or `--all` on the command line. Both modes skip people already present in `final_evaluations` before calling DeepSeek. The CLI combines all completed `game_results` for each person into one evaluation; repeated runs of one game are averaged, and `doctor` and `clinic` are treated as two tasks in the Doctor experience. Use `--dry-run` to print new assessments without writing MongoDB.
 
-The Qwen run scripts use `llama-server` when it is on `PATH`. Otherwise, on Windows they use `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe`, matching the operator console. Set `LLAMA_SERVER_BIN` or pass `-LlamaServerCommand` to select a different executable.
-The 8B script leaves GPU layer selection to llama.cpp so it can fit the model and 32K context into available VRAM. Pass `-GpuLayers <count>` to override that choice, or `-ContextSize 8192` to use a smaller context.
+Python calculates dimension levels, DESMAP scores and observed VR rubric scores. The final-career calculation uses `data/career-catalog.json`: 68 occupations whose profiles come from O*NET® 30.2 data (CC BY 4.0) through `data/onet-career-mapping.json`. The 22 non-Desire dimensions are matched by profile-shape correlation, and work values in D are compared with each occupation's O*NET work values rather than treated as ability. VR contributes at most 25%, scaled by the criteria actually observed. Only the selected interest groups are included, while `exploring` includes the full catalog. Careers are ranked at full precision before rounding. DeepSeek writes 3-4 short sentences for the first career and 2-3 for each alternative among the top seven careers; unsupported or negative descriptions are replaced with cited facts and a concrete exploratory activity. DeepSeek does not assign compatibility scores. Saved documents include `careerRankingVersion`, `generationProvider`, and `generationModel` so the web and operators can identify current prose and its source. See the web repository's `docs/career-ranking.md` for the formula and MongoDB audit. Refresh O*NET data with `python scripts/build_onet_extract.py --version 30.2`, export the catalog with `python scripts/build_career_catalog.py --web-root <NCKH-Web path>` (run from the repository root with `PYTHONPATH=.`), and increase the version when criteria change. Keep the O*NET attribution from `data/onet-extract.json` wherever the results are shown.
 
-The CLI reads participant names from `questionnaire_submissions`. Choose a number for one person or `all` for everyone, or pass `--participant "Nguyễn Văn An"` or `--all` on the command line. Both modes skip people already present in `final_evaluations` before calling Qwen. The CLI combines all completed `game_results` for each person into one evaluation; repeated runs of one game are averaged, and `doctor` and `clinic` are treated as two tasks in the Doctor experience. Use `--dry-run` to print new assessments without writing MongoDB.
 
-Python calculates the 28 dimension levels, DESMAP group scores, rubric-based VR scores, and each weighted VR contribution (`VR score x weight of the experienced occupation`). The comparison selects at least one finding of each kind across all games: `confirmed`, `emerging`, and `development`. Those first three cards use relative performance and potential within the participant's own evidence; low VR scores are stated plainly rather than called strengths. More findings can be added when available, and titles name the behaviour without appending the occupation. Qwen selects one supported icon for each finding; if its answer is invalid, the icon is omitted so the frontend uses the default for that kind. Career candidates come only from the participant's selected `careerInterests`; `exploring` uses a broad cross-group pool. Qwen receives one candidate at a time and returns only that career's integer compatibility score. The backend sorts those isolated scores, keeps the top seven, asks Qwen for each prose field separately, then assembles and validates the `FinalAssessment` contract before the MongoDB write. Qwen never returns the final JSON. The scoring and writing rules are in `prompts/final_evaluation_system.txt`.
+The read-only model benchmark uses the same final-evaluation generator and exports deidentified inputs, request costs, timing, raw prose and aggregate checks. Run `scripts/benchmark_final_evaluation.py prepare` and `run` with a new output directory under `recordings`; results do not change production model settings or MongoDB. The measured comparison of DeepSeek V4.1 Flash, Qwen3.8 Flash and MiMo V2.6 Flash is in [the final-evaluation benchmark report](docs/verification/final-eval-benchmark-2026-10-04/report.md).
 
 Use `test <text>` to send one typed player response through the Sales Part 2
 LLM responder. It bypasses speech recognition and does not create or alter a
@@ -263,28 +270,37 @@ For a non-interactive deployment, run `scripts/setup-zipformer.ps1` before start
 Run the focused tests with:
 
 ```powershell
-py -m unittest discover -s app/tests -p "test_*.py"
+py scripts/run_tests.py
 ```
 
-From the interactive console, start llama.cpp with:
+The test runner skips `.env`, uses a dummy OpenRouter key and temporary recordings,
+disables MongoDB, and rejects live HTTP requests. Tests can still use `MockTransport` and
+`ASGITransport`. To run a single module, use
+`py scripts/run_tests.py app.tests.test_sales_pipeline_api -v`.
+
+From the interactive console, start the local services selected by the pipeline mode with:
 
 ```text
 ai start
 ```
 
-This opens llama.cpp and, when selected, Supertonic in separate Windows console windows. `ai start` preflights each selected service and waits for its port. Supertonic listens on `127.0.0.1:7788`. Use `ai status`, `ai stop`, or `ai restart` to inspect or control either service. A failed Supertonic launch does not stop a llama.cpp process that already started.
+With `SALES_PIPELINE_MODE=openrouter`, `ai start` starts only Supertonic, even when `LLM_USE_AMD_HYBRID=true`. Other simulations still use their configured local LLM; start it explicitly with `ai start hybrid` or `ai start llama` when needed, and use the same explicit target to inspect or stop it. In `legacy` or `shadow` mode, with hybrid mode off, `ai start` opens llama.cpp and Supertonic in separate Windows console windows. With hybrid mode on, it loads `Qwen3-4B-Hybrid` into the already installed Lemonade service with a 16K context; `ai stop` unloads that model but leaves Lemonade running. Supertonic listens on `127.0.0.1:7788`. Use `ai status`, `ai stop`, or `ai restart` to inspect or control the services selected by the pipeline mode. Restart the backend after changing the pipeline mode. A failed Supertonic launch does not stop an LLM that already started.
 
-The llama executable path comes from `LLAMA_SERVER_BIN`. If that variable is unset, the manager derives `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe`. The manager uses llama.cpp's `-hf` option, so the first run may download `Qwen/Qwen3-4B-GGUF:Q4_K_M`. The backend sends `LLM_MODEL` (default `qwen3-4b`) as the OpenAI-compatible model field, so it must match the server alias.
+The llama executable path comes from `LLAMA_SERVER_BIN`. If that variable is unset, the manager derives `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe`. The manager uses llama.cpp's `-hf` option, so the first run may download `Qwen/Qwen3-4B-GGUF:Q4_K_M`. The backend sends `LLM_MODEL` (default `qwen3-4b`) as the OpenAI-compatible model field in this mode.
 
-`ai stop` sends a stop request only to the llama process started by the current operator console. It force-closes the process only if it remains alive after 15 seconds. Entering `exit`, pressing Ctrl+C, or ending the backend also runs the same shutdown before the operator process exits.
+For hybrid mode, install [Lemonade Server](https://lemonade-server.ai/docs/guide/install/) and its `ryzenai-llm:npu` backend on a compatible Ryzen AI Windows PC. Pull `Qwen3-4B-Hybrid` with `lemonade pull Qwen3-4B-Hybrid`, then set `LLM_USE_AMD_HYBRID=true` in `.env` and restart the backend. `ai start hybrid` loads the model; `ai status hybrid` checks that Lemonade reports the Ryzen AI hybrid checkpoint with a 16K context. The backend uses Lemonade on `127.0.0.1:13305` and reports an error if it is unavailable. No automatic llama.cpp fallback occurs while the flag is on.
 
-Verify llama.cpp independently with:
+In llama.cpp mode, `ai stop` sends a stop request only to the llama process started by the current operator console. It force-closes that process only if it remains alive after 15 seconds. Entering `exit`, pressing Ctrl+C, or ending the backend also stops the selected managed services before the operator process exits.
+
+Verify the selected model endpoint independently with:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8080/v1/models
+# Hybrid mode:
+Invoke-RestMethod http://127.0.0.1:13305/v1/health
 ```
 
-`/api/health/ready` requires non-empty LLM configuration and a loaded Zipformer recognizer. It does not probe llama.cpp. A stopped or misconfigured LLM server is detected on the first response request. If the speech model is absent, the backend and operator console still start, readiness returns 503, and `ai setup` can install and initialize it.
+`/api/health/ready` requires non-empty LLM configuration and a loaded Zipformer recognizer. It does not probe the model server. A stopped or misconfigured LLM server is detected on the first response request. If the speech model is absent, the backend and operator console still start, readiness returns 503, and `ai setup` can install and initialize it.
 
 ## Security and operational notes
 

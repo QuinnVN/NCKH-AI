@@ -1,0 +1,286 @@
+[
+  {
+    "path": "app/ai_servers.py",
+    "sha256": "E2D9E49D7CE6E1D4F359B1FE01DFF22FC766FDE245300C8E89458A9D26E3791C"
+  },
+  {
+    "path": "app/career_assessment.py",
+    "sha256": "BD229A05484D55AA102994B6DB2AB3131E90B000FF4BC3859315EA255AA94F05"
+  },
+  {
+    "path": "app/career_ranking.py",
+    "sha256": "2ADDE8E7EF2B508ACDAEEC8C3A0C755E0A1B72D3D2B465C23C3FF091D0EDD2D4"
+  },
+  {
+    "path": "app/config.py",
+    "sha256": "E1ECFA67EE67472E936AA2BADB0A72322E9CF21C0182455A200AE67BAC263C0E"
+  },
+  {
+    "path": "app/final_evaluation_calculation.py",
+    "sha256": "4F9BC515664362F5A6D4A6AC1FD5BB59BCB6247FA809941D506310DEA169CF0C"
+  },
+  {
+    "path": "app/final_evaluation_openrouter.py",
+    "sha256": "990A097D3CE36C7F9650F44EF663AA1806ECF5E6DBEB43C4A9AB71551DD303BC"
+  },
+  {
+    "path": "app/final_evaluation.py",
+    "sha256": "80D3C45C861AF16E08B9D433BCE71992AE6AAB70BA87CFB3FCA310E6513C832B"
+  },
+  {
+    "path": "app/lawyer_assessment.py",
+    "sha256": "12B5AC677AB2356147DA2A5C452901ECE069A66896FE4C1CF3F84B96122860CD"
+  },
+  {
+    "path": "app/llm_service.py",
+    "sha256": "643758C34849997C2003E6EAB113F80523694850AB931D99AEA77BA2FAA5B7CB"
+  },
+  {
+    "path": "app/main.py",
+    "sha256": "CA72CD5F6D3F64F323576BE9854C221053ED88A3B3FC3EDDBA34180BD0DB568A"
+  },
+  {
+    "path": "app/run_results.py",
+    "sha256": "FA243CEA6346D753E73C5266E4AFE255C358F8DA9E29EDE5051BD17DCC5F2D85"
+  },
+  {
+    "path": "app/sales_arbitration.py",
+    "sha256": "BBC2A69EED3C491DFA29A6ECD8ED5C35B7A5F7DACD0B5CC35C256D3199AF6D8B"
+  },
+  {
+    "path": "app/sales_concerns.py",
+    "sha256": "730EAFB7C3FFC441AD7C4DE9FE8FE8099D1C1FE033D4F9579930947FB530D49C"
+  },
+  {
+    "path": "app/sales_customer_lines.py",
+    "sha256": "F7B3E8C8495A1FE5D028433FA0FE377157CFB8A5D151E5B8AFEC2F7D7065A4DF"
+  },
+  {
+    "path": "app/sales_openrouter.py",
+    "sha256": "E24BFA639BAF5E1D7979B3B17016DF5C0E11D9B84D6B74FB2B39C7EDDE969D90"
+  },
+  {
+    "path": "app/sales_persuasion.py",
+    "sha256": "DEBC5DB9D63E6A5D73A308B5A4DF749F950197CF2A0DEEED606952CF2E270133"
+  },
+  {
+    "path": "app/sales_pipeline.py",
+    "sha256": "509EF5F558A8471EF46D7BC6E7905BD57167E78A3489D28074978941ACD4F62B"
+  },
+  {
+    "path": "app/sales_rescore.py",
+    "sha256": "9FDD5D5D78B3603BC0948E3BC8955A3F726C2E9B1C9FC31B88CE1B7C35E5492F"
+  },
+  {
+    "path": "app/sales_returning_customer.py",
+    "sha256": "B3195836EC6E0F30ED4D8543AD76E14D43B3212D67D6D1194F7309BEE7615CD4"
+  },
+  {
+    "path": "app/sales_review.py",
+    "sha256": "C7AC53A8D0AE19634F37C6C8C7AB88E1D1A860B07657D7982547E437DC0D4E3A"
+  },
+  {
+    "path": "app/sales_rubric.py",
+    "sha256": "6F30FAE97E761B92DD138430E99BCD3E07E7FFE696070D000C62ADD1C1A9E2B8"
+  },
+  {
+    "path": "app/tests/fixtures/sales_v3_regression_labels.json",
+    "sha256": "75CAA8AEFA5CF7B760E5EC141E03BCAAFA5E7AEBC3BE52E7495AAB2AB2EA9FB1"
+  },
+  {
+    "path": "app/tests/test_ai_servers.py",
+    "sha256": "8CAB3702BCB8CBF826AD13E9EFCA9E816E71C24FA76AADC1585A11B4804CDFA1"
+  },
+  {
+    "path": "app/tests/test_benchmark_final_evaluation.py",
+    "sha256": "221235FD923C00657EC84048F6DBA362D9378A8B43F133B39DE90907BA118C06"
+  },
+  {
+    "path": "app/tests/test_career_assessment.py",
+    "sha256": "C776CCC34E9AF447357C4E9C3EAE9051B9CC0E659962EB9B0796E20C4DE48A49"
+  },
+  {
+    "path": "app/tests/test_career_ranking.py",
+    "sha256": "83F0562EEEB70C0E1B87A121F97A77E303E7B0F4A69D7D14B324AECC3D3005B4"
+  },
+  {
+    "path": "app/tests/test_final_evaluation_openrouter.py",
+    "sha256": "3641C864E52CCF059431EF33F46E58B3B3F6B1FE53B9EBE19B37EE4EA3B2DE95"
+  },
+  {
+    "path": "app/tests/test_generate_final_evaluation.py",
+    "sha256": "42A66845B1FF9B8695D78EF54DBE02F4A414303009FFA209C6634091D3DAED8A"
+  },
+  {
+    "path": "app/tests/test_llm_service.py",
+    "sha256": "588B8A9C8F43481205F7FE428DC1FB44E2D4F04EB1A59877F0F053932FD8E2EE"
+  },
+  {
+    "path": "app/tests/test_main.py",
+    "sha256": "7DD00985579706356E3C0DEF2AF0A00E99D2FE8206B42CE4D8A7F4D2F5E6C262"
+  },
+  {
+    "path": "app/tests/test_repair_simulation_results.py",
+    "sha256": "C6E749B3D7FC216F5B5D6AC9EB595D7795C0CD342652731C0C641E9A4D5ACE70"
+  },
+  {
+    "path": "app/tests/test_run_results.py",
+    "sha256": "345A6252A75FAA4C3EA45ACD0175FB09FD5A23BED3779370F24E2807BE17A3B2"
+  },
+  {
+    "path": "app/tests/test_sales_arbitration.py",
+    "sha256": "19BA953360757F9E5B8496246520BB75BC9672ACBDC7E7C2589982C0AFFA81E1"
+  },
+  {
+    "path": "app/tests/test_sales_evaluation.py",
+    "sha256": "DE23B24C9EDA263928DD72770405529956813679ADB588216026003C30EE0AFD"
+  },
+  {
+    "path": "app/tests/test_sales_openrouter.py",
+    "sha256": "60DFF1BC8F3CED17F3294EB0C5DFC24C307DDC438C5710ADD077350C6910F665"
+  },
+  {
+    "path": "app/tests/test_sales_persuasion.py",
+    "sha256": "CA2884343EF246EF059279B5698B9BA17A0C4AB4FD6CDBBEF83B61CB5D4ED585"
+  },
+  {
+    "path": "app/tests/test_sales_pipeline_api.py",
+    "sha256": "24BE41E43B58D1D8E96B95674C2306FAC68792C2FF63018BD45AE37104B24885"
+  },
+  {
+    "path": "app/tests/test_sales_returning_customer.py",
+    "sha256": "FB69647BF340A1310A5849914C6A0773CFC13BD631A7CB3E82058EF8D97C30E3"
+  },
+  {
+    "path": "app/tests/test_sales_turn_pipeline.py",
+    "sha256": "6BB3B4AE3F289BBF15D067B1BF855B5F301F6700C13D06345A565B73696BB600"
+  },
+  {
+    "path": "CONTEXT.md",
+    "sha256": "FBB136E8B1C714085C76F83C344A4DBB71FB0DB5FB108AD111BCBBC466B756D3"
+  },
+  {
+    "path": "docs/adr/0003-versioned-sales-evidence-assessment.md",
+    "sha256": "92601BE2EE1DD1AD19DCF7074D7599EF9042C00B072689B6B8E7B69CF41080F7"
+  },
+  {
+    "path": "docs/adr/0004-ledger-scoring-and-customer-concerns.md",
+    "sha256": "FD2F3483A963D7F53C869AB0F7B0094C1BAE5A3B2593E63B63DE39929259E4A7"
+  },
+  {
+    "path": "docs/research/sales-network-pipeline-options-2026-10-03.md",
+    "sha256": "FCCCA829CDFD1B68260653A74401C36C069DAEBB77C44E544183F00902C9A1A8"
+  },
+  {
+    "path": "docs/research/sales-openrouter-pipeline-options-2026-10-03.md",
+    "sha256": "321734F03710BFA429E4C35551FC83932DAF81A403C2E158D00B0A9BE7DA8D58"
+  },
+  {
+    "path": "docs/sales-part2.md",
+    "sha256": "38CA33445A321B4F24EA35DB2E3344C32A4A280C616B9303FF70CE742281CC23"
+  },
+  {
+    "path": "docs/specs/sales-dialogue-openrouter-upgrade.md",
+    "sha256": "F11786B421641B6BCC8BAA8A983D707DAC5189D351FC135C0278EA16E5CB73D3"
+  },
+  {
+    "path": "docs/verification/final-eval-benchmark-2026-10-04/per-eval.csv",
+    "sha256": "5137BBBF14050A88704308C7D3FD11195B68F1942576AF333B6C9B52EB197123"
+  },
+  {
+    "path": "docs/verification/final-eval-benchmark-2026-10-04/report.md",
+    "sha256": "1BAF8B2CBB12BA78C7580D169986E8BF369B06015399396415C7FAE7C5208069"
+  },
+  {
+    "path": "docs/verification/final-eval-benchmark-2026-10-04/summary.json",
+    "sha256": "BC31D129DCF687070EA8929AE4A5CD5441D69D2ABEE2A951BA25D5EB232AB198"
+  },
+  {
+    "path": "docs/verification/recordings-classifier-readiness-2026-10-03.md",
+    "sha256": "DED625FDB73728B3FA8E4F73093EEE72AAA5E607B91668E1F693018D04B086E6"
+  },
+  {
+    "path": "docs/verification/sales-capture-personality-2026-10-04.md",
+    "sha256": "817A2B815334CDA4B47AD1820BEC7550558A324E7064C57E133645ED719C218F"
+  },
+  {
+    "path": "docs/verification/sales-customer-state-v3-2026-10-05.md",
+    "sha256": "85763103DA9A598AE5BC43D9E583CF24508B9CA09DBFA98442244100630EEC21"
+  },
+  {
+    "path": "docs/verification/sales-dialogue.md",
+    "sha256": "3F4022660146B1DDD889E179AD23BB356BE5E9E60E4237770DE3E834CEDF0F5B"
+  },
+  {
+    "path": "docs/verification/sales-jev-luna-hybrid-2026-10-04.md",
+    "sha256": "0F9470F45C1546F80AECB12C8A4A88B1A8503EA41C2AE08F4DEA50893AD43CF7"
+  },
+  {
+    "path": "docs/verification/sales-needs-review-2026-10-04.md",
+    "sha256": "BA0232FFD9619E1975A2ADA0807D2AEA4D787AF16C285A18E2A7DBBCC58FEDE2"
+  },
+  {
+    "path": "docs/verification/sales-neutral-stall-2026-10-05.md",
+    "sha256": "7C296879967A000BE7D2228FFACA28D50B56939D964169EEAC8E6B93A083FACF"
+  },
+  {
+    "path": "docs/verification/sales-openrouter-v2.md",
+    "sha256": "8DB9301AEBAEC03542755BED9258D86A6F1756938FC5EAB2160B063B01BE2749"
+  },
+  {
+    "path": "prompts/final_evaluation_system.txt",
+    "sha256": "59C3AEBB7E1FF6E60457BC08DFA9B73E1BAC9E859407F6FF7C5FF7DE880712B3"
+  },
+  {
+    "path": "readme.md",
+    "sha256": "E8896B5A4804C0F417E6A4995418C549E40C79734553FA17ABE25104B9D0A67E"
+  },
+  {
+    "path": "scripts/benchmark_final_evaluation.py",
+    "sha256": "63B48126FFD3B969E1BF3B6D311D131CA412949B9C7BFDD74CC3E7E0C614A5A3"
+  },
+  {
+    "path": "scripts/build_career_catalog.py",
+    "sha256": "20A98216CCD0BAC6075B5CA46F728248B094F59FE403EBAE15EC9B9613424050"
+  },
+  {
+    "path": "scripts/evaluate_sales_hybrid.py",
+    "sha256": "92049F30B25316DC20616EE0721A944C057569C6B3AB3E974AB6407044A286D2"
+  },
+  {
+    "path": "scripts/evaluate_sales_jev.py",
+    "sha256": "2672470C1CD1E1653D679580BE5C6F71F9D605328CF151C6799E561E7FE76364"
+  },
+  {
+    "path": "scripts/evaluate_sales_luna.py",
+    "sha256": "6E2B8E05BA327BF85ACF07EDA150AEAB2DDCE50F9F41219AAF71996AF1C5D3B3"
+  },
+  {
+    "path": "scripts/evaluate_sales_writer_personality.py",
+    "sha256": "BA3BC9533557AF24714E4774375A5F46771E8051A0E84081D235C707836EFC85"
+  },
+  {
+    "path": "scripts/generate_final_evaluation.py",
+    "sha256": "49ECD7B8283F62CEB0C2481ECD0FF39BFBD2724E428BAF3EB642877522714021"
+  },
+  {
+    "path": "scripts/repair_simulation_results.py",
+    "sha256": "8ECBA5A4502BBBE24DCF056D7C4003810E9B611E9BEFFF42D0AFD1FB6C7CE2AA"
+  },
+  {
+    "path": "scripts/report_final_evaluation_benchmark.py",
+    "sha256": "C27D53C75D8C462B39F3ADB929C937A5259FE62542738725839D034638855A9D"
+  },
+  {
+    "path": "scripts/rescore_sales_sessions.py",
+    "sha256": "6DDCB84569D5DC35C16073F52803B7B15D25BB6DC85F0DD934830B1F7C3C02AF"
+  },
+  {
+    "path": "scripts/run-qwen3-8b.ps1",
+    "sha256": "36C4ADE52E3EF55C59ED4E4F210032E9BCBAE2BD4E508C064D7517326FCBAEFE"
+  },
+  {
+    "path": "scripts/temp_label_jev.py",
+    "sha256": "4400E8F0E1B62D50F514BDD662BD7EBF6D510FE02CC4228EB2D73AA19908940B"
+  }
+]

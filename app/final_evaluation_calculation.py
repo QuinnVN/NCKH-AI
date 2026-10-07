@@ -119,11 +119,8 @@ CAREERS_BY_INTEREST: dict[str, tuple[tuple[str, str, str], ...]] = {
     "law-public-service": (
         ("luat-su", "Luật sư", "dùng bằng chứng, lập luận, ra quyết định và trình bày thuyết phục"),
         ("chuyen-vien-phap-che", "Chuyên viên pháp chế", "đọc quy định, phân tích rủi ro và tư vấn có căn cứ"),
-        ("cong-chung-vien", "Công chứng viên", "kiểm tra hồ sơ, độ chính xác và trách nhiệm thủ tục"),
-        ("chuyen-vien-hanh-chinh-cong", "Chuyên viên hành chính công", "xử lý quy trình, phục vụ người dân và phối hợp"),
         ("chuyen-vien-chinh-sach-cong", "Chuyên viên chính sách công", "nghiên cứu, đánh giá tác động và viết đề xuất"),
         ("chuyen-vien-tuan-thu", "Chuyên viên tuân thủ", "nhận diện rủi ro, kiểm tra quy tắc và báo cáo rõ ràng"),
-        ("chuyen-vien-quan-he-quoc-te", "Chuyên viên quan hệ quốc tế", "phân tích bối cảnh, giao tiếp và thích ứng văn hóa"),
     ),
     "media-communication": (
         ("nha-bao", "Nhà báo", "tìm kiếm thông tin, đặt câu hỏi và trình bày chính xác"),
@@ -153,7 +150,6 @@ CAREERS_BY_INTEREST: dict[str, tuple[tuple[str, str, str], ...]] = {
         ("giao-vien-giao-duc-dac-biet", "Giáo viên giáo dục đặc biệt", "kiên nhẫn, quan sát và điều chỉnh hỗ trợ cá nhân"),
     ),
     "science-research": (
-        ("nha-nghien-cuu", "Nhà nghiên cứu", "đặt giả thuyết, phân tích bằng chứng và làm việc có hệ thống"),
         ("chuyen-vien-phong-thi-nghiem", "Chuyên viên phòng thí nghiệm", "tuân thủ quy trình, đo lường và ghi nhận chính xác"),
         ("chuyen-vien-cong-nghe-sinh-hoc", "Chuyên viên công nghệ sinh học", "kiến thức khoa học, phân tích và thử nghiệm"),
         ("nha-khoa-hoc-du-lieu", "Nhà khoa học dữ liệu", "mô hình hóa, phân tích dữ liệu và kiểm tra giả thuyết"),
@@ -243,12 +239,12 @@ def group_scores(dimensions: Mapping[str, DimensionFact]) -> dict[str, int]:
 
 def _percent(value: Any, maximum: float = 100.0) -> int | None:
     number = _number(value)
-    return None if number is None or maximum <= 0 else max(0, min(100, round(number / maximum * 100)))
+    return None if number is None or maximum <= 0 or number > maximum else math.floor(number / maximum * 100 + .5)
 
 
 def _average(values: list[int | None]) -> int | None:
     present = [value for value in values if value is not None]
-    return round(fmean(present)) if present else None
+    return math.floor(fmean(present) + .5) if present else None
 
 
 def calculate_behaviours(game: Mapping[str, Any], dimensions: Mapping[str, DimensionFact]) -> dict[str, BehaviourFact]:
@@ -267,8 +263,10 @@ def calculate_behaviours(game: Mapping[str, Any], dimensions: Mapping[str, Dimen
     elif game_id == "sale":
         part1 = data.get("part1") if isinstance(data.get("part1"), Mapping) else {}
         part2 = data.get("part2") if isinstance(data.get("part2"), Mapping) else {}
+        if part2.get("assessmentStatus") not in (None, "completed"):
+            part2 = {}
         criteria = part2.get("criterionScores", {}) if isinstance(part2.get("criterionScores"), Mapping) else {}
-        choice = 100 if part1.get("selectedShoeId") and part1.get("selectedShoeId") == part1.get("bestFitShoeId") else _percent(part1.get("score"))
+        choice = (100 if part1["selectedShoeId"] == part1["bestFitShoeId"] else 0) if part1.get("selectedShoeId") and part1.get("bestFitShoeId") else _percent(part1.get("score"))
         scores = {
             "information-processing": (_average([choice, 100 if part2.get("causeIdentification") is True else 0 if part2.get("causeIdentification") is False else None]), "lựa chọn sản phẩm và nhận diện nguyên nhân trong hai phần Sales"),
             "decision-making": (_average([choice, 100 if part2.get("solutionSuitability") is True else 0 if part2.get("solutionSuitability") is False else None]), "lựa chọn sản phẩm và mức phù hợp của giải pháp cuối"),
@@ -366,7 +364,7 @@ def combine_game_results(
         game_behaviours: dict[str, BehaviourFact] = {}
         for code in dict.fromkeys(code for run in runs for code in run):
             facts = [run[code] for run in runs if code in run]
-            score = round(fmean(fact.score for fact in facts))
+            score = math.floor(fmean(fact.score for fact in facts) + .5)
             evidence = "; ".join(dict.fromkeys(fact.evidence for fact in facts))
             game_behaviours[code] = BehaviourFact(
                 code, facts[0].label, score, evidence, facts[0].self_score
@@ -390,7 +388,7 @@ def combine_game_results(
     combined: dict[str, BehaviourFact] = {}
     for code, facts in pooled.items():
         combined[code] = BehaviourFact(
-            code, facts[0].label, round(fmean(fact.score for fact in facts)),
+            code, facts[0].label, math.floor(fmean(fact.score for fact in facts) + .5),
             "; ".join(
                 f"{item['experienceName']} ({item['gameId']}): "
                 f"{per_game[item['gameId']][code].evidence} "

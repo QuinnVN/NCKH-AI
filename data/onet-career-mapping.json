@@ -1,0 +1,940 @@
+{
+  "status": "approved",
+  "onetVersion": "30.2",
+  "note": "Duyệt ngày 06/10/2026. confidence: H = tương đương trực tiếp, M = ghép hoặc gần đúng, L = không có mã tương đương, dùng mã ghép. Đã bỏ 4 nghề cần chuyên gia quyết định riêng: Công chứng viên, Chuyên viên hành chính công, Chuyên viên quan hệ quốc tế, Nhà nghiên cứu.",
+  "fallback": {
+    "15-1252.00": {
+      "WorkValues": "15-1299.08"
+    },
+    "13-1199.05": {
+      "WorkStyles": "19-2041.00"
+    },
+    "17-2199.10": {
+      "WorkStyles": "17-2081.00"
+    },
+    "17-2199.11": {
+      "WorkStyles": "17-2081.00"
+    },
+    "11-9121.02": {
+      "WorkStyles": "19-1031.00"
+    }
+  },
+  "careers": [
+    {
+      "id": "nha-khoi-nghiep",
+      "name": "Nhà khởi nghiệp",
+      "onetSoc": [
+        {
+          "code": "11-1011.00",
+          "title": "Chief Executives"
+        },
+        {
+          "code": "11-1021.00",
+          "title": "General and Operations Managers"
+        }
+      ],
+      "confidence": "L",
+      "note": "O*NET không có mã khởi nghiệp; dùng CEO + quản lý chung"
+    },
+    {
+      "id": "chuyen-vien-phat-trien-kinh-doanh",
+      "name": "Chuyên viên phát triển kinh doanh",
+      "onetSoc": [
+        {
+          "code": "13-1161.00",
+          "title": "Market Research Analysts and Marketing Specialists"
+        },
+        {
+          "code": "11-2022.00",
+          "title": "Sales Managers"
+        }
+      ],
+      "confidence": "L",
+      "note": "Không có mã BD riêng; ghép nghiên cứu thị trường + quản lý bán hàng"
+    },
+    {
+      "id": "quan-ly-san-pham",
+      "name": "Quản lý sản phẩm",
+      "onetSoc": [
+        {
+          "code": "11-2021.00",
+          "title": "Marketing Managers"
+        },
+        {
+          "code": "15-1299.09",
+          "title": "Information Technology Project Managers"
+        }
+      ],
+      "confidence": "L",
+      "note": "Không có Product Manager; ghép quản lý marketing + quản lý dự án CNTT"
+    },
+    {
+      "id": "chuyen-vien-marketing",
+      "name": "Chuyên viên marketing",
+      "onetSoc": [
+        {
+          "code": "13-1161.00",
+          "title": "Market Research Analysts and Marketing Specialists"
+        },
+        {
+          "code": "11-2021.00",
+          "title": "Marketing Managers"
+        }
+      ],
+      "confidence": "M",
+      "note": "Ghép Market Research Analysts and Marketing Specialists + Marketing Managers để tách khỏi nghề Nghiên cứu thị trường"
+    },
+    {
+      "id": "chuyen-vien-tai-chinh",
+      "name": "Chuyên viên tài chính",
+      "onetSoc": [
+        {
+          "code": "13-2041.00",
+          "title": "Credit Analysts"
+        },
+        {
+          "code": "13-2099.01",
+          "title": "Financial Quantitative Analysts"
+        }
+      ],
+      "confidence": "M",
+      "note": "Mã 13-2051.00 Financial and Investment Analysts chưa có điểm đánh giá; dùng Credit Analysts + Financial Quantitative Analysts"
+    },
+    {
+      "id": "quan-ly-ban-hang",
+      "name": "Quản lý bán hàng",
+      "onetSoc": [
+        {
+          "code": "11-2022.00",
+          "title": "Sales Managers"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "chuyen-vien-thuong-mai-dien-tu",
+      "name": "Chuyên viên thương mại điện tử",
+      "onetSoc": [
+        {
+          "code": "13-1161.01",
+          "title": "Search Marketing Strategists"
+        },
+        {
+          "code": "13-1161.00",
+          "title": "Market Research Analysts and Marketing Specialists"
+        }
+      ],
+      "confidence": "M",
+      "note": "Search Marketing Strategists gần nhất"
+    },
+    {
+      "id": "thiet-ke-do-hoa",
+      "name": "Nhà thiết kế đồ họa",
+      "onetSoc": [
+        {
+          "code": "27-1024.00",
+          "title": "Graphic Designers"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "thiet-ke-ux-ui",
+      "name": "Nhà thiết kế UX/UI",
+      "onetSoc": [
+        {
+          "code": "15-1254.00",
+          "title": "Web Developers"
+        },
+        {
+          "code": "27-1021.00",
+          "title": "Commercial and Industrial Designers"
+        }
+      ],
+      "confidence": "L",
+      "note": "Mã 15-1255.00 Web and Digital Interface Designers chưa có điểm đánh giá; ghép Web Developers + Commercial and Industrial Designers"
+    },
+    {
+      "id": "kien-truc-su",
+      "name": "Kiến trúc sư",
+      "onetSoc": [
+        {
+          "code": "17-1011.00",
+          "title": "Architects, Except Landscape and Naval"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "thiet-ke-noi-that",
+      "name": "Nhà thiết kế nội thất",
+      "onetSoc": [
+        {
+          "code": "27-1025.00",
+          "title": "Interior Designers"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "thiet-ke-san-pham",
+      "name": "Nhà thiết kế sản phẩm",
+      "onetSoc": [
+        {
+          "code": "27-1021.00",
+          "title": "Commercial and Industrial Designers"
+        }
+      ],
+      "confidence": "H",
+      "note": "Commercial and Industrial Designers"
+    },
+    {
+      "id": "dao-dien-nghe-thuat",
+      "name": "Giám đốc nghệ thuật",
+      "onetSoc": [
+        {
+          "code": "27-1011.00",
+          "title": "Art Directors"
+        }
+      ],
+      "confidence": "H",
+      "note": "Art Directors"
+    },
+    {
+      "id": "hoa-si-minh-hoa",
+      "name": "Họa sĩ minh họa",
+      "onetSoc": [
+        {
+          "code": "27-1013.00",
+          "title": "Fine Artists, Including Painters, Sculptors, and Illustrators"
+        }
+      ],
+      "confidence": "M",
+      "note": "Mã gộp họa sĩ, điêu khắc, minh họa"
+    },
+    {
+      "id": "ky-su-moi-truong",
+      "name": "Kỹ sư môi trường",
+      "onetSoc": [
+        {
+          "code": "17-2081.00",
+          "title": "Environmental Engineers"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "chuyen-vien-phat-trien-ben-vung",
+      "name": "Chuyên viên phát triển bền vững",
+      "onetSoc": [
+        {
+          "code": "13-1199.05",
+          "title": "Sustainability Specialists"
+        }
+      ],
+      "confidence": "H",
+      "note": "Sustainability Specialists"
+    },
+    {
+      "id": "ky-su-nang-luong-tai-tao",
+      "name": "Kỹ sư năng lượng tái tạo",
+      "onetSoc": [
+        {
+          "code": "17-2199.11",
+          "title": "Solar Energy Systems Engineers"
+        },
+        {
+          "code": "17-2199.10",
+          "title": "Wind Energy Engineers"
+        }
+      ],
+      "confidence": "M",
+      "note": "Trung bình kỹ sư điện mặt trời + điện gió"
+    },
+    {
+      "id": "chuyen-vien-bao-ton",
+      "name": "Chuyên viên bảo tồn",
+      "onetSoc": [
+        {
+          "code": "19-1031.00",
+          "title": "Conservation Scientists"
+        }
+      ],
+      "confidence": "H",
+      "note": "Conservation Scientists"
+    },
+    {
+      "id": "nghien-cuu-moi-truong",
+      "name": "Nhà nghiên cứu môi trường",
+      "onetSoc": [
+        {
+          "code": "19-2041.00",
+          "title": "Environmental Scientists and Specialists, Including Health"
+        }
+      ],
+      "confidence": "H",
+      "note": "Environmental Scientists and Specialists"
+    },
+    {
+      "id": "chuyen-vien-esg",
+      "name": "Chuyên viên ESG",
+      "onetSoc": [
+        {
+          "code": "13-1199.05",
+          "title": "Sustainability Specialists"
+        },
+        {
+          "code": "13-1041.00",
+          "title": "Compliance Officers"
+        }
+      ],
+      "confidence": "L",
+      "note": "Chưa có mã ESG; ghép bền vững + tuân thủ"
+    },
+    {
+      "id": "quan-ly-tai-nguyen",
+      "name": "Chuyên viên quản lý tài nguyên",
+      "onetSoc": [
+        {
+          "code": "11-9121.02",
+          "title": "Water Resource Specialists"
+        },
+        {
+          "code": "19-1031.00",
+          "title": "Conservation Scientists"
+        }
+      ],
+      "confidence": "L",
+      "note": "Water Resource Specialists + Conservation Scientists"
+    },
+    {
+      "id": "doctor",
+      "name": "Bác sĩ",
+      "onetSoc": [
+        {
+          "code": "29-1215.00",
+          "title": "Family Medicine Physicians"
+        },
+        {
+          "code": "29-1216.00",
+          "title": "General Internal Medicine Physicians"
+        }
+      ],
+      "confidence": "M",
+      "note": "Bác sĩ đa khoa: gia đình + nội tổng quát"
+    },
+    {
+      "id": "dieu-duong",
+      "name": "Điều dưỡng",
+      "onetSoc": [
+        {
+          "code": "29-1141.00",
+          "title": "Registered Nurses"
+        }
+      ],
+      "confidence": "H",
+      "note": "Registered Nurses"
+    },
+    {
+      "id": "duoc-si",
+      "name": "Dược sĩ",
+      "onetSoc": [
+        {
+          "code": "29-1051.00",
+          "title": "Pharmacists"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "chuyen-gia-tam-ly",
+      "name": "Chuyên gia tâm lý",
+      "onetSoc": [
+        {
+          "code": "19-3033.00",
+          "title": "Clinical and Counseling Psychologists"
+        }
+      ],
+      "confidence": "H",
+      "note": "Clinical and Counseling Psychologists"
+    },
+    {
+      "id": "chuyen-gia-dinh-duong",
+      "name": "Chuyên gia dinh dưỡng",
+      "onetSoc": [
+        {
+          "code": "29-1031.00",
+          "title": "Dietitians and Nutritionists"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "chuyen-vien-y-te-cong-cong",
+      "name": "Chuyên viên y tế công cộng",
+      "onetSoc": [
+        {
+          "code": "19-1041.00",
+          "title": "Epidemiologists"
+        },
+        {
+          "code": "21-1091.00",
+          "title": "Health Education Specialists"
+        }
+      ],
+      "confidence": "M",
+      "note": "Dịch tễ + giáo dục sức khỏe"
+    },
+    {
+      "id": "ky-thuat-vien-xet-nghiem",
+      "name": "Kỹ thuật viên xét nghiệm",
+      "onetSoc": [
+        {
+          "code": "29-2011.00",
+          "title": "Medical and Clinical Laboratory Technologists"
+        }
+      ],
+      "confidence": "H",
+      "note": "Medical and Clinical Laboratory Technologists"
+    },
+    {
+      "id": "lawyer",
+      "name": "Luật sư",
+      "onetSoc": [
+        {
+          "code": "23-1011.00",
+          "title": "Lawyers"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "chuyen-vien-phap-che",
+      "name": "Chuyên viên pháp chế",
+      "onetSoc": [
+        {
+          "code": "23-1011.00",
+          "title": "Lawyers"
+        },
+        {
+          "code": "23-2011.00",
+          "title": "Paralegals and Legal Assistants"
+        }
+      ],
+      "confidence": "M",
+      "note": "Luật sư + trợ lý pháp lý; VN pháp chế doanh nghiệp"
+    },
+    {
+      "id": "chuyen-vien-chinh-sach-cong",
+      "name": "Chuyên viên chính sách công",
+      "onetSoc": [
+        {
+          "code": "19-3094.00",
+          "title": "Political Scientists"
+        },
+        {
+          "code": "19-3011.00",
+          "title": "Economists"
+        }
+      ],
+      "confidence": "M",
+      "note": "Political Scientists + Economists"
+    },
+    {
+      "id": "chuyen-vien-tuan-thu",
+      "name": "Chuyên viên tuân thủ",
+      "onetSoc": [
+        {
+          "code": "13-1041.00",
+          "title": "Compliance Officers"
+        }
+      ],
+      "confidence": "H",
+      "note": "Compliance Officers"
+    },
+    {
+      "id": "nha-bao",
+      "name": "Nhà báo",
+      "onetSoc": [
+        {
+          "code": "27-3023.00",
+          "title": "News Analysts, Reporters, and Journalists"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "chuyen-vien-quan-he-cong-chung",
+      "name": "Chuyên viên quan hệ công chúng",
+      "onetSoc": [
+        {
+          "code": "27-3031.00",
+          "title": "Public Relations Specialists"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "nha-sang-tao-noi-dung",
+      "name": "Nhà sáng tạo nội dung",
+      "onetSoc": [
+        {
+          "code": "27-3043.00",
+          "title": "Writers and Authors"
+        },
+        {
+          "code": "27-4032.00",
+          "title": "Film and Video Editors"
+        }
+      ],
+      "confidence": "L",
+      "note": "Không có mã content creator; ghép người viết + dựng video"
+    },
+    {
+      "id": "bien-tap-vien",
+      "name": "Biên tập viên",
+      "onetSoc": [
+        {
+          "code": "27-3041.00",
+          "title": "Editors"
+        }
+      ],
+      "confidence": "H",
+      "note": "Editors"
+    },
+    {
+      "id": "chuyen-vien-truyen-thong-so",
+      "name": "Chuyên viên truyền thông số",
+      "onetSoc": [
+        {
+          "code": "13-1161.01",
+          "title": "Search Marketing Strategists"
+        },
+        {
+          "code": "27-3031.00",
+          "title": "Public Relations Specialists"
+        }
+      ],
+      "confidence": "M",
+      "note": ""
+    },
+    {
+      "id": "bien-kich",
+      "name": "Biên kịch",
+      "onetSoc": [
+        {
+          "code": "27-3043.05",
+          "title": "Poets, Lyricists and Creative Writers"
+        }
+      ],
+      "confidence": "H",
+      "note": "Poets, Lyricists and Creative Writers"
+    },
+    {
+      "id": "nha-san-xuat-truyen-thong",
+      "name": "Nhà sản xuất truyền thông",
+      "onetSoc": [
+        {
+          "code": "27-2012.00",
+          "title": "Producers and Directors"
+        }
+      ],
+      "confidence": "H",
+      "note": "Producers and Directors"
+    },
+    {
+      "id": "chuyen-vien-logistics",
+      "name": "Chuyên viên logistics",
+      "onetSoc": [
+        {
+          "code": "13-1081.00",
+          "title": "Logisticians"
+        }
+      ],
+      "confidence": "H",
+      "note": "Logisticians"
+    },
+    {
+      "id": "chuyen-vien-chuoi-cung-ung",
+      "name": "Chuyên viên chuỗi cung ứng",
+      "onetSoc": [
+        {
+          "code": "11-3071.04",
+          "title": "Supply Chain Managers"
+        },
+        {
+          "code": "13-1081.02",
+          "title": "Logistics Analysts"
+        }
+      ],
+      "confidence": "M",
+      "note": ""
+    },
+    {
+      "id": "quan-ly-van-hanh",
+      "name": "Quản lý vận hành",
+      "onetSoc": [
+        {
+          "code": "11-1021.00",
+          "title": "General and Operations Managers"
+        }
+      ],
+      "confidence": "H",
+      "note": "General and Operations Managers"
+    },
+    {
+      "id": "ky-thuat-vien-dien",
+      "name": "Kỹ thuật viên điện",
+      "onetSoc": [
+        {
+          "code": "47-2111.00",
+          "title": "Electricians"
+        }
+      ],
+      "confidence": "H",
+      "note": "Electricians"
+    },
+    {
+      "id": "ky-thuat-vien-co-khi",
+      "name": "Kỹ thuật viên cơ khí",
+      "onetSoc": [
+        {
+          "code": "17-3027.00",
+          "title": "Mechanical Engineering Technologists and Technicians"
+        },
+        {
+          "code": "49-9041.00",
+          "title": "Industrial Machinery Mechanics"
+        }
+      ],
+      "confidence": "M",
+      "note": "Kỹ thuật viên cơ khí + thợ máy công nghiệp"
+    },
+    {
+      "id": "chuyen-vien-quan-ly-chat-luong",
+      "name": "Chuyên viên quản lý chất lượng",
+      "onetSoc": [
+        {
+          "code": "11-3051.01",
+          "title": "Quality Control Systems Managers"
+        },
+        {
+          "code": "19-4099.01",
+          "title": "Quality Control Analysts"
+        }
+      ],
+      "confidence": "M",
+      "note": ""
+    },
+    {
+      "id": "dieu-phoi-san-xuat",
+      "name": "Điều phối sản xuất",
+      "onetSoc": [
+        {
+          "code": "43-5061.00",
+          "title": "Production, Planning, and Expediting Clerks"
+        },
+        {
+          "code": "11-3051.00",
+          "title": "Industrial Production Managers"
+        }
+      ],
+      "confidence": "M",
+      "note": ""
+    },
+    {
+      "id": "teacher",
+      "name": "Giáo viên",
+      "onetSoc": [
+        {
+          "code": "25-2031.00",
+          "title": "Secondary School Teachers, Except Special and Career/Technical Education"
+        }
+      ],
+      "confidence": "H",
+      "note": "Giáo viên THPT; nếu dạy cấp khác thì đổi mã"
+    },
+    {
+      "id": "chuyen-vien-dao-tao",
+      "name": "Chuyên viên đào tạo",
+      "onetSoc": [
+        {
+          "code": "13-1151.00",
+          "title": "Training and Development Specialists"
+        }
+      ],
+      "confidence": "H",
+      "note": "Training and Development Specialists"
+    },
+    {
+      "id": "chuyen-vien-nhan-su",
+      "name": "Chuyên viên nhân sự",
+      "onetSoc": [
+        {
+          "code": "13-1071.00",
+          "title": "Human Resources Specialists"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "tu-van-huong-nghiep",
+      "name": "Chuyên viên tư vấn hướng nghiệp",
+      "onetSoc": [
+        {
+          "code": "21-1012.00",
+          "title": "Educational, Guidance, and Career Counselors and Advisors"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "cong-tac-xa-hoi",
+      "name": "Nhân viên công tác xã hội",
+      "onetSoc": [
+        {
+          "code": "21-1021.00",
+          "title": "Child, Family, and School Social Workers"
+        }
+      ],
+      "confidence": "M",
+      "note": "Child, Family, and School Social Workers"
+    },
+    {
+      "id": "quan-ly-giao-duc",
+      "name": "Chuyên viên quản lý giáo dục",
+      "onetSoc": [
+        {
+          "code": "11-9032.00",
+          "title": "Education Administrators, Kindergarten through Secondary"
+        },
+        {
+          "code": "25-9031.00",
+          "title": "Instructional Coordinators"
+        }
+      ],
+      "confidence": "M",
+      "note": ""
+    },
+    {
+      "id": "giao-vien-giao-duc-dac-biet",
+      "name": "Giáo viên giáo dục đặc biệt",
+      "onetSoc": [
+        {
+          "code": "25-2058.00",
+          "title": "Special Education Teachers, Secondary School"
+        }
+      ],
+      "confidence": "M",
+      "note": "Cấp THPT; có thể đổi sang 25-2056/2057"
+    },
+    {
+      "id": "chuyen-vien-phong-thi-nghiem",
+      "name": "Chuyên viên phòng thí nghiệm",
+      "onetSoc": [
+        {
+          "code": "19-4021.00",
+          "title": "Biological Technicians"
+        },
+        {
+          "code": "19-4031.00",
+          "title": "Chemical Technicians"
+        }
+      ],
+      "confidence": "M",
+      "note": "Biological + Chemical Technicians"
+    },
+    {
+      "id": "chuyen-vien-cong-nghe-sinh-hoc",
+      "name": "Chuyên viên công nghệ sinh học",
+      "onetSoc": [
+        {
+          "code": "19-1021.00",
+          "title": "Biochemists and Biophysicists"
+        },
+        {
+          "code": "19-1029.01",
+          "title": "Bioinformatics Scientists"
+        }
+      ],
+      "confidence": "M",
+      "note": ""
+    },
+    {
+      "id": "nha-khoa-hoc-du-lieu",
+      "name": "Nhà khoa học dữ liệu",
+      "onetSoc": [
+        {
+          "code": "15-2041.00",
+          "title": "Statisticians"
+        },
+        {
+          "code": "15-1221.00",
+          "title": "Computer and Information Research Scientists"
+        }
+      ],
+      "confidence": "M",
+      "note": "Mã 15-2051.00 Data Scientists chưa có điểm đánh giá; dùng Statisticians + Computer and Information Research Scientists"
+    },
+    {
+      "id": "chuyen-vien-thong-ke",
+      "name": "Chuyên viên thống kê",
+      "onetSoc": [
+        {
+          "code": "15-2041.00",
+          "title": "Statisticians"
+        }
+      ],
+      "confidence": "H",
+      "note": "Statisticians"
+    },
+    {
+      "id": "nghien-cuu-thi-truong",
+      "name": "Chuyên viên nghiên cứu thị trường",
+      "onetSoc": [
+        {
+          "code": "13-1161.00",
+          "title": "Market Research Analysts and Marketing Specialists"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "nghien-cuu-y-sinh",
+      "name": "Nhà nghiên cứu y sinh",
+      "onetSoc": [
+        {
+          "code": "19-1042.00",
+          "title": "Medical Scientists, Except Epidemiologists"
+        }
+      ],
+      "confidence": "H",
+      "note": "Medical Scientists, Except Epidemiologists"
+    },
+    {
+      "id": "ky-su-phan-mem",
+      "name": "Kỹ sư phần mềm",
+      "onetSoc": [
+        {
+          "code": "15-1252.00",
+          "title": "Software Developers"
+        }
+      ],
+      "confidence": "H",
+      "note": "Software Developers"
+    },
+    {
+      "id": "chuyen-vien-phan-tich-du-lieu",
+      "name": "Chuyên viên phân tích dữ liệu",
+      "onetSoc": [
+        {
+          "code": "15-2051.01",
+          "title": "Business Intelligence Analysts"
+        }
+      ],
+      "confidence": "M",
+      "note": "Business Intelligence Analysts"
+    },
+    {
+      "id": "chuyen-gia-an-ninh-mang",
+      "name": "Chuyên gia an ninh mạng",
+      "onetSoc": [
+        {
+          "code": "15-1212.00",
+          "title": "Information Security Analysts"
+        }
+      ],
+      "confidence": "H",
+      "note": "Information Security Analysts"
+    },
+    {
+      "id": "ky-su-ai",
+      "name": "Kỹ sư AI",
+      "onetSoc": [
+        {
+          "code": "15-1221.00",
+          "title": "Computer and Information Research Scientists"
+        }
+      ],
+      "confidence": "M",
+      "note": "Không có mã AI Engineer; Data Scientists chưa có điểm đánh giá"
+    },
+    {
+      "id": "ky-su-tu-dong-hoa",
+      "name": "Kỹ sư tự động hóa",
+      "onetSoc": [
+        {
+          "code": "17-2199.05",
+          "title": "Mechatronics Engineers"
+        },
+        {
+          "code": "17-2199.08",
+          "title": "Robotics Engineers"
+        }
+      ],
+      "confidence": "M",
+      "note": "Mechatronics + Robotics Engineers"
+    },
+    {
+      "id": "ky-su-dien-tu",
+      "name": "Kỹ sư điện tử",
+      "onetSoc": [
+        {
+          "code": "17-2072.00",
+          "title": "Electronics Engineers, Except Computer"
+        }
+      ],
+      "confidence": "H",
+      "note": "Electronics Engineers, Except Computer"
+    },
+    {
+      "id": "quan-tri-he-thong",
+      "name": "Quản trị hệ thống",
+      "onetSoc": [
+        {
+          "code": "15-1244.00",
+          "title": "Network and Computer Systems Administrators"
+        }
+      ],
+      "confidence": "H",
+      "note": "Network and Computer Systems Administrators"
+    },
+    {
+      "id": "sales-representative",
+      "name": "Nhân viên kinh doanh",
+      "onetSoc": [
+        {
+          "code": "41-4012.00",
+          "title": "Sales Representatives, Wholesale and Manufacturing, Except Technical and Scientific Products"
+        }
+      ],
+      "confidence": "H",
+      "note": ""
+    },
+    {
+      "id": "automotive-engineer",
+      "name": "Kỹ sư ô tô",
+      "onetSoc": [
+        {
+          "code": "17-2141.02",
+          "title": "Automotive Engineers"
+        }
+      ],
+      "confidence": "H",
+      "note": "Automotive Engineers"
+    }
+  ]
+}

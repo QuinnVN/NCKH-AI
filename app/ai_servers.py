@@ -1,4 +1,4 @@
-"""Lifecycle management for local llama.cpp and Supertonic servers."""
+"""Lifecycle management for local LLM and Supertonic services."""
 
 from __future__ import annotations
 
@@ -12,17 +12,19 @@ import socket
 import subprocess
 from typing import Any, Literal, Mapping
 
-from app.config import BACKEND_ROOT
+import httpx
+
+from app.config import AMD_HYBRID_LLM_BASE_URL, AMD_HYBRID_LLM_MODEL, BACKEND_ROOT
 
 
-AIServerName = Literal["llama", "supertonic"]
-AIServerTarget = Literal["all", "llama", "supertonic"]
+AIServerName = Literal["llama", "hybrid", "supertonic"]
+AIServerTarget = Literal["all", "llama", "hybrid", "supertonic"]
 AICommandAction = Literal["setup", "start", "status", "stop", "restart"]
 
-SERVER_NAMES: tuple[AIServerName, ...] = ("llama", "supertonic")
+SERVER_NAMES: tuple[AIServerName, ...] = ("llama", "hybrid", "supertonic")
 VALID_ACTIONS = frozenset({"start", "status", "stop", "restart"})
 VALID_TARGETS = frozenset({"all", *SERVER_NAMES})
-AI_COMMAND_USAGE = "Usage: ai setup [stt|supertonic] | ai <start|status|stop|restart> [all|llama|supertonic]"
+AI_COMMAND_USAGE = "Usage: ai setup [stt|supertonic] | ai <start|status|stop|restart> [all|llama|hybrid|supertonic]"
 
 
 class AIServerError(RuntimeError):
@@ -118,6 +120,10 @@ class AIServerManager:
     ) -> None:
         self._root = root.resolve()
         self._environment = dict(os.environ if environment is None else environment)
+        self._hybrid_enabled = self._environment.get("LLM_USE_AMD_HYBRID", "").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        self._sales_pipeline_mode = self._environment.get("SALES_PIPELINE_MODE", "legacy").strip().lower()
         self._processes: dict[AIServerName, asyncio.subprocess.Process] = {}
         self._startup_timeout = _positive_float(
             self._environment, "AI_SERVER_START_TIMEOUT_SECONDS", 180.0
@@ -179,11 +185,97 @@ class AIServerManager:
             ),
         }
 
-    @staticmethod
-    def _names(target: AIServerTarget) -> tuple[AIServerName, ...]:
+    def _names(self, target: AIServerTarget) -> tuple[AIServerName, ...]:
         if target == "all":
-            return SERVER_NAMES
+            if self._sales_pipeline_mode == "openrouter":
+                return ("supertonic",)
+            return ("hybrid" if self._hybrid_enabled else "llama", "supertonic")
         return (target,)
+
+    @staticmethod
+    def _hybrid_url(path: str) -> str:
+        return f"{AMD_HYBRID_LLM_BASE_URL}/{path}"
+
+    @staticmethod
+    def _hybrid_loaded(data: object) -> bool:
+        if not isinstance(data, dict):
+            return False
+        entries = data.get("all_models_loaded")
+        if not isinstance(entries, list):
+            return False
+        for entry in entries:
+            if not isinstance(entry, dict) or entry.get("model_name") != AMD_HYBRID_LLM_MODEL:
+                continue
+            checkpoint = str(entry.get("checkpoint", "")).lower()
+            command = entry.get("launch_command")
+            context_size = 0
+            if isinstance(command, list) and "--ctx-size" in command:
+                index = command.index("--ctx-size") + 1
+                if index < len(command):
+                    try:
+                        context_size = int(command[index])
+                    except (TypeError, ValueError):
+                        pass
+            if (
+                entry.get("recipe") == "ryzenai-llm"
+                and "-hybrid" in checkpoint
+                and context_size >= 16384
+            ):
+                return True
+        return False
+
+    async def _hybrid_health(self) -> dict[str, Any] | None:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(self._hybrid_url("health"))
+                response.raise_for_status()
+                data = response.json()
+            return data if isinstance(data, dict) else None
+        except (httpx.HTTPError, ValueError):
+            return None
+
+    async def _start_hybrid(self) -> bool:
+        health = await self._hybrid_health()
+        if health is None:
+            raise AIServerError("hybrid: Lemonade is unavailable at 127.0.0.1:13305. Start Lemonade first.")
+        if self._hybrid_loaded(health):
+            return False
+        try:
+            async with httpx.AsyncClient(timeout=max(600.0, self._startup_timeout)) as client:
+                response = await client.post(
+                    self._hybrid_url("load"), json={
+                        "model_name": AMD_HYBRID_LLM_MODEL,
+                        "ctx_size": 16384,
+                        "save_options": True,
+                    }
+                )
+                response.raise_for_status()
+                result = response.json()
+        except (httpx.HTTPError, ValueError) as exception:
+            raise AIServerError("hybrid: Lemonade could not load Qwen3-4B-Hybrid.") from exception
+        if not isinstance(result, dict) or result.get("status") != "success":
+            detail = result.get("message", "unknown error") if isinstance(result, dict) else "invalid response"
+            raise AIServerError(f"hybrid: Lemonade could not load Qwen3-4B-Hybrid: {detail}")
+        if not self._hybrid_loaded(await self._hybrid_health()):
+            raise AIServerError("hybrid: Lemonade did not report the Ryzen AI hybrid model with 16K context.")
+        return True
+
+    async def _stop_hybrid(self) -> bool:
+        health = await self._hybrid_health()
+        if not self._hybrid_loaded(health):
+            return False
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    self._hybrid_url("unload"), json={"model_name": AMD_HYBRID_LLM_MODEL}
+                )
+                response.raise_for_status()
+                result = response.json()
+        except (httpx.HTTPError, ValueError) as exception:
+            raise AIServerError("hybrid: Lemonade could not unload Qwen3-4B-Hybrid.") from exception
+        if not isinstance(result, dict) or result.get("status") != "success":
+            raise AIServerError("hybrid: Lemonade did not confirm model unload.")
+        return True
 
     def _is_running(self, name: AIServerName) -> bool:
         process = self._processes.get(name)
@@ -264,6 +356,13 @@ class AIServerManager:
         to_start: list[AIServerName] = []
         failures: list[str] = []
         for name in names:
+            if name == "hybrid":
+                try:
+                    if await self._start_hybrid():
+                        to_start.append(name)
+                except AIServerError as exception:
+                    failures.append(str(exception))
+                continue
             try:
                 self._preflight((name,))
             except AIServerError as exception:
@@ -278,6 +377,9 @@ class AIServerManager:
 
         started: list[AIServerName] = []
         for name in to_start:
+            if name == "hybrid":
+                started.append(name)
+                continue
             try:
                 spec = specs[name]
                 process = await asyncio.create_subprocess_exec(
@@ -305,6 +407,10 @@ class AIServerManager:
         """Start servers that must outlive the caller's asyncio event loop."""
 
         names = self._names(target)
+        if names == ("hybrid",):
+            return ("hybrid",) if await self._start_hybrid() else ()
+        if "hybrid" in names:
+            raise AIServerError("Detached startup of all services is unavailable in hybrid mode.")
         specs = self._preflight(names)
         started: list[AIServerName] = []
         processes: list[tuple[AIServerName, subprocess.Popen[bytes]]] = []
@@ -402,7 +508,12 @@ class AIServerManager:
         return tuple(name for name, _ in owned)
 
     async def stop(self, target: AIServerTarget = "all") -> tuple[AIServerName, ...]:
-        return await self._stop_names(self._names(target))
+        names = self._names(target)
+        stopped: list[AIServerName] = []
+        if "hybrid" in names and await self._stop_hybrid():
+            stopped.append("hybrid")
+        stopped.extend(await self._stop_names(tuple(name for name in names if name != "hybrid")))
+        return tuple(stopped)
 
     async def restart(self, target: AIServerTarget = "all") -> tuple[AIServerName, ...]:
         await self.stop(target)
@@ -413,6 +524,12 @@ class AIServerManager:
         specs = self._specs()
         statuses: list[AIServerStatus] = []
         for name in self._names(target):
+            if name == "hybrid":
+                statuses.append(AIServerStatus(
+                    name="hybrid", running=self._hybrid_loaded(await self._hybrid_health()),
+                    host="127.0.0.1", port=13305,
+                ))
+                continue
             process = self._processes.get(name)
             if process is not None and process.returncode is not None:
                 self._processes.pop(name, None)

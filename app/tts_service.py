@@ -96,7 +96,10 @@ class TTSCoordinator:
 
 
 class SupertonicClient:
-    """Speak to Supertonic's native endpoint with fixed research settings."""
+    """Speak to Supertonic's native endpoint with fixed research settings.
+
+    Only the step count is configurable, through ``TTS_QUALITY``.
+    """
 
     async def synthesize(self, text: str, deadline: float) -> SynthesizedWav:
         settings = get_settings()
@@ -110,7 +113,7 @@ class SupertonicClient:
             "text": text,
             "voice": "F4",
             "lang": "vi",
-            "steps": 5,
+            "steps": settings.tts_quality,
             "speed": 1.15,
             "response_format": "wav",
         }

@@ -9,6 +9,7 @@ from app.career_assessment import (
     CareerAssessmentOutputError,
     CareerAssessmentRequest,
     build_assessment_messages,
+    build_hybrid_assessment_messages,
     parse_assessment_response,
 )
 
@@ -98,6 +99,13 @@ class CareerAssessmentContractTests(unittest.TestCase):
         self.assertIn("Không giới hạn", system_prompt)
         self.assertIn("từ 1 đến 5 nghề", system_prompt)
 
+    def test_hybrid_prompt_uses_concrete_json_example_and_disables_thinking(self):
+        request = CareerAssessmentRequest.model_validate(valid_request_data())
+        messages = build_hybrid_assessment_messages(request)
+        self.assertTrue(messages[-1]["content"].endswith("/no_think"))
+        self.assertIn('"assessment_id":"assessment-001"', messages[-1]["content"])
+        self.assertIn("đúng 3 nghề", messages[-1]["content"])
+
     def test_parses_ranked_suggestions_and_removes_hidden_reasoning(self):
         request = CareerAssessmentRequest.model_validate(valid_request_data())
         content = f"<think>private reasoning</think>\n{valid_model_answer()}"
@@ -118,6 +126,23 @@ class CareerAssessmentContractTests(unittest.TestCase):
 
         with self.assertRaises(CareerAssessmentOutputError):
             parse_assessment_response(changed, request)
+
+    def test_hybrid_response_can_omit_id_but_cannot_change_it(self):
+        request = CareerAssessmentRequest.model_validate(valid_request_data())
+        answer = json.loads(valid_model_answer())
+        answer.pop("assessment_id")
+        without_id = json.dumps(answer, ensure_ascii=False)
+        with self.assertRaises(CareerAssessmentOutputError):
+            parse_assessment_response(without_id, request)
+        parsed = parse_assessment_response(
+            without_id, request, allow_missing_assessment_id=True
+        )
+        self.assertEqual(parsed.assessment_id, request.assessment_id)
+        changed = valid_model_answer().replace("assessment-001", "assessment-002")
+        with self.assertRaises(CareerAssessmentOutputError):
+            parse_assessment_response(
+                changed, request, allow_missing_assessment_id=True
+            )
 
     def test_rejects_invalid_suggestion_lists(self):
         request = CareerAssessmentRequest.model_validate(valid_request_data())

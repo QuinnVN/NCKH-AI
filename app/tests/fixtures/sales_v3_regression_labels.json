@@ -1,0 +1,210 @@
+{
+  "source": "Stored label statuses from three returning-customer sessions on 2026-10-05. Transcripts are omitted.",
+  "sessions": [
+    {
+      "sessionId": "1c6d65843d5f4b2c867c079dbd7479ab",
+      "storedRubricVersion": "sales-rubric-v2.5",
+      "turns": [
+        {
+          "turnId": "fbf7c8e144c249559fc85f20b481ee99",
+          "true": [],
+          "uncertain": []
+        },
+        {
+          "turnId": "e211264827a148eb98db7ebdbd9921af",
+          "true": [
+            "beggingWithoutExplanation",
+            "disrespect",
+            "refusesRemedy"
+          ],
+          "uncertain": []
+        },
+        {
+          "turnId": "0794ee8c0d4b495c89b51cf607f4aec2",
+          "true": [
+            "exchangeConditions",
+            "exchangeOffer",
+            "fitQuestion",
+            "openQuestion"
+          ],
+          "uncertain": [
+            "maintainsUnauthorizedPromise",
+            "repeatedQuestion"
+          ]
+        },
+        {
+          "turnId": "2296330603374edbb211ea8f733581b6",
+          "true": [],
+          "uncertain": [
+            "exchangeOffer",
+            "fitOrWalkTrial",
+            "openQuestion",
+            "repeatedQuestion"
+          ]
+        },
+        {
+          "turnId": "292a17048b704d528c46c67c96409688",
+          "true": [
+            "exchangeOffer",
+            "fitQuestion"
+          ],
+          "uncertain": [
+            "exchangeConditions",
+            "fitOrWalkTrial",
+            "maintainsUnauthorizedPromise",
+            "openQuestion",
+            "repeatedQuestion"
+          ]
+        },
+        {
+          "turnId": "785f7d65651b46329d4a85313c0eb5b4",
+          "true": [
+            "exchangeOffer",
+            "fitOrWalkTrial"
+          ],
+          "uncertain": [
+            "maintainsUnauthorizedPromise"
+          ]
+        },
+        {
+          "turnId": "26ff9f69f2044785a2f48667028d97ce",
+          "true": [
+            "exchangeOffer"
+          ],
+          "uncertain": [
+            "fitOrWalkTrial",
+            "maintainsUnauthorizedPromise"
+          ]
+        },
+        {
+          "turnId": "56a89ec3a12942c1ab1f64792ad453d1",
+          "true": [
+            "openQuestion",
+            "painLocationQuestion",
+            "repeatedQuestion"
+          ],
+          "uncertain": []
+        }
+      ]
+    },
+    {
+      "sessionId": "6de080f41334460dace500d0e8161ea0",
+      "storedRubricVersion": "sales-rubric-v2.5",
+      "turns": [
+        {
+          "turnId": "ccbc3f64d2cd48b48223d4b45db63a3d",
+          "true": [
+            "exchangeConditions",
+            "exchangeOffer",
+            "openQuestion",
+            "painLocationQuestion"
+          ],
+          "uncertain": [
+            "maintainsUnauthorizedPromise",
+            "repeatedQuestion"
+          ]
+        },
+        {
+          "turnId": "28396420562c45099a49059591d90f37",
+          "true": [
+            "exchangeOffer",
+            "fitOrWalkTrial",
+            "fitQuestion",
+            "painLocationQuestion"
+          ],
+          "uncertain": [
+            "exchangeConditions",
+            "maintainsUnauthorizedPromise",
+            "openQuestion",
+            "repeatedQuestion"
+          ]
+        }
+      ]
+    },
+    {
+      "sessionId": "25bf01d8661448bdb8c8ce70fcd687f8",
+      "storedRubricVersion": "sales-rubric-v2.4",
+      "turns": [
+        {
+          "turnId": "12a3a2c19bdf4341bfb38695debafa52",
+          "true": [
+            "disrespect"
+          ],
+          "uncertain": []
+        },
+        {
+          "turnId": "54c0310f0f6e4d779ddfcf16f30b5fa7",
+          "true": [
+            "acknowledgment",
+            "exchangeConditions",
+            "exchangeOffer"
+          ],
+          "uncertain": [
+            "maintainsUnauthorizedPromise",
+            "originalSaleResponsibility"
+          ]
+        },
+        {
+          "turnId": "475fcf0ee06f4c05a5355da098c53c7d",
+          "true": [
+            "openQuestion",
+            "painLocationQuestion"
+          ],
+          "uncertain": [
+            "exchangeOffer",
+            "fitOrWalkTrial",
+            "repeatedQuestion"
+          ]
+        },
+        {
+          "turnId": "2d74f21c19ac41e896b4e8b5411fac74",
+          "true": [
+            "exchangeConditions",
+            "exchangeOffer"
+          ],
+          "uncertain": [
+            "maintainsUnauthorizedPromise"
+          ]
+        },
+        {
+          "turnId": "c30383d27d8947c0bf90baf466fb58eb",
+          "true": [
+            "exchangeOffer"
+          ],
+          "uncertain": [
+            "acknowledgment",
+            "causeStatement",
+            "exchangeConditions",
+            "maintainsUnauthorizedPromise",
+            "openQuestion",
+            "originalSaleResponsibility"
+          ]
+        },
+        {
+          "turnId": "649c2ce2cabd48ce90094307c0b7e372",
+          "true": [
+            "openQuestion",
+            "walkingQuestion"
+          ],
+          "uncertain": []
+        },
+        {
+          "turnId": "6d89c97eb3e64c3bbd25c66f7de028a6",
+          "true": [],
+          "uncertain": [
+            "exchangeOffer",
+            "lightweightForWalking"
+          ]
+        },
+        {
+          "turnId": "008ff3012d79420e8b839d0bf8f7c63f",
+          "true": [],
+          "uncertain": [
+            "openQuestion",
+            "walkingQuestion"
+          ]
+        }
+      ]
+    }
+  ]
+}

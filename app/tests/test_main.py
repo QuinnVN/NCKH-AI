@@ -1,4 +1,5 @@
 import asyncio
+import json
 import base64
 import io
 import logging
@@ -50,6 +51,8 @@ class ConsoleLoggingTests(unittest.IsolatedAsyncioTestCase):
                 events.append("prompt-safe-exit")
 
         with (
+            patch.object(main.sys.stdin, "isatty", return_value=True),
+            patch.object(main.sys.stdout, "isatty", return_value=True),
             patch.object(main, "patch_stdout", return_value=RecordingContext()),
             patch.object(
                 main.logging,
@@ -76,6 +79,16 @@ class ConsoleLoggingTests(unittest.IsolatedAsyncioTestCase):
                 "prompt-safe-exit",
             ],
         )
+
+    async def test_startup_without_console_skips_prompt_toolkit(self):
+        with (
+            patch.object(main.sys.stdin, "isatty", return_value=False),
+            patch.object(main, "patch_stdout", side_effect=AssertionError("no console")),
+            patch.object(main, "_run_backend", new=AsyncMock()) as run_backend,
+        ):
+            await main.main()
+
+        run_backend.assert_awaited_once()
 
     def test_sales_part2_text_test_command_requires_non_blank_text(self):
         self.assertEqual(
@@ -135,25 +148,6 @@ class ApiRouteRegistrationTests(unittest.TestCase):
         self.assertIn("/api/ai/initial-career-assessment", registered_routes)
         self.assertNotIn("/api/ai/career-assessment", registered_routes)
         self.assertIn("/ws/ctrl", registered_routes)
-
-    def test_chat_request_rejects_unbounded_or_injected_fields(self):
-        valid = main.ChatRequest(
-            transcript="hello",
-            game_id="lawyer",
-            conversation=[{"role": "user", "content": "context"}],
-        )
-        self.assertEqual(valid.game_id, "lawyer")
-        with self.assertRaises(ValueError):
-            main.ChatRequest(transcript="", game_id="lawyer")
-        with self.assertRaises(ValueError):
-            main.ChatRequest(transcript="hello", game_id="lawyer", injected="bad")
-
-    def test_optional_token_authentication(self):
-        with patch.dict(os.environ, {"BACKEND_API_TOKEN": "test-token"}):
-            with self.assertRaises(HTTPException) as raised:
-                main._require_http_auth(None)
-            self.assertEqual(raised.exception.status_code, 401)
-            main._require_http_auth("Bearer test-token")
 
     def test_chat_request_rejects_unbounded_or_injected_fields(self):
         valid = main.ChatRequest(
@@ -251,6 +245,124 @@ class FakeWebSocket:
         self.sent_messages.append(data)
 
 
+class ControlHeartbeatTests(unittest.IsolatedAsyncioTestCase):
+    async def test_control_socket_replies_to_ping(self):
+        class Socket(FakeWebSocket):
+            headers = {}
+
+            async def accept(self):
+                pass
+
+            async def receive_text(self):
+                if not hasattr(self, "ping_received"):
+                    self.ping_received = True
+                    return '{"type":"ping"}'
+                raise main.WebSocketDisconnect(code=1000)
+
+        socket = Socket()
+        previous_socket = main.unity_ws
+        previous_run = main.active_run_id
+        main.unity_ws = None
+        main.active_run_id = None
+        try:
+            with (
+                patch.object(main, "_authorization_is_valid", return_value=True),
+                patch.object(main, "send_participant_assignment", new=AsyncMock()),
+            ):
+                await main.commands(socket)
+            self.assertEqual(socket.sent_messages, [{"type": "pong"}])
+        finally:
+            main.unity_ws = previous_socket
+            main.active_run_id = previous_run
+
+    async def test_quick_reconnect_keeps_running_result(self):
+        connected = asyncio.Event()
+        ping_replied = asyncio.Event()
+        release = asyncio.Event()
+
+        class Socket(FakeWebSocket):
+            headers = {}
+
+            def __init__(self, wait: bool):
+                super().__init__()
+                self.wait = wait
+                self.ping_sent = False
+
+            async def accept(self):
+                connected.set()
+
+            async def receive_text(self):
+                if self.wait:
+                    if not self.ping_sent:
+                        self.ping_sent = True
+                        return '{"type":"ping","runId":"test-running-result"}'
+                    await release.wait()
+                raise main.WebSocketDisconnect(code=1000)
+
+            async def send_json(self, data: dict):
+                await super().send_json(data)
+                ping_replied.set()
+
+        previous_socket = main.unity_ws
+        previous_run = main.active_run_id
+        previous_abort_task = main.disconnect_abort_task
+        main.unity_ws = None
+        main.active_run_id = "test-running-result"
+        main.disconnect_abort_task = None
+        second_connection = None
+        try:
+            with (
+                patch.object(main, "_authorization_is_valid", return_value=True),
+                patch.object(main, "send_participant_assignment", new=AsyncMock()),
+                patch.object(main.run_result_store, "mark_aborted", new=AsyncMock()) as abort,
+            ):
+                await main.commands(Socket(wait=False))
+                pending_abort = main.disconnect_abort_task
+                self.assertIsNotNone(pending_abort)
+                self.assertFalse(pending_abort.done())
+
+                connected.clear()
+                second_connection = asyncio.create_task(main.commands(Socket(wait=True)))
+                await connected.wait()
+                await ping_replied.wait()
+                await asyncio.sleep(0)
+                self.assertTrue(pending_abort.cancelled())
+                self.assertEqual(main.active_run_id, "test-running-result")
+                abort.assert_not_awaited()
+
+                main.active_run_id = None
+                release.set()
+                await second_connection
+        finally:
+            if second_connection is not None and not second_connection.done():
+                second_connection.cancel()
+            if main.disconnect_abort_task is not None:
+                main.disconnect_abort_task.cancel()
+            main.disconnect_abort_task = previous_abort_task
+            main.unity_ws = previous_socket
+            main.active_run_id = previous_run
+
+    async def test_unrecovered_disconnect_aborts_result_after_grace(self):
+        previous_socket = main.unity_ws
+        previous_run = main.active_run_id
+        previous_activity = main.participant_manager.activity
+        main.unity_ws = FakeWebSocket()
+        main.active_run_id = "test-stale-result"
+        try:
+            with (
+                patch.object(main, "DISCONNECT_ABORT_GRACE_SECONDS", 0),
+                patch.object(main.run_result_store, "mark_aborted", new=AsyncMock()) as abort,
+            ):
+                await main.abort_run_after_disconnect("test-stale-result")
+                abort.assert_awaited_once_with("test-stale-result")
+                self.assertIsNone(main.active_run_id)
+                self.assertEqual(main.participant_manager.activity, "idle")
+        finally:
+            main.unity_ws = previous_socket
+            main.active_run_id = previous_run
+            main.participant_manager.activity = previous_activity
+
+
 class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         main.unity_ws = None
@@ -281,19 +393,21 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
             "set_game doctor extra",
             "load_game doctor",
             "set_game courtroom",
-            "set_game tutorial",
+            "set_game unknown",
         )
         for command in invalid_commands:
             with self.subTest(command=command):
                 with self.assertRaises(ValueError):
                     main.parse_set_game_command(command)
 
-    async def test_ready_or_autostarted_load_ack_starts_gameplay_scenes(self):
-        for scene_id in ("clinic", "doctor", "lawyer"):
-            for load_phase in ("ready", "running"):
-                with self.subTest(scene_id=scene_id, load_phase=load_phase):
-                    await self._assert_load_then_start(scene_id, load_phase)
-        await self._assert_load_then_start("sale", "ready")
+    async def test_scene_specific_load_ack_starts_gameplay_scenes(self):
+        for scene_id, load_phase in (
+            ("clinic", "ready"), ("clinic", "running"),
+            ("doctor", "ready"), ("doctor", "running"),
+            ("lawyer", "ready"), ("sale", "ready"), ("tutorial", "ready"),
+        ):
+            with self.subTest(scene_id=scene_id, load_phase=load_phase):
+                await self._assert_load_then_start(scene_id, load_phase)
 
     async def _assert_load_then_start(self, scene_id: str, load_phase: str):
         socket = FakeWebSocket()
@@ -356,6 +470,25 @@ class SetGameCommandTests(unittest.IsolatedAsyncioTestCase):
             self.messages,
         )
         self.assertFalse(main.pending_scene_commands)
+
+    async def test_wrong_load_phase_does_not_send_start_scene(self):
+        for scene_id, wrong_phase in (
+            ("clinic", "finished"), ("doctor", "finished"),
+            ("lawyer", "running"), ("sale", "running"), ("tutorial", "running"),
+        ):
+            with self.subTest(scene_id=scene_id, wrong_phase=wrong_phase):
+                socket = FakeWebSocket()
+                main.unity_ws = socket
+                task = asyncio.create_task(main.set_game(scene_id, timeout_seconds=0.2))
+                await asyncio.sleep(0)
+                request = socket.sent_messages[0]
+                main.handle_unity_acknowledgement({
+                    "commandId": request["commandId"], "sequence": request["sequence"],
+                    "status": "applied", "sceneId": scene_id, "phase": wrong_phase,
+                })
+                self.assertFalse(await task)
+                self.assertEqual(len(socket.sent_messages), 1)
+                self.assertFalse(main.pending_scene_commands)
 
     async def test_failed_acknowledgement_is_accepted_for_pending_command(self):
         socket = FakeWebSocket()
@@ -637,22 +770,6 @@ class ResetCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(main.pending_scene_commands)
         self.assertTrue(any("socket closed" in message for message in self.messages))
 
-    async def test_reset_timeout_send_failure_and_missing_connection_cleanup(self):
-        self.assertFalse(await main.reset_game("clinic"))
-        self.assertIn("[Server] Cannot reset scene: Unity is not connected.", self.messages)
-
-        main.unity_ws = FakeWebSocket(RuntimeError("socket closed"))
-        self.assertFalse(await main.reset_game("doctor"))
-        self.assertFalse(main.pending_scene_commands)
-        self.assertTrue(any("socket closed" in message for message in self.messages))
-
-        socket = FakeWebSocket()
-        main.unity_ws = socket
-        self.assertFalse(await main.reset_game("all", timeout_seconds=0.01))
-        self.assertFalse(main.pending_scene_commands)
-        self.assertTrue(any("timed out after 0.01 seconds" in message for message in self.messages))
-
-
 class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -822,8 +939,53 @@ class DefenseRecordingTelemetryTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
+    async def test_sales_part2_incomplete_log_includes_reason_code(self):
+        event = {
+            "eventType": "sales.part2.incomplete",
+            "payload": {"errorCode": "microphone_zero_pcm"},
+        }
+
+        result = await main.telemetry(event)
+
+        self.assertEqual(result, {"status": "ok"})
+        self.assertTrue(
+            any(
+                "sales.part2.incomplete" in str(message)
+                and "microphone_zero_pcm" in str(message)
+                for message in self.messages
+            )
+        )
+
 
 class LawyerResultProjectionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_upload_projection_is_nested_and_only_completed_assessment_finalizes(self):
+        for status in ("processing", "completed"):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+                participant_manager = main.ParticipantManager()
+                participant_manager.assign("Lawyer Tester")
+                store = main.RunResultStore(Path(directory))
+                record = {
+                    "roundId": "b" * 32, "runId": "lawyer-upload-run", "caseId": "case-1",
+                    "assessmentStatus": status,
+                    "transcript": "Lời bào chữa." if status == "completed" else None,
+                    "criteria": {"evidenceUse": 30} if status == "completed" else None,
+                    "rawScore": 30 if status == "completed" else None,
+                    "finalScore": 30 if status == "completed" else None,
+                }
+                with (
+                    patch.object(main, "participant_manager", participant_manager),
+                    patch.object(main, "run_result_store", store),
+                    patch.object(main.lawyer_attempt_store, "accept", new=AsyncMock(return_value=(record, False))),
+                    patch.object(main, "_schedule_lawyer_processing"),
+                ):
+                    result = await main.telemetry(build_defense_recording_event(round_id=record["roundId"]))
+                self.assertEqual(result["assessmentStatus"], status)
+                suffix = ".json" if status == "completed" else ".draft.json"
+                saved = json.loads((Path(directory) / "simulation-results" / f"run-lawyer-upload-run{suffix}").read_text(encoding="utf-8"))
+                self.assertEqual(saved["status"], "completed" if status == "completed" else "draft")
+                self.assertEqual(saved["data"]["lawyer"]["completionStatus"], status)
+                self.assertNotIn("finalScore", saved["data"])
+
     async def test_completed_background_assessment_finalizes_and_syncs_result(self):
         class RecordingMongo:
             def __init__(self):
@@ -880,6 +1042,12 @@ class LawyerResultProjectionTests(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertTrue(result_path.exists())
                 self.assertEqual(mongo.documents[run_id]["status"], "completed")
+                saved = mongo.documents[run_id]["data"]
+                self.assertEqual(saved["lawyer"]["finalScore"], 75)
+                self.assertEqual(saved["lawyer"]["completionStatus"], "completed")
+                self.assertEqual(saved["lawyer"]["transcript"], record["transcript"])
+                self.assertNotIn("assessmentContext", saved["lawyer"])
+                self.assertNotIn("finalScore", saved)
             finally:
                 main.lawyer_processing_tasks.pop(round_id, None)
                 main.run_result_store = original_store

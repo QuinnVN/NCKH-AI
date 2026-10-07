@@ -1,0 +1,4 @@
+Unable to create process using '"D:\NCKH-AI\.venv\Scripts\python.exe" -m unittest app.tests.test_sales_part1_scoring.SalesPart1UnrelatedAnswerScoringTests.test_unrelated_speech_cannot_earn_high_part1_score -v': Access is denied.
+
+
+EXIT_CODE=101

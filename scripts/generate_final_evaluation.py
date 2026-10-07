@@ -1,20 +1,17 @@
-"""Interactive MongoDB-to-Qwen final evaluation CLI."""
+"""Interactive MongoDB-to-OpenRouter final evaluation CLI."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-from dataclasses import replace
 from datetime import datetime
 import json
 import os
 from pathlib import Path
-import shutil
-import subprocess
+import re
 import sys
 import time
 from typing import Any, Iterable, Mapping, Protocol
-from urllib.parse import urlparse
 
 from bson import json_util
 from pymongo import ASCENDING, DESCENDING, MongoClient
@@ -34,27 +31,28 @@ from app.final_evaluation import (  # noqa: E402
     build_text_field_messages,
     normalize_email,
     normalize_name,
-    parse_score_field,
     parse_text_field,
     utc_now,
 )
 from app.final_evaluation_calculation import (  # noqa: E402
-    career_candidates,
     combine_game_results,
     dimension_level,
     extract_dimensions,
     group_scores,
 )
-from app.llm_service import LLMService, LLMServiceError  # noqa: E402
+from app.final_evaluation_openrouter import (  # noqa: E402
+    FINAL_EVALUATION_MODEL, FinalEvaluationOpenRouter, FinalEvaluationProviderError,
+)
+from app.career_ranking import rank_careers, career_description, CAREER_RANKING_VERSION  # noqa: E402
 
 
 QUESTIONNAIRE_COLLECTION = "questionnaire_submissions"
 GAME_RESULTS_COLLECTION = "game_results"
 FINAL_EVALUATIONS_COLLECTION = "final_evaluations"
-DEFAULT_MODEL = "qwen3-8b"
+DEFAULT_MODEL = FINAL_EVALUATION_MODEL
 DEFAULT_MAX_PROMPT_CHARS = 16_000
-DEFAULT_MAX_TOKENS = 512
-DEFAULT_LLM_START_TIMEOUT_SECONDS = 900
+DEFAULT_MAX_TOKENS = 1024
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 45
 REMEDY_LEARNING_ACTIVITIES = {
     "information-processing": (
         "Đọc một bài báo ngắn, gạch các dữ kiện chính rồi tóm tắt nội dung trong một câu.",
@@ -89,103 +87,6 @@ class FinalEvaluationCLIError(RuntimeError):
 
 class Generator(Protocol):
     async def generate(self, messages: list[dict[str, str]], **kwargs: Any) -> str: ...
-
-
-async def available_model_ids(service: LLMService) -> set[str] | None:
-    """Return model aliases, or None when the OpenAI-compatible endpoint is down."""
-    try:
-        response = await service.client.get(f"{service.base_url}/models")
-        response.raise_for_status()
-        payload = response.json()
-        models = payload.get("data")
-        if not isinstance(models, list):
-            return set()
-        return {
-            str(item["id"])
-            for item in models
-            if isinstance(item, Mapping) and isinstance(item.get("id"), str)
-        }
-    except Exception:
-        return None
-
-
-def start_qwen_server_window(base_url: str, model: str) -> subprocess.Popen[bytes]:
-    """Start the dedicated Qwen3 8B PowerShell script in another console."""
-    parsed = urlparse(base_url)
-    if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
-        raise FinalEvaluationCLIError(
-            "Không thể tự khởi động LLM cho một LLM_BASE_URL không nằm trên máy này."
-        )
-    if os.name != "nt":
-        raise FinalEvaluationCLIError(
-            "Tự mở cửa sổ LLM hiện chỉ hỗ trợ Windows. Hãy chạy scripts/run-qwen3-8b.ps1."
-        )
-    script = ROOT / "scripts" / "run-qwen3-8b.ps1"
-    if not script.is_file():
-        raise FinalEvaluationCLIError(f"Không tìm thấy script khởi động LLM: {script}")
-    powershell = shutil.which("pwsh") or shutil.which("powershell")
-    if not powershell:
-        raise FinalEvaluationCLIError("Không tìm thấy pwsh hoặc powershell trên PATH.")
-    port = parsed.port or (443 if parsed.scheme == "https" else 80)
-    command = [
-        powershell,
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        str(script),
-    ]
-    llama_server_bin = os.environ.get("LLAMA_SERVER_BIN", "").strip()
-    if llama_server_bin:
-        command.extend(["-LlamaServerCommand", llama_server_bin])
-    command.extend(["-Port", str(port), "-Alias", model])
-    return subprocess.Popen(
-        command,
-        cwd=str(ROOT),
-        creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NEW_PROCESS_GROUP,
-    )
-
-
-async def ensure_qwen_server(
-    service: LLMService,
-    model: str,
-    *,
-    auto_start: bool,
-    timeout_seconds: int,
-    output_fn=print,
-) -> bool:
-    """Ensure that the configured endpoint serves the requested Qwen3 8B alias."""
-    model_ids = await available_model_ids(service)
-    if model_ids is not None:
-        if model in model_ids:
-            return False
-        aliases = ", ".join(sorted(model_ids)) or "không có alias nào"
-        raise FinalEvaluationCLIError(
-            f"Cổng LLM đang chạy nhưng không có model '{model}'. Model hiện có: {aliases}. "
-            "Hãy dừng server đang chiếm cổng rồi chạy lại CLI."
-        )
-    if not auto_start:
-        raise FinalEvaluationCLIError(
-            "Qwen3 8B chưa chạy. Bỏ --no-start-llm hoặc chạy scripts/run-qwen3-8b.ps1."
-        )
-
-    output_fn("Qwen3 8B chưa chạy. Đang mở server trong một cửa sổ PowerShell khác...")
-    process = start_qwen_server_window(service.base_url, model)
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout_seconds
-    while loop.time() < deadline:
-        if process.poll() is not None:
-            raise FinalEvaluationCLIError(
-                f"Cửa sổ Qwen3 8B đã đóng với mã {process.returncode}. Xem lỗi trong cửa sổ LLM."
-            )
-        await asyncio.sleep(1)
-        model_ids = await available_model_ids(service)
-        if model_ids is not None and model in model_ids:
-            output_fn(f"Qwen3 8B đã sẵn sàng với alias '{model}'.")
-            return True
-    raise FinalEvaluationCLIError(
-        f"Qwen3 8B chưa sẵn sàng sau {timeout_seconds} giây. Cửa sổ LLM vẫn đang mở."
-    )
 
 
 def _json_safe(document: Mapping[str, Any]) -> dict[str, Any]:
@@ -358,36 +259,47 @@ def _bounded_messages(messages: list[dict[str, str]], max_chars: int) -> list[di
 async def _write_field(
     service: Generator, *, field: str, instruction: str, facts: Mapping[str, Any],
     max_characters: int, max_prompt_chars: int, max_tokens: int,
+    sentence_range: tuple[int, int] | None = None,
 ) -> str:
+    def parse_answer(answer: str) -> str:
+        text = parse_text_field(answer, max_characters=max_characters)
+        if sentence_range is not None:
+            count = len(re.split(r'(?<=[.!?])\s+', text.strip()))
+            if not sentence_range[0] <= count <= sentence_range[1]:
+                raise FinalEvaluationOutputError("Nhận xét nghề không đúng số câu được yêu cầu.")
+        return text
+
     messages = _bounded_messages(build_text_field_messages(
         field=field, instruction=instruction, facts=facts, max_characters=max_characters
     ), max_prompt_chars)
     options = {"temperature": 0.2, "top_p": 0.9, "max_tokens": max_tokens}
     answer = await service.generate(messages, options=options, max_message_chars=max_prompt_chars)
-    return parse_text_field(answer, max_characters=max_characters)
+    try:
+        return parse_answer(answer)
+    except FinalEvaluationOutputError:
+        pass
 
-
-async def _write_score(
-    service: Generator, *, field: str, facts: Mapping[str, Any], max_prompt_chars: int,
-) -> int:
-    messages = _bounded_messages(
-        build_text_field_messages(
-            field=field,
-            instruction=(
-                "Đề xuất một compatibilityPercent cho nghề này. Chỉ trả một số nguyên 0-100. "
-                "Dùng nhóm nghề quan tâm, điểm DESMAP và weighted VR facts đã cung cấp."
-            ),
-            facts=facts,
-            max_characters=3,
-        ),
-        max_prompt_chars,
+    reminder = (
+        f"\nViết lại đúng một giá trị, tối đa {max_characters} ký tự. "
+        "Không trả JSON, markdown, tên trường hoặc lời giải thích.\n/no_think"
     )
+    repair_messages = [messages[0], {
+        "role": "user",
+        "content": messages[1]["content"].removesuffix("\n/no_think") + reminder,
+    }]
+    _bounded_messages(repair_messages, max_prompt_chars)
     answer = await service.generate(
-        messages,
-        options={"temperature": 0.0, "top_p": 1.0, "max_tokens": 16},
+        repair_messages,
+        options={**options, "temperature": 0.0, "top_p": 1.0},
         max_message_chars=max_prompt_chars,
     )
-    return parse_score_field(answer)
+    try:
+        return parse_answer(answer)
+    except FinalEvaluationOutputError as exc:
+        raise FinalEvaluationOutputError(
+            f"Trường {field} không hợp lệ sau khi viết lại "
+            f"({len(answer.strip())}/{max_characters} ký tự): {exc}"
+        ) from exc
 
 
 async def _write_icon(
@@ -419,7 +331,7 @@ async def generate_assessment(
     questionnaire: Mapping[str, Any], game_results: list[Mapping[str, Any]],
     completed_at: str, max_prompt_chars: int, max_tokens: int,
 ) -> FinalAssessment:
-    """Weight VR in code, ask Qwen for isolated values, then assemble the contract."""
+    """Weight VR in code, ask the writer for isolated values, then assemble the contract."""
     dimensions = extract_dimensions(questionnaire)
     missing = sorted(set(DIMENSION_IDS) - set(dimensions))
     if missing:
@@ -435,15 +347,17 @@ async def generate_assessment(
     weighted_vr = vr.weighted_results
     findings = vr.findings
     selected_interests = questionnaire.get("careerInterests", [])
-    candidates = career_candidates(selected_interests)
+    candidates = rank_careers(dimensions, behaviours, selected_interests, limit=7)
     if len(candidates) < 7:
         raise FinalEvaluationCLIError(
             "Không có đủ bảy nghề ứng viên cho các nhóm careerInterests đã chọn."
         )
 
-    async def write(field: str, instruction: str, facts: Mapping[str, Any], limit: int) -> str:
+    async def write(field: str, instruction: str, facts: Mapping[str, Any], limit: int,
+                    sentence_range: tuple[int, int] | None = None) -> str:
         return await _write_field(service, field=field, instruction=instruction, facts=facts,
-            max_characters=limit, max_prompt_chars=max_prompt_chars, max_tokens=max_tokens)
+            max_characters=limit, max_prompt_chars=max_prompt_chars, max_tokens=max_tokens,
+            sentence_range=sentence_range)
 
     stage_assessments = {}
     stage_instructions = {
@@ -499,39 +413,33 @@ async def generate_assessment(
             finding["icon"] = icon
         finding_values.append(finding)
 
-    scored_candidates = []
-    for candidate in candidates:
-        score = await _write_score(
-            service,
-            field=f"careerSuggestions.{candidate.id}.compatibilityPercent",
-            facts={
-                "careerName": candidate.name,
-                "careerInterestGroup": candidate.interest_group,
-                "selectedCareerInterests": selected_interests,
-                "careerRequirements": candidate.requirements,
-                "desmapGroupScores": groups,
-                "vrExperienceName": experience_name,
-                "weightedVrResults": weighted_vr,
-                "weightedVrAlignment": alignment,
-            },
-            max_prompt_chars=max_prompt_chars,
-        )
-        scored_candidates.append((score, candidate))
-    top_careers = sorted(
-        scored_candidates, key=lambda item: (-item[0], item[1].name)
-    )[:7]
-
     career_values = []
-    for score, career in top_careers:
-        description = await write(
-            f"careerSuggestions.{career.id}.description",
-            "Viết 2 câu giải thích vì sao đây là nghề nên khám phá. Nêu rõ đây không phải bảo đảm thành công.",
-            {"careerName": career.name, "careerInterestGroup": career.interest_group,
-             "careerRequirements": career.requirements, "compatibilityPercentSuggestedByAI": score,
-             "selectedCareerInterests": selected_interests, "desmapGroupScores": groups,
-             "vrExperienceName": experience_name, "weightedVrResults": weighted_vr,
-             "weightedVrAlignment": alignment}, 800)
-        career_values.append({"id": career.id, "name": career.name,
+    for index, ranked in enumerate(candidates):
+        career = ranked.career
+        score = ranked.compatibility_percent
+        sentence_range = (3, 4) if index == 0 else (2, 3)
+        try:
+            description = await write(
+                f"careerSuggestions.{career['id']}.description",
+                f"Viết một đoạn nhận xét tự nhiên bằng tiếng Việt trong {sentence_range[0]}-{sentence_range[1]} câu ngắn. Tự chọn cách mở đầu và thứ tự ý, không theo khuôn cố định. "
+                "Dẫn ít nhất hai yếu tố questionnaireEvidence bằng tên và điểm dạng số/100; phân biệt tự đánh giá với VR. "
+                "Dẫn một tiêu chí vrEvidence cùng điểm có sẵn, liên hệ với công việc mà không biến điểm tiêu chí thành thao tác đã quan sát. "
+                "Góp ý bằng hoạt động thử nghề cụ thể từ exploratoryActivity. Không chê bai, gắn nhãn hay lặp lời phủ định bảo đảm thành công. "
+                "previousDescriptions chỉ để tránh lặp cách diễn đạt, không phải dữ kiện của nghề đang viết.",
+                {"careerName": career['name'], "careerRequirements": career['description'],
+                 "compatibilityPercentCalculatedByBackend": score,
+                 "questionnaireEvidence": ranked.dimensions[:4], "vrEvidence": ranked.observations[:2],
+                 "vrExperienceName": experience_name, "exploratoryActivity": career['activity'],
+                 "previousDescriptions": [item['description'] for item in career_values[-2:]]}, 1200,
+                sentence_range=sentence_range)
+        except FinalEvaluationOutputError:
+            description = career_description(ranked, primary=index == 0)
+        supported = [item for item in ranked.dimensions if item['name'].casefold() in description.casefold() and f"{item['score']:g}/100" in description]
+        if len(supported) < 2 or (ranked.observations and not any(
+            item['evidence'] in description and f"{item['score']}/100" in description for item in ranked.observations
+        )) or any(term in description.lower() for term in ("yếu kém", "kém cỏi", "không có năng lực", "không phù hợp", "bảo đảm thành công", "đảm bảo thành công")):
+            description = career_description(ranked, primary=index == 0)
+        career_values.append({"id": career['id'], "name": career['name'],
             "compatibilityPercent": score, "description": description})
 
     strongest = max(behaviours.values(), key=lambda item: item.score) if behaviours else None
@@ -578,6 +486,9 @@ async def generate_assessment(
 
 def save_assessment(collection: Collection, assessment: FinalAssessment) -> None:
     document = assessment.model_dump(mode="json", by_alias=True, exclude_none=True)
+    document["careerRankingVersion"] = CAREER_RANKING_VERSION
+    document["generationProvider"] = "openrouter"
+    document["generationModel"] = FINAL_EVALUATION_MODEL
     collection.create_index(
         [("participantName", ASCENDING), ("participantEmail", ASCENDING)],
         unique=True,
@@ -607,7 +518,7 @@ def _int_env(name: str, default: int, minimum: int, maximum: int) -> int:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Chọn người tham gia từ MongoDB và tạo đánh giá cuối bằng Qwen3 8B."
+        description="Chọn người tham gia từ MongoDB và tạo đánh giá cuối qua OpenRouter với DeepSeek V4.1 Flash."
     )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--participant", help="Chọn trực tiếp participantName, bỏ qua menu.")
@@ -616,7 +527,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--no-start-llm",
         action="store_true",
-        help="Không tự mở cửa sổ Qwen3 8B khi model chưa chạy.",
+        help="Tùy chọn cũ được giữ để tương thích; final eval hiện chỉ dùng OpenRouter.",
     )
     return parser.parse_args(argv)
 
@@ -625,25 +536,17 @@ async def run(args: argparse.Namespace) -> int:
     settings = get_settings()
     if not settings.mongodb_uri:
         raise FinalEvaluationCLIError("MONGODB_URI chưa được cấu hình.")
-    model = os.environ.get("FINAL_EVALUATION_LLM_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
-    if "qwen3-8b" not in model.casefold():
-        raise FinalEvaluationCLIError(
-            "FINAL_EVALUATION_LLM_MODEL phải trỏ tới alias Qwen3 8B, ví dụ qwen3-8b."
-        )
+    model = DEFAULT_MODEL
     max_prompt_chars = _int_env(
         "FINAL_EVALUATION_MAX_PROMPT_CHARS", DEFAULT_MAX_PROMPT_CHARS, 8_000, 120_000
     )
     max_tokens = _int_env("FINAL_EVALUATION_MAX_TOKENS", DEFAULT_MAX_TOKENS, 128, 2_048)
-    llm_start_timeout = _int_env(
-        "FINAL_EVALUATION_LLM_START_TIMEOUT_SECONDS",
-        DEFAULT_LLM_START_TIMEOUT_SECONDS,
-        30,
-        3_600,
+    request_timeout = _int_env(
+        "FINAL_EVALUATION_REQUEST_TIMEOUT_SECONDS", DEFAULT_REQUEST_TIMEOUT_SECONDS, 5, 120,
     )
-    llm_settings = replace(settings, llm_model=model)
 
     client = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5_000)
-    service = LLMService(llm_settings)
+    service = FinalEvaluationOpenRouter(getattr(settings, "openrouter_api_key", None), timeout_seconds=request_timeout)
     try:
         database = client[settings.mongodb_database]
         questionnaire_collection = database[QUESTIONNAIRE_COLLECTION]
@@ -674,8 +577,6 @@ async def run(args: argparse.Namespace) -> int:
                 existing_names.add(normalize_name(name).casefold())
             except ValueError:
                 continue
-        model_ready = False
-        model_starting = False
         completed_count = skipped_count = failed_count = 0
         for participant_name in selected_names:
             if participant_name.casefold() in existing_names:
@@ -695,14 +596,6 @@ async def run(args: argparse.Namespace) -> int:
                         "Đã nối game_results theo tên có cùng các thành phần: "
                         f"'{participant_name}' -> '{game_participant_name}'."
                     )
-                if not model_ready:
-                    model_starting = True
-                    await ensure_qwen_server(
-                        service, model, auto_start=not args.no_start_llm,
-                        timeout_seconds=llm_start_timeout,
-                    )
-                    model_ready = True
-                    model_starting = False
                 completed_at = utc_now()
                 print(
                     f"\nĐang đánh giá {participant_name} với {len(game_results)} game_result hoàn tất "
@@ -734,7 +627,7 @@ async def run(args: argparse.Namespace) -> int:
                     )
                 completed_count += 1
             except Exception as exc:
-                if not batch or model_starting:
+                if not batch:
                     raise
                 failed_count += 1
                 message = str(exc)
@@ -759,7 +652,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("\nĐã hủy.")
         return 130
-    except (FinalEvaluationCLIError, FinalEvaluationOutputError, LLMServiceError) as exc:
+    except (FinalEvaluationCLIError, FinalEvaluationOutputError, FinalEvaluationProviderError) as exc:
         print(f"Không thể tạo đánh giá: {exc}", file=sys.stderr)
         return 1
     except Exception as exc:

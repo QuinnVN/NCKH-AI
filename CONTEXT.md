@@ -58,6 +58,34 @@ _Avoid_: Sale game, sales game, Unity VR training system
 The second part of the sales simulation, in which the participant responds to Lan, a dissatisfied returning customer.
 _Avoid_: Sale Part 2, difficult-customer game
 
+**Dialogue state**:
+The current point in the returning-customer conversation: which customer concerns remain open, the facts Lan has disclosed, the concern she is raising and its hint level.
+_Avoid_: A single player utterance, the final sales score
+
+**Customer concern**:
+One of four things Lan needs settled during the returning-customer conversation: feeling heard, understanding why the shoes hurt, having a suitable remedy, and trusting the problem will not recur. Concerns can be resolved in any order; Lan raises the lowest-numbered one still open.
+_Avoid_: Active objective, phase
+
+**Hint level**:
+How plainly Lan states the missing part of the customer concern she is raising, from a general complaint to saying directly what she needs, always in a customer's words.
+_Avoid_: Tutorial hint, answer prompt
+
 **Customer speech**:
 Synthesized Vietnamese audio through which Lan delivers a customer reply during the returning-customer conversation. The corresponding customer text remains the authoritative reply.
 _Avoid_: TTS response, voice output, audio reply
+
+**Sales evidence**:
+An independently recognized player act tied to a particular utterance and the dialogue state before it. Uncertain recognition remains unresolved and does not count as an accepted act.
+_Avoid_: Model opinion, customer reply
+
+**Evidence ledger**:
+The ordered record of sales evidence for one returning-customer conversation, from which every turn rating and the final sales assessment are derived.
+_Avoid_: Turn log, transcript history
+
+**Sales rubric component**:
+A skill demonstrated in its required conversation context and credited once for the returning-customer conversation, whenever in the evidence ledger that context holds.
+_Avoid_: Good-turn count, trust score
+
+**Outstanding promise**:
+An unauthorized commitment the participant has made and has not withdrawn. Withdrawing it resolves the commitment but does not erase its earlier violation.
+_Avoid_: Policy violation count

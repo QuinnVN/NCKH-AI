@@ -21,7 +21,8 @@ class ReturningApiTests(unittest.IsolatedAsyncioTestCase):
             patch.object(main, "sales_attempt_store", self.attempts),
             patch.object(main, "sales_returning_transcriber", FakeTranscriber("Em xin lỗi chị.")),
             patch.object(main, "LLMSalesResponder", return_value=FakeResponder()),
-            patch.dict(os.environ, {"BACKEND_API_TOKEN": "gameplay-test", "SALES_DIAGNOSTIC_TOKEN": "diagnostic-test"})]
+            patch.dict(os.environ, {"BACKEND_API_TOKEN": "gameplay-test", "SALES_DIAGNOSTIC_TOKEN": "diagnostic-test",
+                "SALES_PIPELINE_MODE": "legacy", "DISABLE_AI_SALE_PT2": "false"})]
         for item in self.patches: item.start()
         self.client = AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test")
         self.auth = {"Authorization": "Bearer gameplay-test"}

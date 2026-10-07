@@ -5,7 +5,7 @@ param(
     [ValidateRange(1, 65535)]
     [int]$Port = 8080,
     [ValidateRange(8192, 65536)]
-    [int]$ContextSize = 32768,
+    [int]$ContextSize = 16384,
     [ValidateRange(1, 8)]
     [int]$ParallelSlots = 1,
     [ValidateRange(-1, 999)]

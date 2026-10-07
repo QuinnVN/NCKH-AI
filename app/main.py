@@ -1,12 +1,13 @@
 """FastAPI application for Unity telemetry, control, and AI responses."""
 
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import logging
 import re
+import sys
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -23,6 +24,7 @@ from app.career_assessment import (
     CareerAssessmentRequest,
     CareerAssessmentResponse,
     build_assessment_messages,
+    build_hybrid_assessment_messages,
     build_repair_messages,
     parse_assessment_response,
 )
@@ -38,13 +40,13 @@ from app.lawyer_assessment import (
     submission_from_lawyer_telemetry,
 )
 from app.sales_persuasion import (
-    LLMSalesAssessor,
     SalesAttemptConflictError,
     SalesAttemptStore,
     SalesPersuasionSubmission,
     SalesProcessingError,
     SalesSubmissionResponse,
     SALES_RECORDING_EVENT_TYPE,
+    build_sales_part1_assessor,
     process_sales_attempt,
     submission_from_sales_telemetry,
     submission_response,
@@ -87,6 +89,8 @@ from app.run_results import (
 logger = logging.getLogger("vr_backend")
 server: uvicorn.Server | None = None
 unity_ws: WebSocket | None = None
+disconnect_abort_task: asyncio.Task[None] | None = None
+DISCONNECT_ABORT_GRACE_SECONDS = 30
 llm_service: LLMService | None = None
 ai_server_manager = AIServerManager()
 sales_attempt_store = SalesAttemptStore()
@@ -94,6 +98,9 @@ sales_transcriber = SherpaOnnxTranscriber()
 sales_processing_tasks: dict[str, asyncio.Task[object]] = {}
 sales_returning_store = ReturningSessionStore()
 sales_returning_transcriber = sales_transcriber
+# Dedicated injectable services; other simulations keep their existing LLM.
+sales_returning_classifier = None
+sales_returning_writer = None
 tts_service = TTSService()
 lawyer_attempt_store = LawyerAttemptStore()
 lawyer_processing_tasks: dict[str, asyncio.Task[object]] = {}
@@ -152,7 +159,7 @@ async def _result_sync_loop():
         await asyncio.sleep(1)
         try:
             await run_result_store.retry_due()
-            if active_run_id is not None and run_result_store.is_synchronized(active_run_id):
+            if active_run_id is not None and run_result_store.is_settled(active_run_id):
                 old = participant_manager.clear(force=True)
                 if old:
                     log(f"[Server] Cleared participant {old.name} ({old.session_id}).")
@@ -163,7 +170,7 @@ async def _result_sync_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global llm_service
+    global llm_service, disconnect_abort_task
 
     llm_service = LLMService()
     await sales_transcriber.initialize()
@@ -177,6 +184,10 @@ async def lifespan(app: FastAPI):
     retention_task.cancel()
     result_sync_task.cancel()
     await asyncio.gather(retention_task, result_sync_task, return_exceptions=True)
+    if disconnect_abort_task is not None:
+        disconnect_abort_task.cancel()
+        await asyncio.gather(disconnect_abort_task, return_exceptions=True)
+        disconnect_abort_task = None
     tasks = tuple(sales_processing_tasks.values())
     for task in tasks:
         task.cancel()
@@ -506,7 +517,7 @@ def scene_command_succeeded(
     acknowledgement: dict[str, Any],
     scene_id: str,
     command_type: str,
-    expected_phase: str,
+    expected_phase: str | tuple[str, ...],
 ) -> bool:
     status = acknowledgement.get("status")
     acknowledged_scene_id = acknowledgement.get("sceneId")
@@ -517,11 +528,13 @@ def scene_command_succeeded(
         acknowledged_phase = acknowledgement.get("phase")
         if isinstance(acknowledged_phase, str):
             acknowledged_phase = acknowledged_phase.lower()
-        if acknowledged_phase == expected_phase:
+        expected_phases = (expected_phase,) if isinstance(expected_phase, str) else expected_phase
+        if acknowledged_phase in expected_phases:
             return True
+        expected_description = " or ".join(expected_phases)
         log(
             f"[Server] '{command_type}' for '{scene_id}' failed: Unity acknowledged "
-            f"phase '{acknowledged_phase}' instead of '{expected_phase}'."
+            f"phase '{acknowledged_phase}' instead of '{expected_description}'."
         )
         return False
 
@@ -554,7 +567,7 @@ async def set_game(
         return False
     previous_activity = participant_manager.activity
     if scene_id != "standby" and participant_manager.active is not None:
-        if active_run_id is not None and not run_result_store.is_synchronized(active_run_id):
+        if active_run_id is not None and not run_result_store.is_settled(active_run_id):
             log("[Server] Cannot start a game while a completed result awaits database synchronization.")
             return False
         if not await ensure_participant_assignment(socket):
@@ -571,7 +584,7 @@ async def set_game(
         acknowledgement,
         scene_id,
         "load_scene",
-        "standby" if scene_id == "standby" else "running" if scene_id == "doctor" or scene_id == "clinic" else "ready",
+        "standby" if scene_id == "standby" else ("ready", "running") if scene_id in {"doctor", "clinic"} else "ready",
     ):
         participant_manager.activity = previous_activity
         return False
@@ -828,9 +841,12 @@ async def telemetry(
         try:
             participant = participant_manager.active
             if participant is not None:
+                completed = record.get("assessmentStatus") == "completed"
                 await run_result_store.accept_fragment({
                     "runId": record.get("runId") or data.get("runId", submission.round_id), "gameId": "lawyer",
-                    "fragmentId": f"lawyer:{submission.round_id}", "data": project_lawyer_record(record)
+                    "fragmentId": f"lawyer:{submission.round_id}" + (":completed" if completed else ""),
+                    "complete": completed, "requiredFields": ["lawyer"],
+                    "data": {"lawyer": project_lawyer_record(record)},
                 }, participant=participant)
         except (ValueError, RuntimeError):
             logger.warning("Unable to project Lawyer result into simulation aggregate")
@@ -895,7 +911,7 @@ async def telemetry(
     payload = data.get("payload")
     error_code = payload.get("errorCode") if isinstance(payload, dict) else None
     if (
-        event_type == "sales.part2.error"
+        event_type in ("sales.part2.error", "sales.part2.incomplete")
         and isinstance(error_code, str)
         and re.fullmatch(r"[a-z0-9_.-]{1,64}", error_code)
     ):
@@ -958,7 +974,7 @@ async def submit_result_fragment(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if result.get("status") == "completed":
         participant_manager.activity = "idle"
-        if run_result_store.is_synchronized(result["runId"]):
+        if run_result_store.is_settled(result["runId"]):
             old = participant_manager.clear(force=True)
             if old:
                 log(f"[Server] Cleared participant {old.name} ({old.session_id}).")
@@ -992,7 +1008,9 @@ async def _queue_lawyer_processing(round_id: str) -> None:
         if participant is not None and isinstance(record, dict) and record.get("assessmentStatus") == "completed":
             try:
                 await run_result_store.accept_fragment({"runId": record.get("runId") or round_id, "gameId": "lawyer",
-                    "fragmentId": f"lawyer:{round_id}:completed", "data": project_lawyer_record(record)}, participant=participant)
+                    "fragmentId": f"lawyer:{round_id}:completed", "complete": True,
+                    "requiredFields": ["lawyer"],
+                    "data": {"lawyer": project_lawyer_record(record)}}, participant=participant)
             except (ValueError, RuntimeError):
                 logger.warning("Unable to project completed Lawyer result")
         return record
@@ -1078,7 +1096,7 @@ async def _queue_sales_processing(attempt_id: str) -> None:
             attempt_id,
             store=sales_attempt_store,
             transcriber=sales_transcriber,
-            assessor=LLMSalesAssessor(llm_service),
+            assessor=build_sales_part1_assessor(llm_service),
         )
         participant = participant_manager.active
         if participant is not None and isinstance(record, dict) and record.get("assessmentStatus") == "completed":
@@ -1287,6 +1305,8 @@ async def submit_sales_returning_turn(
             store=sales_returning_store,
             transcriber=sales_returning_transcriber,
             responder=LLMSalesResponder(llm_service),
+            classifier=sales_returning_classifier,
+            writer=sales_returning_writer,
         )
         return _speech_for_response(session_id, result)
     except KeyError as exception:
@@ -1343,9 +1363,11 @@ async def complete_sales_session(
         participant = participant_manager.active
         if participant is not None and result.get("completionStatus") == "completed":
             try:
+                part2 = project_sales_part2(result)
                 await run_result_store.accept_fragment({
                     "runId": result.get("runId") or session_id, "gameId": "sale", "fragmentId": f"sale.part2:{request.completion_id}",
-                    "data": {"part2": project_sales_part2(result)},
+                    "complete": True, "requiredFields": ["part1", "part2"],
+                    "data": {"part2": part2, "turns": part2["turns"]},
                 }, participant=participant)
             except (ValueError, RuntimeError):
                 logger.warning("Unable to project completed Sales Part 2 result")
@@ -1447,9 +1469,15 @@ async def assess_careers(
         "response_format": CAREER_RESPONSE_FORMAT,
     }
 
+    assessment_messages = (
+        build_hybrid_assessment_messages(request)
+        if settings.llm_use_amd_hybrid
+        else build_assessment_messages(request)
+    )
+
     try:
         answer = await service.generate(
-            build_assessment_messages(request),
+            assessment_messages,
             options=generation_options,
             max_message_chars=settings.max_career_prompt_chars,
         )
@@ -1461,7 +1489,9 @@ async def assess_careers(
         ) from exception
 
     try:
-        return parse_assessment_response(answer, request)
+        return parse_assessment_response(
+            answer, request, allow_missing_assessment_id=settings.llm_use_amd_hybrid
+        )
     except CareerAssessmentOutputError:
         log("[Server] Career assessment returned invalid JSON; attempting one repair.")
 
@@ -1471,7 +1501,9 @@ async def assess_careers(
             options=generation_options,
             max_message_chars=settings.max_career_prompt_chars,
         )
-        return parse_assessment_response(repaired_answer, request)
+        return parse_assessment_response(
+            repaired_answer, request, allow_missing_assessment_id=settings.llm_use_amd_hybrid
+        )
     except LLMServiceError as exception:
         log(f"[Server] Career assessment repair failed: {exception}")
         raise HTTPException(
@@ -1516,7 +1548,7 @@ async def commands(
     ws: WebSocket,
     token: str | None = Query(default=None),
 ) -> None:
-    global unity_ws, participant_acknowledged_socket, active_run_id
+    global unity_ws, participant_acknowledged_socket, active_run_id, disconnect_abort_task
 
     authorization = ws.headers.get("authorization")
     if not _authorization_is_valid(authorization, token):
@@ -1547,6 +1579,18 @@ async def commands(
                 log("[Server] Ignoring malformed Unity ACK: invalid JSON.")
                 continue
 
+            if isinstance(data, dict) and data.get("type") == "ping":
+                if (
+                    disconnect_abort_task is not None
+                    and active_run_id is not None
+                    and data.get("runId") == active_run_id
+                    and unity_ws is ws
+                ):
+                    disconnect_abort_task.cancel()
+                    disconnect_abort_task = None
+                await ws.send_json({"type": "pong"})
+                continue
+
             handle_unity_acknowledgement(data, source=ws)
     except WebSocketDisconnect:
         log("[Server] Unity disconnected")
@@ -1560,9 +1604,27 @@ async def commands(
                 participant_acknowledged_socket = None
             fail_pending_scene_commands("Unity disconnected.", owner=ws)
             if active_run_id is not None:
-                await run_result_store.mark_aborted(active_run_id)
-                active_run_id = None
-                participant_manager.activity = "idle"
+                if disconnect_abort_task is not None:
+                    disconnect_abort_task.cancel()
+                disconnect_abort_task = asyncio.create_task(
+                    abort_run_after_disconnect(active_run_id)
+                )
+
+
+async def abort_run_after_disconnect(run_id: str) -> None:
+    global active_run_id, disconnect_abort_task
+    try:
+        await asyncio.sleep(DISCONNECT_ABORT_GRACE_SECONDS)
+        if active_run_id == run_id:
+            await run_result_store.mark_aborted(run_id)
+            active_run_id = None
+            participant_manager.activity = "idle"
+    except Exception as exception:
+        logger.warning("Unable to abort disconnected run %s: %s", run_id, exception)
+    finally:
+        if disconnect_abort_task is asyncio.current_task():
+            disconnect_abort_task = None
+
 
 async def run_llm_smoke_test() -> bool:
     """Send a fixed prompt to the configured LLM and print its response."""
@@ -1652,10 +1714,9 @@ async def run_ai_server_command(command: str) -> bool:
             statuses = await ai_server_manager.status(parsed.target)
             for status in statuses:
                 if status.running:
-                    log(
-                        f"[AI] {status.name}: running (PID {status.pid}, "
-                        f"http://{status.host}:{status.port})."
-                    )
+                    location = f"http://{status.host}:{status.port}"
+                    process = f"PID {status.pid}, " if status.pid is not None else ""
+                    log(f"[AI] {status.name}: running ({process}{location}).")
                 elif status.return_code is not None:
                     log(
                         f"[AI] {status.name}: stopped "
@@ -1720,12 +1781,12 @@ async def run_db_sync_command() -> bool:
     global active_run_id
     try:
         result = await run_result_store.sync_all()
-        if active_run_id is not None and run_result_store.is_synchronized(active_run_id):
+        if active_run_id is not None and run_result_store.is_settled(active_run_id):
             old = participant_manager.clear(force=True)
             if old:
                 log(f"[Server] Cleared participant {old.name} ({old.session_id}).")
             active_run_id = None
-        log(f"[DB] synchronized={result['synchronized']} failed={result['failed']} remaining={result['remaining']}")
+        log(f"[DB] synchronized={result['synchronized']} failed={result['failed']} remaining={result['remaining']} skipped_test={result['skipped']}")
         return result["failed"] == 0
     except Exception as exception:
         log(f"[DB] Synchronization failed: {str(exception)[:500]}")
@@ -1829,14 +1890,15 @@ async def _run_backend() -> None:
         while not server.started:
             await asyncio.sleep(0.05)
 
-        commands_task = asyncio.create_task(handleCommands())
-        done, _ = await asyncio.wait(
-            {server_task, commands_task},
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        if commands_task in done:
-            await stop_ai_servers_for_shutdown()
-            server.should_exit = True
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            commands_task = asyncio.create_task(handleCommands())
+            done, _ = await asyncio.wait(
+                {server_task, commands_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if commands_task in done:
+                await stop_ai_servers_for_shutdown()
+                server.should_exit = True
         await server_task
     finally:
         if commands_task is not None and not commands_task.done():
@@ -1855,7 +1917,8 @@ async def _run_backend() -> None:
 
 
 async def main() -> None:
-    with patch_stdout():
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    with patch_stdout() if interactive else nullcontext():
         logging.basicConfig(level=logging.INFO, format="%(message)s")
         await _run_backend()
 

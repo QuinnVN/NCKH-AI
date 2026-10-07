@@ -1,4 +1,4 @@
-"""Small llama.cpp/OpenAI-compatible client used by the response endpoint."""
+"""Small OpenAI-compatible client for the selected local language model."""
 
 from collections.abc import Mapping
 from typing import Any
@@ -21,6 +21,7 @@ class LLMService:
         self.settings = settings or get_settings()
         self.base_url = self.settings.llm_base_url
         self.model = self.settings.llm_model
+        self.provider = "ryzenai-llm" if self.settings.llm_use_amd_hybrid else "llama.cpp"
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=self.settings.llm_connect_timeout_seconds,

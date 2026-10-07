@@ -1,0 +1,4 @@
+Unable to create process using '"D:\NCKH-AI\.venv\Scripts\python.exe" -m unittest app.tests.test_sales_persuasion -v': Access is denied.
+
+
+EXIT_CODE=101

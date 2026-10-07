@@ -1,0 +1,22 @@
+Stage 1 execution status: BLOCKED (no test executed)
+
+Test added: app/tests/test_sales_part1_scoring.py
+Test id: app.tests.test_sales_part1_scoring.SalesPart1UnrelatedAnswerScoringTests.test_unrelated_speech_cannot_earn_high_part1_score
+
+Commands (run from D:\NCKH-AI):
+  D:\NCKH-AI\.venv\Scripts\python.exe -m unittest app.tests.test_sales_part1_scoring.SalesPart1UnrelatedAnswerScoringTests.test_unrelated_speech_cannot_earn_high_part1_score -v
+  D:\NCKH-AI\.venv\Scripts\python.exe -m unittest app.tests.test_sales_persuasion -v
+
+Observed in agent sandbox (user laptop-7v6oqkhg\codexsandboxoffline):
+  red run 1, red run 2, baseline: exit code 101 (logs 02/03/04-blocked-*.txt)
+  "Unable to create process using '"D:\NCKH-AI\.venv\Scripts\python.exe" ...': Access is denied."
+  .venv/pyvenv.cfg home = C:\Users\Windows\AppData\Local\Python\pythoncore-3.14-64 (3.14.7)
+  Starting that base python.exe directly: "Access is denied" (sandbox account lacks access to that profile path).
+  uv offline python lookup: cache init failure under C:\Users\Windows\AppData\Local\uv (exit 2).
+  Approval policy is "never"; no escalation was attempted and no settings were changed.
+
+Expected (static reading of app/sales_persuasion.py, NOT executed):
+  InflatingLegacyLLM returns {"score": 92, ...}; LLMSalesAssessor validates 0..100 and returns it;
+  process_sales_attempt saves score=92, assessmentStatus=completed; assertLessEqual(92, 20) fails -> exit 1.
+
+Integrity: all 71 baseline-hashes.json entries match after the change (0 diffs).

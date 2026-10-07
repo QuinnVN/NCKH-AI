@@ -661,7 +661,7 @@ async def process_lawyer_attempt(
         service = getattr(assessor, "service", None)
         if service is not None:
             language_model = {
-                "provider": "llama.cpp",
+                "provider": getattr(service, "provider", "llama.cpp"),
                 "model": str(getattr(service, "model", "unavailable")),
                 "version": "unavailable",
             }

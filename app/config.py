@@ -6,7 +6,7 @@ network.  Values are read when :func:`get_settings` is called, which also
 makes configuration changes straightforward to exercise in tests.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
 
@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LLM_BASE_URL = "http://127.0.0.1:8080/v1"
 DEFAULT_LLM_MODEL = "qwen3-4b"
+AMD_HYBRID_LLM_BASE_URL = "http://127.0.0.1:13305/v1"
+AMD_HYBRID_LLM_MODEL = "Qwen3-4B-Hybrid"
 
 # Keep local configuration out of source control while allowing deployment
 # environments to override it through their own environment variables.
@@ -65,6 +67,7 @@ class Settings:
     command_timeout_seconds: float
     llm_base_url: str
     llm_model: str
+    llm_use_amd_hybrid: bool
     llm_connect_timeout_seconds: float
     llm_read_timeout_seconds: float
     llm_write_timeout_seconds: float
@@ -82,23 +85,35 @@ class Settings:
     sherpa_timeout_seconds: float
     supertonic_base_url: str | None
     tts_timeout_seconds: float
+    tts_quality: int
     disable_ai_sale_pt2: bool
     mongodb_uri: str | None
     mongodb_database: str
     mongodb_results_collection: str
+    sales_pipeline_mode: str = "legacy"
+    openrouter_api_key: str | None = field(default=None, repr=False)
+    sales_max_turns: int = 8
+    sales_jev_timeout_seconds: float = 3.0
+    sales_writer_timeout_seconds: float = 4.0
+    sales_luna_arbitration_enabled: bool = True
+    sales_luna_timeout_seconds: float = 6.0
+    sales_part1_timeout_seconds: float = 30.0
+    sales_openrouter_data_collection: str = "deny"
+    sales_openrouter_zdr: bool = False
 
 
 def get_settings() -> Settings:
     """Load settings from environment variables using bounded safe defaults."""
 
     host = os.environ.get("BACKEND_HOST", "127.0.0.1").strip() or "127.0.0.1"
-    # llama-server exposes its OpenAI-compatible API on port 8080 by default.
     base_url = os.environ.get("LLM_BASE_URL", DEFAULT_LLM_BASE_URL).strip()
     if not base_url:
         base_url = DEFAULT_LLM_BASE_URL
 
     api_token = os.environ.get("BACKEND_API_TOKEN", "").strip() or None
     recordings_dir = os.environ.get("RECORDINGS_DIR", "recordings").strip() or "recordings"
+
+    use_amd_hybrid = _env_bool("LLM_USE_AMD_HYBRID")
 
     return Settings(
         host=host,
@@ -121,10 +136,12 @@ def get_settings() -> Settings:
         command_timeout_seconds=_env_float(
             "COMMAND_TIMEOUT_SECONDS", 5.0, minimum=0.1, maximum=60.0
         ),
-        llm_base_url=base_url.rstrip("/"),
-        # llama-server accepts the alias supplied with --alias; local-model is
-        # deliberately generic so deployments can choose any GGUF model.
-        llm_model=os.environ.get("LLM_MODEL", DEFAULT_LLM_MODEL).strip() or DEFAULT_LLM_MODEL,
+        llm_base_url=(AMD_HYBRID_LLM_BASE_URL if use_amd_hybrid else base_url.rstrip("/")),
+        llm_model=(
+            AMD_HYBRID_LLM_MODEL if use_amd_hybrid
+            else os.environ.get("LLM_MODEL", DEFAULT_LLM_MODEL).strip() or DEFAULT_LLM_MODEL
+        ),
+        llm_use_amd_hybrid=use_amd_hybrid,
         llm_connect_timeout_seconds=5.0,
         llm_read_timeout_seconds=_env_float(
             "LLM_READ_TIMEOUT_SECONDS", 120.0, minimum=1.0, maximum=600.0
@@ -164,8 +181,22 @@ def get_settings() -> Settings:
         tts_timeout_seconds=_env_float(
             "TTS_TIMEOUT_SECONDS", 8.0, minimum=1.0, maximum=30.0
         ),
+        # Supertonic denoising steps: higher sounds cleaner but synthesizes slower.
+        tts_quality=_env_int("TTS_QUALITY", 5, minimum=1, maximum=20),
         disable_ai_sale_pt2=_env_bool("DISABLE_AI_SALE_PT2"),
         mongodb_uri=os.environ.get("MONGODB_URI", "").strip() or None,
         mongodb_database=os.environ.get("MONGODB_DATABASE", "desmap").strip() or "desmap",
         mongodb_results_collection=os.environ.get("MONGODB_RESULTS_COLLECTION", "game_results").strip() or "game_results",
+        sales_pipeline_mode=(os.environ.get("SALES_PIPELINE_MODE", "legacy").strip().lower()
+                             if os.environ.get("SALES_PIPELINE_MODE", "legacy").strip().lower()
+                             in {"legacy", "shadow", "openrouter"} else "legacy"),
+        openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", "").strip() or None,
+        sales_max_turns=_env_int("SALES_MAX_TURNS", 8, minimum=4, maximum=32),
+        sales_jev_timeout_seconds=_env_float("SALES_JEV_TIMEOUT_SECONDS", 3.0, minimum=0.1, maximum=30.0),
+        sales_writer_timeout_seconds=_env_float("SALES_WRITER_TIMEOUT_SECONDS", 4.0, minimum=0.1, maximum=30.0),
+        sales_luna_arbitration_enabled=_env_bool("SALES_LUNA_ARBITRATION_ENABLED", True),
+        sales_luna_timeout_seconds=_env_float("SALES_LUNA_TIMEOUT_SECONDS", 6.0, minimum=0.1, maximum=30.0),
+        sales_part1_timeout_seconds=_env_float("SALES_PART1_TIMEOUT_SECONDS", 30.0, minimum=1.0, maximum=120.0),
+        sales_openrouter_data_collection=("allow" if os.environ.get("SALES_OPENROUTER_DATA_COLLECTION", "deny").strip().lower() == "allow" else "deny"),
+        sales_openrouter_zdr=_env_bool("SALES_OPENROUTER_ZDR"),
     )

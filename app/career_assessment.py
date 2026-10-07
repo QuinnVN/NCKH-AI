@@ -151,6 +151,27 @@ def build_assessment_messages(request: CareerAssessmentRequest) -> list[dict[str
     ]
 
 
+def build_hybrid_assessment_messages(request: CareerAssessmentRequest) -> list[dict[str, str]]:
+    """Give the Ryzen AI model a short, concrete JSON example for non-thinking output."""
+
+    messages = build_assessment_messages(request)
+    example = json.dumps(
+        {
+            "assessment_id": request.assessment_id,
+            "suggestions": [{"career_name": "tên nghề", "match_percentage": 80}],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    messages[-1]["content"] = (
+        messages[-1]["content"].removesuffix("/think")
+        + f"Chỉ trả JSON theo đúng khung: {example}. "
+        "Hãy đưa ra đúng 3 nghề, mỗi nghề là một object, "
+        "không có dấu hoặc ký tự ngoài JSON.\n/no_think"
+    )
+    return messages
+
+
 def build_repair_messages(
     request: CareerAssessmentRequest,
     invalid_answer: str,
@@ -188,11 +209,18 @@ def _remove_hidden_reasoning(content: str) -> str:
 def parse_assessment_response(
     content: str,
     request: CareerAssessmentRequest,
+    *,
+    allow_missing_assessment_id: bool = False,
 ) -> CareerAssessmentResponse:
     try:
-        response = CareerAssessmentResponse.model_validate_json(
-            _remove_hidden_reasoning(content)
-        )
+        cleaned = _remove_hidden_reasoning(content)
+        if allow_missing_assessment_id:
+            data = json.loads(cleaned)
+            if isinstance(data, dict) and "assessment_id" not in data:
+                data["assessment_id"] = request.assessment_id
+            response = CareerAssessmentResponse.model_validate(data)
+        else:
+            response = CareerAssessmentResponse.model_validate_json(cleaned)
     except (ValueError, TypeError) as exception:
         raise CareerAssessmentOutputError(
             "The model returned invalid career suggestion JSON."

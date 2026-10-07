@@ -44,7 +44,6 @@ from app.lawyer_assessment import LLMLawyerAssessor  # noqa: E402
 from app.llm_service import LLMService  # noqa: E402
 from app.sales_persuasion import LLMSalesAssessor  # noqa: E402
 from app.sales_returning_customer import (  # noqa: E402
-    BAD_ENDING_RESPONSES,
     LLMSalesAnalyzer,
     _count_outcome,
     _final_customer_response,
@@ -506,9 +505,7 @@ async def reevaluate_draft(
             session.get("trustState") == "lost" or int(session.get("silenceCount", 0)) >= 2
         ):
             customer_rating, trust_state = "bad", "lost"
-        final_customer_text = _final_customer_response(good_count, bad_count)
-        if customer_rating == "bad" and good_count == bad_count == 0:
-            final_customer_text = BAD_ENDING_RESPONSES[0]
+        final_customer_text = _final_customer_response(session, good_count, bad_count)
         penalty = min(raw_score, violation_count * 10)
         evaluated_session = dict(session)
         evaluated_session.update(
@@ -643,7 +640,9 @@ def _interactive_reevaluation(
         async def run() -> dict[str, Any]:
             try:
                 if not reachable:
-                    await manager.start_detached("llama")
+                    await manager.start_detached(
+                        "hybrid" if service.settings.llm_use_amd_hybrid else "llama"
+                    )
                 return await reevaluate_draft(draft, recordings_dir, session_id, service)
             finally:
                 await service.close()

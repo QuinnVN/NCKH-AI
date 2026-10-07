@@ -111,7 +111,7 @@ class CareerSuggestion(StrictModel):
     id: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=120)
     compatibility_percent: int = Field(alias="compatibilityPercent", ge=0, le=100)
-    description: str = Field(min_length=1, max_length=900)
+    description: str = Field(min_length=1, max_length=1200)
 
     @field_validator("id")
     @classmethod

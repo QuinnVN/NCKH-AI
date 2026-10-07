@@ -5,11 +5,13 @@ from contextlib import redirect_stdout
 from copy import deepcopy
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from app.sales_returning_customer import ENDING_VARIANTS
 from scripts.repair_simulation_results import (
     _draft_display_date,
     _interactive_reevaluation,
@@ -62,8 +64,16 @@ class FakeLLMService:
                 "clarity_and_persuasiveness": 8,
                 "feedback_vi": "Lập luận rõ ràng.",
             })
-        if schema_name == "sales_persuasion_assessment":
-            return json.dumps({"score": 88, "feedback_vi": "Tư vấn phù hợp."})
+        if schema_name == "sales_part1_rubric":
+            return json.dumps({
+                "recommendsShoe": {"status": "true", "evidence": "Em đề xuất Giày A"},
+                "needsMatch": {"status": "true", "evidence": "nhẹ và phù hợp chạy bộ"},
+                "productFacts": {"status": "true", "evidence": "nhẹ"},
+                "objectionResponse": {"status": "false", "evidence": ""},
+                "nextStep": {"status": "false", "evidence": ""},
+                "falseProductClaim": {"status": "false", "evidence": ""},
+                "disrespectOrPressure": {"status": "false", "evidence": ""},
+            }, ensure_ascii=False)
         if schema_name == "sales_conversation_analysis":
             return json.dumps({
                 "criterionScores": {
@@ -155,6 +165,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             answers = iter(("1", session_id, "y"))
 
             with (
+                patch.dict(os.environ, {"LLM_USE_AMD_HYBRID": "false"}),
                 patch(
                     "scripts.repair_simulation_results._llm_endpoint_reachable",
                     return_value=False,
@@ -257,18 +268,19 @@ class RepairSimulationResultsTests(unittest.TestCase):
             self.assertEqual(repaired["requiredFields"], ["lawyer"])
             self.assertTrue(repaired["completionRequested"])
 
-    def test_reevaluates_both_sales_parts_from_session_transcripts(self):
+    def test_reevaluates_current_part1_and_legacy_part2_from_session_transcripts(self):
         with tempfile.TemporaryDirectory() as temporary:
             recordings = Path(temporary)
             session_id = "session-1"
             attempt_id = "attempt-1"
             sales_session = {
                 "sessionId": session_id,
+                "pipelineMode": "legacy",
                 "part1AttemptId": attempt_id,
                 "turns": [{
                     "turnId": "turn-1",
                     "transcript": "Em xin lỗi và sẽ kiểm tra đôi giày.",
-                    "customerText": "Chị đồng ý.",
+                    "customerText": ENDING_VARIANTS["good"][0],
                     "playerResponseRating": "good",
                     "policyViolations": [],
                 }],
@@ -285,8 +297,9 @@ class RepairSimulationResultsTests(unittest.TestCase):
                 "bestFitShoeId": "shoe-1",
                 "customerNeeds": "Cần giày chạy bộ.",
                 "objection": "Mẫu còn đơn giản.",
-                "availableShoes": [],
-                "transcript": "Đôi này nhẹ và phù hợp chạy bộ.",
+                "availableShoes": [{"shoeId": "shoe-1", "name": "Giày A", "price": 1200000,
+                                    "details": "Nhẹ, phù hợp chạy bộ."}],
+                "transcript": "Em đề xuất Giày A vì nhẹ và phù hợp chạy bộ.",
                 "createdAtUtc": "2026-09-16T01:00:00Z",
             }
             write_json(recordings / f"sales-session-{session_id}.json", sales_session)
@@ -296,13 +309,17 @@ class RepairSimulationResultsTests(unittest.TestCase):
             original["requiredFields"] = []
             original["completionRequested"] = False
 
-            repaired = asyncio.run(
-                reevaluate_draft(original, recordings, session_id, FakeLLMService())
-            )
+            with patch.dict(os.environ, {"LLM_USE_AMD_HYBRID": "false"}):
+                repaired = asyncio.run(
+                    reevaluate_draft(original, recordings, session_id, FakeLLMService())
+                )
 
-            self.assertEqual(repaired["data"]["part1"]["score"], 88)
+            self.assertEqual(repaired["data"]["part1"]["score"], 60)
+            self.assertTrue(repaired["data"]["part1"]["feedbackVi"])
             self.assertEqual(repaired["data"]["part2"]["score"], 75)
             self.assertEqual(repaired["data"]["part2"]["customerRating"], "good")
+            self.assertIn(repaired["data"]["part2"]["finalCustomerText"], ENDING_VARIANTS["good"])
+            self.assertNotEqual(repaired["data"]["part2"]["finalCustomerText"], ENDING_VARIANTS["good"][0])
             self.assertEqual(repaired["data"]["turns"][0]["turnId"], "turn-1")
             self.assertEqual(repaired["requiredFields"], ["part1", "part2"])
 

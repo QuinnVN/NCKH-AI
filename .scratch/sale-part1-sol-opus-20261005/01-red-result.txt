@@ -1,0 +1,36 @@
+I wrote the Part 1 regression test, but I couldn't confirm it fails. Python won't start in this sandbox, so the two red runs and the baseline all exited with code 101 before any test code loaded. Stage 1 isn't done until someone with normal access runs the commands below.
+
+**Why nothing ran:** commands here run as the sandbox account `codexsandboxoffline`. The venv's base interpreter is under `C:\Users\Windows\AppData\Local\Python\pythoncore-3.14-64`, and Windows denies that account access to it. The venv launcher gives "Access is denied", and starting the base `python.exe` directly is denied too. `uv` couldn't look up an installed Python offline either, because it failed to open its cache. Approval policy is `never`, so I couldn't request escalation. I didn't use workarounds, bypass flags, or setting changes.
+
+**Commands** (run from `D:\NCKH-AI`):
+
+```
+D:\NCKH-AI\.venv\Scripts\python.exe -m unittest app.tests.test_sales_part1_scoring.SalesPart1UnrelatedAnswerScoringTests.test_unrelated_speech_cannot_earn_high_part1_score -v
+D:\NCKH-AI\.venv\Scripts\python.exe -m unittest app.tests.test_sales_persuasion -v
+```
+
+The new test is in its own file, so the second command gives the baseline for `test_sales_persuasion` without it.
+
+**What the test does:** it goes through the real Part 1 path with no network access: `SalesPersuasionSubmission.model_validate(submission_data(...))` → `SalesAttemptStore.accept` (temp directory, non-silent WAV with amplitude 1000) → `process_sales_attempt` → `LLMSalesAssessor(service).assess` → saved record → `project_sales_part1`. It reuses `wav_bytes`, `submission_data` and `FakeTranscriber` from the existing tests. Only two things are swapped in:
+
+- **Transcriber:** returns unrelated Vietnamese ("Hôm nay trời mưa to quá. Tối nay tôi định nấu canh chua cá lóc rồi ngồi xem phim với cả nhà.").
+- **LLM service:** returns valid JSON in the current `{score, feedback_vi}` shape with `score: 92` and praise. This means a fix has to base credit on the transcript instead of trusting the score it's given.
+
+The test first checks that the attempt finished as assessed and that the saved transcript is the unrelated speech. A setup or availability problem therefore fails with a different message. It then checks that the saved Part 1 score is 20 or lower; 0 is fine.
+
+**Expected failure (not yet observed):** from reading `app/sales_persuasion.py`, the assessor accepts 92 because it's within 0..100. The saved score would be 92, and the 20 ceiling would fail with exit code 1. Treat 92 as a prediction until the commands are run.
+
+| Run | Exit code | Output |
+|---|---|---|
+| Red run 1 | 101 | Access is denied launching the venv Python |
+| Red run 2 | 101 | Same |
+| Baseline `app.tests.test_sales_persuasion` | 101 | Same |
+
+**Files I changed:**
+
+- [test_sales_part1_scoring.py](D:/NCKH-AI/app/tests/test_sales_part1_scoring.py): new file
+- In `.scratch\sale-part1-sol-opus-20261005`: `02-blocked-red-run1.txt`, `03-blocked-red-run2.txt`, `04-blocked-baseline-test_sales_persuasion.txt` and [05-execution-blocked.txt](D:/NCKH-AI/.scratch/sale-part1-sol-opus-20261005/05-execution-blocked.txt). The note records the block, the commands and the predicted failure.
+
+All 71 files in `baseline-hashes.json` still match. I made no production, config or Part 2 changes and no commits.
+
+**Next step:** Sol or the user needs to run the two commands under an account that can start the venv Python. Run the focused command twice and confirm exit code 1 with a saved score of 92 both times. After that, the hypotheses can go to the user.

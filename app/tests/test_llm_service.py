@@ -3,7 +3,13 @@ import os
 from unittest.mock import patch
 from unittest.mock import AsyncMock
 
-from app.config import DEFAULT_LLM_BASE_URL, DEFAULT_LLM_MODEL, get_settings
+from app.config import (
+    AMD_HYBRID_LLM_BASE_URL,
+    AMD_HYBRID_LLM_MODEL,
+    DEFAULT_LLM_BASE_URL,
+    DEFAULT_LLM_MODEL,
+    get_settings,
+)
 from app.llm_service import LLMService, LLMServiceError
 
 
@@ -49,6 +55,28 @@ class LLMServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(settings.llm_base_url, "http://127.0.0.1:9090/v1")
         self.assertEqual(settings.llm_model, "my-local-alias")
+
+    async def test_hybrid_flag_selects_amd_model_without_changing_llama_configuration(self):
+        with patch.dict("os.environ", {
+            "LLM_USE_AMD_HYBRID": "true",
+            "LLM_BASE_URL": "http://127.0.0.1:9090/v1",
+            "LLM_MODEL": "legacy-alias",
+        }, clear=True):
+            settings = get_settings()
+            service = LLMService(settings)
+        self.assertTrue(settings.llm_use_amd_hybrid)
+        self.assertEqual(settings.llm_base_url, AMD_HYBRID_LLM_BASE_URL)
+        self.assertEqual(settings.llm_model, AMD_HYBRID_LLM_MODEL)
+        self.assertEqual(service.provider, "ryzenai-llm")
+        await service.close()
+        with patch.dict("os.environ", {
+            "LLM_USE_AMD_HYBRID": "false",
+            "LLM_BASE_URL": "http://127.0.0.1:9090/v1",
+            "LLM_MODEL": "legacy-alias",
+        }, clear=True):
+            disabled = get_settings()
+        self.assertEqual(disabled.llm_base_url, "http://127.0.0.1:9090/v1")
+        self.assertEqual(disabled.llm_model, "legacy-alias")
 
     async def test_uses_llama_server_chat_completions_contract(self):
         service = self.make_default_service()

@@ -1,0 +1,76 @@
+﻿caseId,model,repeat,success,seconds,costUsd,attemptCount,findingCount,careerFallbacks,errorType,error
+profile-01,deepseek/deepseek-v4.1-flash,1,True,58.83762,0.0110312242,33,3,7,,
+profile-01,qwen/qwen3.8-flash,1,False,107.301,0.00427395,27,3,,FinalEvaluationOutputError,Trường careerSuggestions.kien-truc-su.description không hợp lệ sau khi viết lại (1317/1200 ký tự): The model returned an invalid single-field value.
+profile-01,xiaomi/mimo-v2.6-flash,1,True,206.94365,0.0066900288,33,3,7,,
+profile-02,deepseek/deepseek-v4.1-flash,1,False,56.67796,0.0123722588,37,4,,ValidationError,"1 validation error for FinalAssessment
+finalEvaluation.headline
+  String should have at most 300 characters [type=string_too_long, input_value='Bạn có điểm chung ...ớc khi kết luận.', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/string_too_long"
+profile-02,qwen/qwen3.8-flash,1,False,9.42834,0.000241098,3,4,,FinalEvaluationOutputError,Trường stageAssessments.E không hợp lệ sau khi viết lại (21/900 ký tự): The model did not have enough evidence for a required text field.
+profile-02,xiaomi/mimo-v2.6-flash,1,True,220.64393,0.005947103,38,4,7,,
+profile-03,deepseek/deepseek-v4.1-flash,1,True,63.0246,0.0105227566,43,5,6,,
+profile-03,qwen/qwen3.8-flash,1,True,155.17625,0.006201416,44,5,7,,
+profile-03,xiaomi/mimo-v2.6-flash,1,True,210.14144,0.0083035014,43,5,6,,
+profile-04,deepseek/deepseek-v4.1-flash,1,True,79.89854,0.01066743788,42,5,7,,
+profile-04,qwen/qwen3.8-flash,1,False,135.55762,0.004744212,38,5,,FinalEvaluationOutputError,Trường careerSuggestions.chuyen-vien-marketing.description không hợp lệ sau khi viết lại (1397/1200 ký tự): The model returned an invalid single-field value.
+profile-04,xiaomi/mimo-v2.6-flash,1,True,190.99844,0.0062683658,43,5,7,,
+profile-05,deepseek/deepseek-v4.1-flash,1,True,89.68666,0.0107712802,43,5,7,,
+profile-05,qwen/qwen3.8-flash,1,False,104.42843,0.003770978,36,5,,FinalEvaluationOutputError,Trường careerSuggestions.quan-ly-giao-duc.description không hợp lệ sau khi viết lại (1368/1200 ký tự): The model returned an invalid single-field value.
+profile-05,xiaomi/mimo-v2.6-flash,1,True,213.40173,0.0063802656,43,5,6,,
+profile-06,deepseek/deepseek-v4.1-flash,1,True,77.93058,0.0102190386,43,5,6,,
+profile-06,qwen/qwen3.8-flash,1,False,160.425,0.005462694,44,5,,ValidationError,"1 validation error for FinalAssessment
+finalEvaluation.headline
+  String should have at most 300 characters [type=string_too_long, input_value='Bạn thể hiện rõ n...phát huy tốt nhất.', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/string_too_long"
+profile-06,xiaomi/mimo-v2.6-flash,1,True,220.31839,0.0065164374,43,5,7,,
+profile-07,deepseek/deepseek-v4.1-flash,1,True,71.29739,0.0096586248,42,5,7,,
+profile-07,qwen/qwen3.8-flash,1,False,125.36313,0.003923032,36,5,,FinalEvaluationOutputError,Trường careerSuggestions.doctor.description không hợp lệ sau khi viết lại (1292/1200 ký tự): The model returned an invalid single-field value.
+profile-07,xiaomi/mimo-v2.6-flash,1,True,313.2878,0.0062268124,43,5,7,,
+profile-08,deepseek/deepseek-v4.1-flash,1,True,70.00837,0.0089071534,43,5,7,,
+profile-08,qwen/qwen3.8-flash,1,False,173.95788,0.005183782,45,5,,ValidationError,"1 validation error for FinalAssessment
+finalEvaluation.headline
+  String should have at most 300 characters [type=string_too_long, input_value='Bạn thể hiện sự ...ề phức tạp hơn.', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/string_too_long"
+profile-08,xiaomi/mimo-v2.6-flash,1,True,258.50768,0.0060409356,43,5,7,,
+profile-09,deepseek/deepseek-v4.1-flash,1,True,80.21557,0.008664249800000001,38,4,5,,
+profile-09,qwen/qwen3.8-flash,1,False,120.44973,0.0045634560000000005,38,4,,FinalEvaluationOutputError,Trường finalEvaluation.benefit không hợp lệ sau khi viết lại (21/650 ký tự): The model did not have enough evidence for a required text field.
+profile-09,xiaomi/mimo-v2.6-flash,1,True,330.30593,0.0059747364,38,4,7,,
+profile-10,deepseek/deepseek-v4.1-flash,1,True,64.13988,0.0079218264,37,4,4,,
+profile-10,qwen/qwen3.8-flash,1,True,122.67235,0.004466886,37,4,7,,
+profile-10,xiaomi/mimo-v2.6-flash,1,True,223.78041,0.0045699772,37,4,7,,
+profile-11,deepseek/deepseek-v4.1-flash,1,True,54.93978,0.007913841,33,3,7,,
+profile-11,qwen/qwen3.8-flash,1,False,127.40567,0.00444402,31,3,,FinalEvaluationOutputError,Trường finalEvaluation.headline không hợp lệ sau khi viết lại (972/650 ký tự): The model returned an invalid single-field value.
+profile-11,xiaomi/mimo-v2.6-flash,1,True,143.41738,0.004927279,34,3,7,,
+profile-12,deepseek/deepseek-v4.1-flash,1,True,92.9934,0.0085511634,38,4,7,,
+profile-12,qwen/qwen3.8-flash,1,True,123.58837,0.00460896,38,4,7,,
+profile-12,xiaomi/mimo-v2.6-flash,1,False,17.82885,0.00033892499999999996,3,4,,FinalEvaluationOutputError,Trường stageAssessments.E không hợp lệ sau khi viết lại (21/900 ký tự): The model did not have enough evidence for a required text field.
+profile-13,deepseek/deepseek-v4.1-flash,1,True,84.76192,0.0085020728,38,4,5,,
+profile-13,qwen/qwen3.8-flash,1,True,142.13053,0.004652052,39,4,7,,
+profile-13,xiaomi/mimo-v2.6-flash,1,True,227.08426,0.0053790116,38,4,6,,
+profile-14,deepseek/deepseek-v4.1-flash,1,True,77.65807,0.0085087316,42,5,7,,
+profile-14,qwen/qwen3.8-flash,1,True,126.19191,0.00484947,42,5,7,,
+profile-14,xiaomi/mimo-v2.6-flash,1,True,177.13673,0.005562941,42,5,7,,
+profile-15,deepseek/deepseek-v4.1-flash,1,True,79.44456,0.0083308194,43,5,7,,
+profile-15,qwen/qwen3.8-flash,1,False,155.81297,0.005068284,44,5,,ValidationError,"1 validation error for FinalAssessment
+finalEvaluation.headline
+  String should have at most 300 characters [type=string_too_long, input_value='Bạn có xu hướng t...ng hiệu quả hơn.', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/string_too_long"
+profile-15,xiaomi/mimo-v2.6-flash,1,True,196.40971,0.0058331194,43,5,7,,
+profile-16,deepseek/deepseek-v4.1-flash,1,True,76.89387,0.007906564599999999,42,5,7,,
+profile-16,qwen/qwen3.8-flash,1,False,142.41185,0.004826278,42,5,,FinalEvaluationOutputError,Trường finalEvaluation.challenge không hợp lệ sau khi viết lại (718/650 ký tự): The model returned an invalid single-field value.
+profile-16,xiaomi/mimo-v2.6-flash,1,False,263.88901,0.0051543392,40,5,,FinalEvaluationProviderError,OpenRouter trả về nội dung final eval thiếu hoặc chưa hoàn tất.
+profile-17,deepseek/deepseek-v4.1-flash,1,True,87.7042,0.00744819068,43,5,7,,
+profile-17,qwen/qwen3.8-flash,1,False,136.93478,0.004085282,39,5,,FinalEvaluationOutputError,Trường careerSuggestions.doctor.description không hợp lệ sau khi viết lại (1281/1200 ký tự): The model returned an invalid single-field value.
+profile-17,xiaomi/mimo-v2.6-flash,1,True,330.54173,0.006061708,43,5,7,,
+profile-18,deepseek/deepseek-v4.1-flash,1,True,50.53856,0.0066087448,28,2,7,,
+profile-18,qwen/qwen3.8-flash,1,False,78.04619,0.002986538,22,2,,FinalEvaluationOutputError,Trường careerSuggestions.chuyen-vien-phong-thi-nghiem.description không hợp lệ sau khi viết lại (1333/1200 ký tự): The model returned an invalid single-field value.
+profile-18,xiaomi/mimo-v2.6-flash,1,True,255.54018,0.0035089848,28,2,7,,
+profile-19,deepseek/deepseek-v4.1-flash,1,True,74.29049,0.0080130158,33,3,7,,
+profile-19,qwen/qwen3.8-flash,1,True,122.33686,0.0045864,34,3,7,,
+profile-19,xiaomi/mimo-v2.6-flash,1,True,193.51041,0.0045239798,33,3,7,,
+profile-20,deepseek/deepseek-v4.1-flash,1,True,73.59172,0.0089078974,43,5,6,,
+profile-20,qwen/qwen3.8-flash,1,False,139.27222,0.004954506,44,5,,ValidationError,"1 validation error for FinalAssessment
+finalEvaluation.headline
+  String should have at most 300 characters [type=string_too_long, input_value='Bạn thể hiện rõ n...eo đúng chính sách.', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/string_too_long"
+profile-20,xiaomi/mimo-v2.6-flash,1,True,257.30192,0.0050949672,43,5,7,,

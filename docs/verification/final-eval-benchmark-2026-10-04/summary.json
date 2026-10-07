@@ -1,0 +1,735 @@
+{
+  "manifest": {
+    "preparedAtUtc": "2026-10-04T15:02:26.662773+00:00",
+    "sourceFinalDocuments": 21,
+    "eligibleProfiles": 20,
+    "excludedReasons": {
+      "FinalEvaluationCLIError": 1
+    },
+    "datasetSha256": "fafdd34b5f500e71bf21f70f9a390ee3c472b76280a5d17d870f0808d0f8b8d0",
+    "models": [
+      {
+        "id": "deepseek/deepseek-v4.1-flash",
+        "name": "DeepSeek: DeepSeek V4.1 Flash",
+        "pricing": {
+          "prompt": "0.000000003",
+          "completion": "0.0000024",
+          "input_cache_read": "0.000000003"
+        },
+        "supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "logit_bias",
+          "logprobs",
+          "max_tokens",
+          "min_p",
+          "presence_penalty",
+          "reasoning",
+          "reasoning_effort",
+          "repetition_penalty",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_k",
+          "top_logprobs",
+          "top_p"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.8-flash",
+        "name": "Qwen: Qwen3.8 Flash",
+        "pricing": {
+          "prompt": "0.00000015",
+          "completion": "0.00000047",
+          "input_cache_read": "0.000000016",
+          "input_cache_write": "0.0000002"
+        },
+        "supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "logprobs",
+          "max_tokens",
+          "presence_penalty",
+          "reasoning",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_k",
+          "top_logprobs",
+          "top_p"
+        ]
+      },
+      {
+        "id": "xiaomi/mimo-v2.6-flash",
+        "name": "Xiaomi: MiMo-V2.6-Flash",
+        "pricing": {
+          "prompt": "0.00000014",
+          "completion": "0.00000028",
+          "input_cache_read": "0.0000000028"
+        },
+        "supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "logit_bias",
+          "logprobs",
+          "max_tokens",
+          "min_p",
+          "presence_penalty",
+          "reasoning",
+          "repetition_penalty",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_k",
+          "top_logprobs",
+          "top_p"
+        ]
+      }
+    ],
+    "systemPromptSha256": "59c3aebb7e1ff6e60457bc08dfa9b73e1bac9e859407f6ff7c5ff7de880712b3",
+    "generatorSha256": "7a9b60cee86630d37484bce2d6f92e26db484d153c90ef0e151156fa40efd17a",
+    "rankingVersion": "desmap-careers-v2",
+    "maxTokens": 1024,
+    "maxPromptChars": 16000,
+    "timeoutSeconds": 45,
+    "reasoningEnabled": false,
+    "providerDataCollection": "deny",
+    "method": "Full production generator, same field prompts and repair/fallback logic; one sequential field at a time per eval.",
+    "identityExported": false,
+    "databaseWrites": false
+  },
+  "summary": {
+    "deepseek/deepseek-v4.1-flash": {
+      "evalsAttempted": 20,
+      "evalsCompleted": 19,
+      "completionPercent": 95.0,
+      "totalCostUsd": 0.18142689216,
+      "meanCostPerAttemptUsd": 0.009071344608,
+      "meanCompletedCostUsd": 0.008897612282105264,
+      "costPerDeliveredEvalIncludingFailuresUsd": 0.009548783797894736,
+      "meanCompletedSeconds": 74.09767263157894,
+      "medianCompletedSeconds": 76.89387,
+      "p95CompletedSeconds": 90.01733399999999,
+      "meanCallsPerCompletedEval": 39.31578947368421,
+      "extraRequests": 0,
+      "careerFallbacks": 123,
+      "careerDescriptionsDelivered": 133,
+      "careerFallbackPercent": 92.4812030075188,
+      "unpricedSuccessResponses": 0,
+      "tokens": {
+        "prompt_tokens": 2650813,
+        "completion_tokens": 95248,
+        "total_tokens": 2746061,
+        "cached_tokens": 2162894,
+        "reasoning_tokens": 0
+      },
+      "providers": {
+        "Together": 386,
+        "InferenceNet": 27,
+        "AtlasCloud": 233,
+        "Venice": 2,
+        "Decart": 11,
+        "Wafer": 12,
+        "DeepInfra": 88,
+        "StreamLake": 2,
+        "Morph": 8,
+        "Phala": 1,
+        "Relace": 2,
+        "Alibaba": 1,
+        "Sail Research": 6,
+        "DigitalOcean": 1,
+        "CoreWeave": 1,
+        "Ionstream": 2,
+        "Makora": 1
+      },
+      "errors": {},
+      "firstResponseChecks": {
+        "format": {
+          "passed": 784,
+          "tested": 784,
+          "percent": 100.0
+        },
+        "strictPlainText": {
+          "passed": 698,
+          "tested": 698,
+          "percent": 100.0
+        },
+        "noInternalTerms": {
+          "passed": 686,
+          "tested": 698,
+          "percent": 98.281
+        },
+        "constructiveTone": {
+          "passed": 698,
+          "tested": 698,
+          "percent": 100.0
+        },
+        "contractLength": {
+          "passed": 697,
+          "tested": 698,
+          "percent": 99.857
+        },
+        "noNumericScores": {
+          "passed": 289,
+          "tested": 318,
+          "percent": 90.881
+        },
+        "noVrInQuestionnaire": {
+          "passed": 86,
+          "tested": 86,
+          "percent": 100.0
+        },
+        "outsideVrRemedy": {
+          "passed": 60,
+          "tested": 60,
+          "percent": 100.0
+        },
+        "twoQuestionnaireScores": {
+          "passed": 137,
+          "tested": 140,
+          "percent": 97.857
+        },
+        "vrEvidenceExactProduction": {
+          "passed": 10,
+          "tested": 140,
+          "percent": 7.143
+        },
+        "vrEvidenceCaseInsensitive": {
+          "passed": 10,
+          "tested": 140,
+          "percent": 7.143
+        },
+        "separatesSources": {
+          "passed": 140,
+          "tested": 140,
+          "percent": 100.0
+        },
+        "vrCriterionLabelOrPhraseAndScore": {
+          "passed": 139,
+          "tested": 140,
+          "percent": 99.286
+        },
+        "onlyProvidedScores": {
+          "passed": 140,
+          "tested": 140,
+          "percent": 100.0
+        }
+      },
+      "lastResponseChecks": {
+        "format": {
+          "passed": 784,
+          "tested": 784,
+          "percent": 100.0
+        },
+        "strictPlainText": {
+          "passed": 698,
+          "tested": 698,
+          "percent": 100.0
+        },
+        "noInternalTerms": {
+          "passed": 686,
+          "tested": 698,
+          "percent": 98.281
+        },
+        "constructiveTone": {
+          "passed": 698,
+          "tested": 698,
+          "percent": 100.0
+        },
+        "contractLength": {
+          "passed": 697,
+          "tested": 698,
+          "percent": 99.857
+        },
+        "noNumericScores": {
+          "passed": 289,
+          "tested": 318,
+          "percent": 90.881
+        },
+        "noVrInQuestionnaire": {
+          "passed": 86,
+          "tested": 86,
+          "percent": 100.0
+        },
+        "outsideVrRemedy": {
+          "passed": 60,
+          "tested": 60,
+          "percent": 100.0
+        },
+        "twoQuestionnaireScores": {
+          "passed": 137,
+          "tested": 140,
+          "percent": 97.857
+        },
+        "vrEvidenceExactProduction": {
+          "passed": 10,
+          "tested": 140,
+          "percent": 7.143
+        },
+        "vrEvidenceCaseInsensitive": {
+          "passed": 10,
+          "tested": 140,
+          "percent": 7.143
+        },
+        "separatesSources": {
+          "passed": 140,
+          "tested": 140,
+          "percent": 100.0
+        },
+        "vrCriterionLabelOrPhraseAndScore": {
+          "passed": 139,
+          "tested": 140,
+          "percent": 99.286
+        },
+        "onlyProvidedScores": {
+          "passed": 140,
+          "tested": 140,
+          "percent": 100.0
+        }
+      },
+      "firstAllObservableChecks": {
+        "passed": 653,
+        "tested": 698,
+        "percent": 93.55300859598854
+      },
+      "lastAllObservableChecks": {
+        "passed": 653,
+        "tested": 698,
+        "percent": 93.55300859598854
+      },
+      "firstCareerResponseLengths": {
+        "medianCharacters": 631.5,
+        "p95Characters": 885.7499999999998,
+        "overLimit": 0,
+        "tested": 140
+      }
+    },
+    "qwen/qwen3.8-flash": {
+      "evalsAttempted": 20,
+      "evalsCompleted": 6,
+      "completionPercent": 30.0,
+      "totalCostUsd": 0.087893294,
+      "meanCostPerAttemptUsd": 0.0043946647,
+      "meanCompletedCostUsd": 0.0048941973333333335,
+      "costPerDeliveredEvalIncludingFailuresUsd": 0.014648882333333333,
+      "meanCompletedSeconds": 132.016045,
+      "medianCompletedSeconds": 124.89014,
+      "p95CompletedSeconds": 151.91482000000002,
+      "meanCallsPerCompletedEval": 39,
+      "extraRequests": 28,
+      "careerFallbacks": 42,
+      "careerDescriptionsDelivered": 42,
+      "careerFallbackPercent": 100.0,
+      "unpricedSuccessResponses": 0,
+      "tokens": {
+        "prompt_tokens": 1666005,
+        "completion_tokens": 62864,
+        "total_tokens": 1728869,
+        "cached_tokens": 1429504,
+        "reasoning_tokens": 0
+      },
+      "providers": {
+        "Alibaba": 723
+      },
+      "errors": {},
+      "firstResponseChecks": {
+        "format": {
+          "passed": 667,
+          "tested": 695,
+          "percent": 95.971
+        },
+        "strictPlainText": {
+          "passed": 613,
+          "tested": 613,
+          "percent": 100.0
+        },
+        "noInternalTerms": {
+          "passed": 604,
+          "tested": 613,
+          "percent": 98.532
+        },
+        "constructiveTone": {
+          "passed": 613,
+          "tested": 613,
+          "percent": 100.0
+        },
+        "contractLength": {
+          "passed": 590,
+          "tested": 613,
+          "percent": 96.248
+        },
+        "noNumericScores": {
+          "passed": 273,
+          "tested": 304,
+          "percent": 89.803
+        },
+        "noVrInQuestionnaire": {
+          "passed": 82,
+          "tested": 82,
+          "percent": 100.0
+        },
+        "outsideVrRemedy": {
+          "passed": 58,
+          "tested": 58,
+          "percent": 100.0
+        },
+        "twoQuestionnaireScores": {
+          "passed": 120,
+          "tested": 125,
+          "percent": 96.0
+        },
+        "vrEvidenceExactProduction": {
+          "passed": 0,
+          "tested": 125,
+          "percent": 0.0
+        },
+        "vrEvidenceCaseInsensitive": {
+          "passed": 0,
+          "tested": 125,
+          "percent": 0.0
+        },
+        "separatesSources": {
+          "passed": 123,
+          "tested": 125,
+          "percent": 98.4
+        },
+        "vrCriterionLabelOrPhraseAndScore": {
+          "passed": 120,
+          "tested": 125,
+          "percent": 96.0
+        },
+        "onlyProvidedScores": {
+          "passed": 125,
+          "tested": 125,
+          "percent": 100.0
+        }
+      },
+      "lastResponseChecks": {
+        "format": {
+          "passed": 685,
+          "tested": 695,
+          "percent": 98.561
+        },
+        "strictPlainText": {
+          "passed": 613,
+          "tested": 613,
+          "percent": 100.0
+        },
+        "noInternalTerms": {
+          "passed": 604,
+          "tested": 613,
+          "percent": 98.532
+        },
+        "constructiveTone": {
+          "passed": 612,
+          "tested": 613,
+          "percent": 99.837
+        },
+        "contractLength": {
+          "passed": 599,
+          "tested": 613,
+          "percent": 97.716
+        },
+        "noNumericScores": {
+          "passed": 273,
+          "tested": 304,
+          "percent": 89.803
+        },
+        "noVrInQuestionnaire": {
+          "passed": 82,
+          "tested": 82,
+          "percent": 100.0
+        },
+        "outsideVrRemedy": {
+          "passed": 58,
+          "tested": 58,
+          "percent": 100.0
+        },
+        "twoQuestionnaireScores": {
+          "passed": 120,
+          "tested": 125,
+          "percent": 96.0
+        },
+        "vrEvidenceExactProduction": {
+          "passed": 0,
+          "tested": 125,
+          "percent": 0.0
+        },
+        "vrEvidenceCaseInsensitive": {
+          "passed": 0,
+          "tested": 125,
+          "percent": 0.0
+        },
+        "separatesSources": {
+          "passed": 123,
+          "tested": 125,
+          "percent": 98.4
+        },
+        "vrCriterionLabelOrPhraseAndScore": {
+          "passed": 119,
+          "tested": 125,
+          "percent": 95.2
+        },
+        "onlyProvidedScores": {
+          "passed": 125,
+          "tested": 125,
+          "percent": 100.0
+        }
+      },
+      "firstAllObservableChecks": {
+        "passed": 535,
+        "tested": 613,
+        "percent": 87.27569331158239
+      },
+      "lastAllObservableChecks": {
+        "passed": 550,
+        "tested": 613,
+        "percent": 89.7226753670473
+      },
+      "firstCareerResponseLengths": {
+        "medianCharacters": 797.0,
+        "p95Characters": 1302.8,
+        "overLimit": 15,
+        "tested": 125
+      }
+    },
+    "xiaomi/mimo-v2.6-flash": {
+      "evalsAttempted": 20,
+      "evalsCompleted": 18,
+      "completionPercent": 90.0,
+      "totalCostUsd": 0.1093034186,
+      "meanCostPerAttemptUsd": 0.00546517093,
+      "meanCompletedCostUsd": 0.0057672308,
+      "costPerDeliveredEvalIncludingFailuresUsd": 0.006072412144444444,
+      "meanCompletedSeconds": 231.62620666666666,
+      "medianCompletedSeconds": 220.48116,
+      "p95CompletedSeconds": 330.3413,
+      "meanCallsPerCompletedEval": 39.333333333333336,
+      "extraRequests": 5,
+      "careerFallbacks": 123,
+      "careerDescriptionsDelivered": 126,
+      "careerFallbackPercent": 97.61904761904762,
+      "unpricedSuccessResponses": 1,
+      "tokens": {
+        "prompt_tokens": 1809898,
+        "completion_tokens": 61099,
+        "total_tokens": 1870997,
+        "cached_tokens": 1371872,
+        "reasoning_tokens": 0
+      },
+      "providers": {
+        "InferenceNet": 152,
+        "DeepInfra": 90,
+        "Io Net": 120,
+        "Darkbloom": 131,
+        "Novita": 100,
+        "Xiaomi": 97,
+        "Venice": 60,
+        "null": 1
+      },
+      "errors": {},
+      "firstResponseChecks": {
+        "format": {
+          "passed": 740,
+          "tested": 745,
+          "percent": 99.329
+        },
+        "strictPlainText": {
+          "passed": 663,
+          "tested": 663,
+          "percent": 100.0
+        },
+        "noInternalTerms": {
+          "passed": 586,
+          "tested": 663,
+          "percent": 88.386
+        },
+        "constructiveTone": {
+          "passed": 663,
+          "tested": 663,
+          "percent": 100.0
+        },
+        "contractLength": {
+          "passed": 663,
+          "tested": 663,
+          "percent": 100.0
+        },
+        "noNumericScores": {
+          "passed": 129,
+          "tested": 303,
+          "percent": 42.574
+        },
+        "noVrInQuestionnaire": {
+          "passed": 82,
+          "tested": 82,
+          "percent": 100.0
+        },
+        "outsideVrRemedy": {
+          "passed": 57,
+          "tested": 57,
+          "percent": 100.0
+        },
+        "twoQuestionnaireScores": {
+          "passed": 131,
+          "tested": 133,
+          "percent": 98.496
+        },
+        "vrEvidenceExactProduction": {
+          "passed": 3,
+          "tested": 133,
+          "percent": 2.256
+        },
+        "vrEvidenceCaseInsensitive": {
+          "passed": 3,
+          "tested": 133,
+          "percent": 2.256
+        },
+        "separatesSources": {
+          "passed": 128,
+          "tested": 133,
+          "percent": 96.241
+        },
+        "vrCriterionLabelOrPhraseAndScore": {
+          "passed": 131,
+          "tested": 133,
+          "percent": 98.496
+        },
+        "onlyProvidedScores": {
+          "passed": 133,
+          "tested": 133,
+          "percent": 100.0
+        }
+      },
+      "lastResponseChecks": {
+        "format": {
+          "passed": 744,
+          "tested": 745,
+          "percent": 99.866
+        },
+        "strictPlainText": {
+          "passed": 663,
+          "tested": 663,
+          "percent": 100.0
+        },
+        "noInternalTerms": {
+          "passed": 583,
+          "tested": 663,
+          "percent": 87.934
+        },
+        "constructiveTone": {
+          "passed": 663,
+          "tested": 663,
+          "percent": 100.0
+        },
+        "contractLength": {
+          "passed": 663,
+          "tested": 663,
+          "percent": 100.0
+        },
+        "noNumericScores": {
+          "passed": 129,
+          "tested": 303,
+          "percent": 42.574
+        },
+        "noVrInQuestionnaire": {
+          "passed": 82,
+          "tested": 82,
+          "percent": 100.0
+        },
+        "outsideVrRemedy": {
+          "passed": 57,
+          "tested": 57,
+          "percent": 100.0
+        },
+        "twoQuestionnaireScores": {
+          "passed": 131,
+          "tested": 133,
+          "percent": 98.496
+        },
+        "vrEvidenceExactProduction": {
+          "passed": 3,
+          "tested": 133,
+          "percent": 2.256
+        },
+        "vrEvidenceCaseInsensitive": {
+          "passed": 3,
+          "tested": 133,
+          "percent": 2.256
+        },
+        "separatesSources": {
+          "passed": 128,
+          "tested": 133,
+          "percent": 96.241
+        },
+        "vrCriterionLabelOrPhraseAndScore": {
+          "passed": 131,
+          "tested": 133,
+          "percent": 98.496
+        },
+        "onlyProvidedScores": {
+          "passed": 133,
+          "tested": 133,
+          "percent": 100.0
+        }
+      },
+      "firstAllObservableChecks": {
+        "passed": 400,
+        "tested": 663,
+        "percent": 60.33182503770739
+      },
+      "lastAllObservableChecks": {
+        "passed": 401,
+        "tested": 663,
+        "percent": 60.48265460030166
+      },
+      "firstCareerResponseLengths": {
+        "medianCharacters": 708.0,
+        "p95Characters": 878.0,
+        "overLimit": 0,
+        "tested": 133
+      }
+    }
+  },
+  "paired": {
+    "commonCompletedCaseIds": [
+      "profile-03",
+      "profile-10",
+      "profile-13",
+      "profile-14",
+      "profile-19"
+    ],
+    "models": {
+      "deepseek/deepseek-v4.1-flash": {
+        "profiles": 5,
+        "meanCostUsd": 0.00869368064,
+        "meanSeconds": 72.774992,
+        "medianSeconds": 74.29049
+      },
+      "qwen/qwen3.8-flash": {
+        "profiles": 5,
+        "meanCostUsd": 0.0049512448,
+        "meanSeconds": 133.70158,
+        "medianSeconds": 126.19191
+      },
+      "xiaomi/mimo-v2.6-flash": {
+        "profiles": 5,
+        "meanCostUsd": 0.0056678822,
+        "meanSeconds": 206.33065,
+        "medianSeconds": 210.14144
+      }
+    }
+  },
+  "rubricVersion": "2026-10-04-observable-v2"
+}

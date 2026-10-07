@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, patch
 from httpx import ASGITransport, AsyncClient
 from app import main
 from app.sales_persuasion import (
+    PART1_QUESTIONS,
     LLMSalesAssessor,
     SalesAssessment,
     SalesAttemptConflictError,
@@ -112,7 +113,7 @@ class FakeLLM:
 
     async def generate(self, messages, **kwargs):
         self.messages = messages
-        return '{"score": 80, "feedback_vi": "Phản hồi phù hợp."}'
+        return json.dumps({name: {"status": "false", "evidence": ""} for name in PART1_QUESTIONS})
 
 
 class SalesPersuasionTests(unittest.IsolatedAsyncioTestCase):

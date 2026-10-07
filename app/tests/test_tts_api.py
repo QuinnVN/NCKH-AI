@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -6,11 +7,12 @@ import wave
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 from httpx import ASGITransport, AsyncClient
 
 from app import main
 from app.sales_returning_customer import ReturningSessionStore, OPENING_COMPLAINT, sales_speech_id
-from app.tts_service import SynthesizedWav, TTSBusyError, TTSInvalidAudioError, TTSUnavailableError
+from app.tts_service import SupertonicClient, SynthesizedWav, TTSBusyError, TTSInvalidAudioError, TTSUnavailableError
 
 
 def wav_bytes() -> bytes:
@@ -129,3 +131,21 @@ class TTSApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tts_response.status_code, 503)
         self.assertEqual(tts_response.json()["detail"]["code"], "tts_disabled")
         self.assertEqual(self.tts.texts, [])
+
+
+class SupertonicClientTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tts_quality_sets_supertonic_steps(self):
+        payloads = []
+
+        def handler(request):
+            payloads.append(json.loads(request.content))
+            return httpx.Response(200, content=wav_bytes())
+
+        real_client = httpx.AsyncClient
+        with patch.dict(os.environ, {"TTS_QUALITY": "12"}), patch(
+            "app.tts_service.httpx.AsyncClient",
+            lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs),
+        ):
+            await SupertonicClient().synthesize("Xin chào", deadline=float("inf"))
+
+        self.assertEqual(payloads[0]["steps"], 12)

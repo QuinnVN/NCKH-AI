@@ -29,6 +29,97 @@ class FakeMongo:
 
 
 class RunResultTests(unittest.IsolatedAsyncioTestCase):
+    async def test_claimed_openrouter_result_requires_backend_session_authority(self):
+        for version in ("v2", "v3", "v99"):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
+                participant, _ = ParticipantManager().assign("Sales participant")
+                mongo = FakeMongo()
+                store = RunResultStore(Path(directory), mongo=mongo)
+                result = await store.accept_fragment({
+                    "runId": "unlinked", "gameId": "sale", "fragmentId": "claimed-result",
+                    "complete": True, "requiredFields": ["part1", "part2"],
+                    "data": {
+                        "part1": {"attemptId": "a", "selectedShoeId": "shoe-a",
+                                  "bestFitShoeId": "shoe-a", "transcript": "Tôi đề xuất đôi A.",
+                                  "score": 80, "feedbackVi": "Tốt.", "recordingAtUtc": "start",
+                                  "assessmentCompletedAtUtc": "end"},
+                        "part2": {"pipelineVersion": f"sales-openrouter-{version}",
+                                  "assessmentStatus": "completed", "score": 100, "rawScore": 100,
+                                  "policyViolationPenalty": 0, "customerRating": "good",
+                                  "criterionScores": {"apologyAndPolicyRemedy": 50,
+                                                      "adaptabilityAndDeescalation": 50},
+                                  "trustState": "restored", "completionReason": "objectives_completed",
+                                  "emotionalHandling": True, "causeIdentification": True,
+                                  "solutionSuitability": True, "trustRebuilding": True,
+                                  "acceptedTurnCount": 0},
+                    },
+                }, participant=participant)
+                self.assertEqual(result["status"], "draft")
+                self.assertEqual(result["data"]["part2"]["assessmentStatus"], "pending")
+                self.assertFalse(mongo.documents)
+                self.assertFalse((Path(directory) / "simulation-results" / "run-unlinked.json").exists())
+
+    async def test_disconnect_recovers_a_completed_sales_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            participant, _ = ParticipantManager().assign("Test")
+            store = RunResultStore(Path(directory), mongo=FakeMongo())
+            run_id = "completed-sales"
+            await store.begin(run_id, "sale", participant)
+            await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "part1",
+                "data": {"part1": {"attemptId": "a", "salesSessionId": "session-1",
+                                     "selectedShoeId": "a", "bestFitShoeId": "a",
+                                     "transcript": "ok", "score": 75, "feedbackVi": "ok",
+                                     "recordingAtUtc": "start", "assessmentCompletedAtUtc": "end"}},
+            })
+            session = {"sessionId": "session-1", "runId": run_id,
+                       "completionStatus": "completed", "updatedAtUtc": "end",
+                       "turns": [], "rawScore": 70, "policyViolationPenalty": 0,
+                       "score": 70, "criterionScores": {
+                           "apologyAndPolicyRemedy": 30,
+                           "adaptabilityAndDeescalation": 40},
+                       "customerRating": "bad", "trustState": "lost",
+                       "completionReason": "turn_limit", "acceptedTurnCount": 0}
+            (Path(directory) / "sales-session-session-1.json").write_text(
+                json.dumps(session), encoding="utf-8")
+            await store.mark_aborted(run_id)
+            aggregate = json.loads((Path(directory) / "simulation-results" /
+                                    f"run-{run_id}.json").read_text(encoding="utf-8"))
+            self.assertEqual(aggregate["status"], "completed")
+            self.assertEqual(aggregate["data"]["part2"]["score"], 70)
+
+    async def test_unity_completion_preserves_backend_sales_score(self):
+        with tempfile.TemporaryDirectory() as directory:
+            participant, _ = ParticipantManager().assign("Test")
+            store = RunResultStore(Path(directory), mongo=FakeMongo())
+            run_id = "sales-score-conflict"
+            await store.begin(run_id, "sale", participant)
+            await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "part1",
+                "data": {"part1": {"attemptId": "a", "selectedShoeId": "a",
+                                     "bestFitShoeId": "a", "transcript": "ok",
+                                     "score": 75, "feedbackVi": "ok",
+                                     "recordingAtUtc": "start", "assessmentCompletedAtUtc": "end"}},
+            })
+            await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "sale.part2:completion",
+                "data": {"part2": {"rawScore": 70, "policyViolationPenalty": 0,
+                                     "score": 70, "criterionScores": {
+                                         "apologyAndPolicyRemedy": 30,
+                                         "adaptabilityAndDeescalation": 40},
+                                     "customerRating": "bad", "trustState": "lost",
+                                     "completionReason": "turn_limit", "acceptedTurnCount": 0,
+                                     "emotionalHandling": False, "causeIdentification": False,
+                                     "solutionSuitability": False, "trustRebuilding": False}},
+            })
+            result = await store.accept_fragment({
+                "runId": run_id, "gameId": "sale", "fragmentId": "sales.part2.completed:unity",
+                "kind": "sales.part2.completed", "requiredFields": ["part1", "part2"],
+                "complete": True, "data": {"part2": {"score": 0}},
+            })
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["data"]["part2"]["score"], 70)
+
     async def test_name_normalization_and_repeated_assignment(self):
         manager = ParticipantManager()
         first, changed = manager.assign("  Nguyễn   Văn A  ")
@@ -64,6 +155,27 @@ class RunResultTests(unittest.IsolatedAsyncioTestCase):
             sidecar = json.loads((Path(directory) / "simulation-results" / "run-run-2.sync.json").read_text())
             self.assertEqual(sidecar["attemptCount"], 1)
             self.assertEqual((await store.sync_all())["synchronized"], 1)
+
+    async def test_test_participant_run_stays_local_and_is_settled(self):
+        for name in ("test", "  TEST "):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                participant, _ = ParticipantManager().assign(name)
+                mongo = FakeMongo()
+                store = RunResultStore(Path(directory), mongo=mongo)
+                await store.begin("run-t", "doctor", participant)
+                result = await store.accept_fragment({"runId": "run-t", "gameId": "doctor", "fragmentId": "case",
+                                                      "data": {"case": 1}, "complete": True})
+                self.assertEqual(result["status"], "completed")
+                self.assertTrue((Path(directory) / "simulation-results" / "run-run-t.json").exists())
+                sidecar = json.loads((Path(directory) / "simulation-results" / "run-run-t.sync.json").read_text())
+                self.assertFalse(sidecar["synchronized"])
+                self.assertEqual(sidecar["skipped"], "test participant")
+                self.assertFalse(store.is_synchronized("run-t"))
+                self.assertTrue(store.is_settled("run-t"))
+                self.assertEqual(await store.retry_due(), 0)
+                self.assertEqual(await store.sync_all(),
+                                 {"synchronized": 0, "failed": 0, "remaining": 0, "skipped": 1})
+                self.assertFalse(mongo.documents)
 
     async def test_unity_clinic_fragments_merge_and_finalize_to_fake_mongo(self):
         with tempfile.TemporaryDirectory() as directory:

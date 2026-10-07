@@ -3,6 +3,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+from app.config import get_settings as load_settings
+from app.final_evaluation_openrouter import FinalEvaluationProviderError
 from app.final_evaluation import DIMENSION_IDS, FinalAssessment
 from app.final_evaluation_calculation import (
     behavioural_alignment,
@@ -15,9 +17,9 @@ from app.final_evaluation_calculation import (
     weighted_behaviour_data,
 )
 from scripts.generate_final_evaluation import (
+    _write_field,
     _write_icon,
     choose_participant,
-    ensure_qwen_server,
     generate_assessment,
     parse_args,
     resolve_game_participant_name,
@@ -163,6 +165,34 @@ class CalculationTests(unittest.TestCase):
 
 
 class AssemblyTests(unittest.IsolatedAsyncioTestCase):
+    async def test_career_writer_repairs_sentence_count_without_splitting_decimal_scores(self):
+        service = AsyncMock()
+        service.generate.side_effect = [
+            "Nhận xét ngắn. " * 6,
+            "Bạn tự đánh giá phân tích 82.5/100 và truyền đạt 75/100. Tiêu chí VR đạt 80/100. Bạn có thể thử một tình huống thực tế.",
+        ]
+        text = await _write_field(service, field="careerSuggestions.researcher.description",
+            instruction="Viết 2-3 câu ngắn.", facts={}, max_characters=1200,
+            max_prompt_chars=16_000, max_tokens=512, sentence_range=(2, 3))
+        self.assertIn("82.5/100", text)
+        self.assertEqual(service.generate.await_count, 2)
+
+    async def test_retries_an_invalid_single_field_answer(self):
+        for invalid in ('{"text":"Một câu hợp lệ."}', "Câu quá dài. " * 20):
+            with self.subTest(invalid=invalid[:20]):
+                service = AsyncMock()
+                service.generate.side_effect = [invalid, "Một câu hợp lệ."]
+                result = await _write_field(
+                    service, field="finalEvaluation.headline", instruction="Viết một câu.",
+                    facts={"scoreCalculatedByBackend": 75}, max_characters=100,
+                    max_prompt_chars=16_000, max_tokens=512,
+                )
+                self.assertEqual(result, "Một câu hợp lệ.")
+                self.assertEqual(service.generate.await_count, 2)
+                retry = service.generate.await_args_list[1]
+                self.assertIn("100 ký tự", retry.args[0][1]["content"])
+                self.assertNotIn("reasoning_effort", retry.kwargs["options"])
+
     async def test_invalid_icon_falls_back_to_kind(self):
         service = AsyncMock()
         service.generate.return_value = "unknown-icon"
@@ -181,19 +211,17 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         database.__getitem__.side_effect = lambda name: evaluation_collection if name == "final_evaluations" else MagicMock()
         service = MagicMock()
         service.close = AsyncMock()
-        with patch("scripts.generate_final_evaluation.get_settings", return_value=settings), patch(
-            "scripts.generate_final_evaluation.replace", return_value=settings
-        ), patch("scripts.generate_final_evaluation.MongoClient", return_value=client), patch(
-            "scripts.generate_final_evaluation.LLMService", return_value=service
+        with patch("scripts.generate_final_evaluation.get_settings", return_value=settings), patch("scripts.generate_final_evaluation.MongoClient", return_value=client), patch(
+            "scripts.generate_final_evaluation.FinalEvaluationOpenRouter", return_value=service
         ), patch("scripts.generate_final_evaluation.list_participant_names", return_value=[NAME]), patch(
             "scripts.generate_final_evaluation.load_participant_data"
-        ) as load, patch("scripts.generate_final_evaluation.ensure_qwen_server", new_callable=AsyncMock) as start, patch(
+        ) as load, patch("subprocess.Popen") as start, patch(
             "builtins.print"
         ):
             self.assertEqual(await run(parse_args(["--participant", NAME])), 0)
             self.assertEqual(await run(parse_args(["--all"])), 0)
         load.assert_not_called()
-        start.assert_not_awaited()
+        start.assert_not_called()
 
     async def test_all_mode_evaluates_remaining_participants_once(self):
         other_name = "Nguyễn Văn Bình"
@@ -202,7 +230,13 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         answer["participantName"] = other_name
         answer["participantEmail"] = other_email
         assessment = FinalAssessment.model_validate(answer)
-        settings = SimpleNamespace(mongodb_uri="mongodb://example.invalid", mongodb_database="test")
+        with patch.dict("os.environ", {
+            "MONGODB_URI": "mongodb://example.invalid",
+            "LLM_USE_AMD_HYBRID": "true",
+            "LLM_BASE_URL": "http://127.0.0.1:8080/v1",
+            "OPENROUTER_API_KEY": "test-key",
+        }):
+            settings = load_settings()
         client = MagicMock()
         database = MagicMock()
         client.__getitem__.return_value = database
@@ -213,61 +247,56 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         service = MagicMock()
         service.close = AsyncMock()
         with patch("scripts.generate_final_evaluation.get_settings", return_value=settings), patch(
-            "scripts.generate_final_evaluation.replace", return_value=settings
-        ), patch("scripts.generate_final_evaluation.MongoClient", return_value=client), patch(
-            "scripts.generate_final_evaluation.LLMService", return_value=service
-        ), patch("scripts.generate_final_evaluation.list_participant_names", return_value=[NAME, other_name]), patch(
+            "scripts.generate_final_evaluation.MongoClient", return_value=client
+        ), patch("scripts.generate_final_evaluation.FinalEvaluationOpenRouter", return_value=service) as service_factory, patch(
+            "scripts.generate_final_evaluation.list_participant_names", return_value=[NAME, other_name]
+        ), patch(
             "scripts.generate_final_evaluation.load_participant_data",
             return_value=(questionnaire(), other_email, [lawyer_game()], other_name),
-        ) as load, patch("scripts.generate_final_evaluation.ensure_qwen_server", new_callable=AsyncMock) as start, patch(
+        ) as load, patch("subprocess.Popen") as start, patch(
             "scripts.generate_final_evaluation.generate_assessment", new_callable=AsyncMock, return_value=assessment
         ) as generate, patch("scripts.generate_final_evaluation.save_assessment") as save, patch("builtins.print"):
             self.assertEqual(await run(parse_args(["--all"])), 0)
         load.assert_called_once()
         self.assertEqual(load.call_args.args[-1], other_name)
-        start.assert_awaited_once()
+        self.assertTrue(settings.llm_use_amd_hybrid)
+        self.assertEqual(service_factory.call_args.args[0], "test-key")
+        self.assertEqual(service_factory.call_args.kwargs, {"timeout_seconds": 45})
+        start.assert_not_called()
         generate.assert_awaited_once()
         save.assert_called_once_with(evaluation_collection, assessment)
 
-    async def test_does_not_start_another_window_when_qwen_is_ready(self):
-        service = Mock()
-        with patch(
-            "scripts.generate_final_evaluation.available_model_ids",
-            AsyncMock(return_value={"qwen3-8b"}),
-        ), patch("scripts.generate_final_evaluation.start_qwen_server_window") as start:
-            started = await ensure_qwen_server(
-                service, "qwen3-8b", auto_start=True, timeout_seconds=30,
-                output_fn=lambda _message: None,
-            )
-        self.assertFalse(started)
-        start.assert_not_called()
+    def test_legacy_no_start_flag_remains_accepted_without_a_local_runtime(self):
+        self.assertTrue(parse_args(["--all", "--no-start-llm"]).no_start_llm)
 
-    async def test_starts_new_window_and_waits_for_requested_alias(self):
-        service = Mock()
-        process = Mock()
-        process.poll.return_value = None
-        probe = AsyncMock(side_effect=[None, {"qwen3-8b"}])
-        with patch("scripts.generate_final_evaluation.available_model_ids", probe), patch(
-            "scripts.generate_final_evaluation.start_qwen_server_window",
-            return_value=process,
-        ) as start, patch("scripts.generate_final_evaluation.asyncio.sleep", AsyncMock()):
-            started = await ensure_qwen_server(
-                service, "qwen3-8b", auto_start=True, timeout_seconds=30,
-                output_fn=lambda _message: None,
-            )
-        self.assertTrue(started)
-        start.assert_called_once_with(service.base_url, "qwen3-8b")
-
-    async def test_rejects_a_different_model_on_the_configured_port(self):
-        service = Mock()
-        with patch(
-            "scripts.generate_final_evaluation.available_model_ids",
-            AsyncMock(return_value={"qwen3-4b"}),
-        ):
-            with self.assertRaisesRegex(Exception, "qwen3-4b"):
-                await ensure_qwen_server(
-                    service, "qwen3-8b", auto_start=True, timeout_seconds=30
-                )
+    async def test_provider_failure_does_not_save_an_incomplete_evaluation(self):
+        settings = SimpleNamespace(
+            mongodb_uri="mongodb://example.invalid", mongodb_database="test",
+            openrouter_api_key="test-key",
+        )
+        client = MagicMock()
+        evaluation_collection = MagicMock()
+        evaluation_collection.distinct.return_value = []
+        evaluation_collection.count_documents.return_value = 0
+        client.__getitem__.return_value.__getitem__.return_value = evaluation_collection
+        service = MagicMock()
+        service.close = AsyncMock()
+        with patch("scripts.generate_final_evaluation.get_settings", return_value=settings), patch(
+            "scripts.generate_final_evaluation.MongoClient", return_value=client
+        ), patch("scripts.generate_final_evaluation.FinalEvaluationOpenRouter", return_value=service), patch(
+            "scripts.generate_final_evaluation.list_participant_names", return_value=[NAME]
+        ), patch(
+            "scripts.generate_final_evaluation.load_participant_data",
+            return_value=(questionnaire(), EMAIL, [lawyer_game()], NAME),
+        ), patch(
+            "scripts.generate_final_evaluation.generate_assessment", new_callable=AsyncMock,
+            side_effect=FinalEvaluationProviderError("OpenRouter chưa thể tạo final eval."),
+        ), patch("scripts.generate_final_evaluation.save_assessment") as save, patch("builtins.print"):
+            with self.assertRaises(FinalEvaluationProviderError):
+                await run(parse_args(["--participant", NAME]))
+        save.assert_not_called()
+        service.close.assert_awaited_once()
+        client.close.assert_called_once()
 
     async def test_llm_writes_only_isolated_values_and_code_assembles_json(self):
         service = AsyncMock()
@@ -277,6 +306,8 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
                 return "82"
             if payload["field"].endswith(".icon"):
                 return "analysis"
+            if payload["field"].startswith("careerSuggestions."):
+                return "Nhận xét dựa trên dữ liệu. Có dẫn chứng trong hồ sơ. Bạn có thể thử một hoạt động phù hợp."
             return "Nhận xét được viết từ facts đã cung cấp."
         service.generate.side_effect = answer
 
@@ -295,7 +326,11 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.participant_name, NAME)
         self.assertEqual(len(result.dimension_levels), 28)
         self.assertEqual(len(result.career_suggestions), 7)
-        self.assertTrue(all(item.compatibility_percent == 82 for item in result.career_suggestions))
+        self.assertGreater(len({item.compatibility_percent for item in result.career_suggestions}), 1)
+        self.assertFalse(any(
+            json.loads(call.args[0][1]["content"].split("\n/no_think")[0])["field"].endswith(".compatibilityPercent")
+            for call in service.generate.await_args_list
+        ), "Career percentages must come from occupational weights, not repeated AI scores")
         self.assertEqual(result.behaviour_comparison.experience_name, "Luật sư, Bác sĩ")
         self.assertGreaterEqual(len(result.behaviour_comparison.findings), 2)
         self.assertTrue({"confirmed", "emerging"}.issubset(
@@ -350,16 +385,22 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(challenge_prompt["facts"]["developmentFinding"] is not None,
                          has_development)
         self.assertIn("không gọi điểm thấp nhất là điểm yếu", challenge_prompt["instruction"])
-        score_prompts = [
+        career_prompts = [
             json.loads(call.args[0][1]["content"].split("\n/no_think")[0])
             for call in service.generate.await_args_list
-            if json.loads(call.args[0][1]["content"].split("\n/no_think")[0])["field"].endswith(".compatibilityPercent")
+            if json.loads(call.args[0][1]["content"].split("\n/no_think")[0])["field"].startswith("careerSuggestions.")
         ]
-        self.assertEqual(len(score_prompts), 7)
-        self.assertEqual(
-            {item["gameId"] for item in score_prompts[0]["facts"]["weightedVrResults"]},
-            {"lawyer", "doctor", "clinic"},
-        )
+        self.assertEqual(len(career_prompts), 7)
+        self.assertTrue(all(len(item["facts"]["questionnaireEvidence"]) >= 2 for item in career_prompts))
+        self.assertTrue(all(item["facts"]["vrEvidence"] for item in career_prompts))
+        self.assertTrue(all(item["facts"]["exploratoryActivity"] for item in career_prompts))
+        self.assertTrue(all("/100" in item.description for item in result.career_suggestions))
+        self.assertIn("3-4 câu ngắn", career_prompts[0]["instruction"])
+        self.assertTrue(all("2-3 câu ngắn" in item["instruction"] for item in career_prompts[1:]))
+        import re
+        for index, career in enumerate(result.career_suggestions):
+            count = len(re.split(r'(?<=[.!?])\s+', career.description))
+            self.assertIn(count, (3, 4) if index == 0 else (2, 3))
         for call in service.generate.await_args_list:
             messages = call.args[0]
             self.assertIn('"field":', messages[1]["content"])
