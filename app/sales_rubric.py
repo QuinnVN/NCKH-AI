@@ -61,7 +61,7 @@ def normalized_labels(result: Any) -> dict[str, dict[str, Any]]:
 
 
 def initialize(session: dict, settings: Any) -> None:
-    mode = getattr(settings, "sales_pipeline_mode", "legacy")
+    mode = getattr(settings, "pipeline_mode", "legacy")
     session.update(pipelineMode=mode, maxTurns=4 if mode != "openrouter" else getattr(settings, "sales_max_turns", 8),
                    assessmentStatus="pending", supplementalTurnGranted=False, evaluableTurnCount=0)
     if mode == "openrouter":
@@ -76,6 +76,8 @@ def initialize(session: dict, settings: Any) -> None:
                        lunaArbitrationEnabled=getattr(settings, "sales_luna_arbitration_enabled", True),
                        lunaDeadlineSeconds=getattr(settings, "sales_luna_timeout_seconds", 6),
                        arbitratorVersion=ARBITRATOR_VERSION)
+        from app.sales_memory import initialize_memory
+        initialize_memory(session)
     else:
         session.update(pipelineVersion="sales-legacy-v1", rubricVersion="sales-legacy-v1",
                        scenarioVersion="returning-shoes-v1", questionSetVersion="sales-local-v1",
@@ -106,6 +108,10 @@ def evaluate(session: Mapping, labels: Mapping, turn_id: str) -> tuple[dict, dic
              "unresolvedPromiseTypesBefore": [name for name, code in VIOLATIONS.items()
                                               if code in state.get("unresolvedPromises", [])],
              "challengeShownBefore": bool(state.get("challengeShown"))}
+    from app.sales_memory import MEMORY_VERSION, confirmed_facts, model_context, update_memory
+    if state.get("customerMemory"):
+        entry.update(memoryVersion=MEMORY_VERSION, confirmedFactIds=confirmed_facts(state, labels),
+                     **model_context(state))
     ledger = list(state.get("evidenceLedger") or [])
     # Live turns use the stored labels only. Completion review decisions apply
     # at complete, so a later clear turn never reclassifies an earlier one.
@@ -143,10 +149,14 @@ def evaluate(session: Mapping, labels: Mapping, turn_id: str) -> tuple[dict, dic
     # Unity rejects an objective that drops, skips a step or rises without
     # objectiveCompleted. The displayed value catches up one step per turn.
     display = max(previous, min(lowest_open(resolved) or 4, previous + 1))
+    if ending:
+        # The dialogue closes on agreement; Unity must not open the trust
+        # challenge objective on the closing turn.
+        display = max(previous, min(display, 3))
     state["phase"] = display
     if ending:
         state.update(endingReason=ending, status="awaitingCompletion")
-    if ending == "exchange_accepted":
+    if ending in ("exchange_accepted", "objectives_completed") and "policy" in scored["rubricComponents"]:
         state["resolutionAccepted"] = True
     state["customerState"] = {
         "resolvedConcerns": sorted(resolved), "statedConcern": turn["statedConcern"],
@@ -159,5 +169,6 @@ def evaluate(session: Mapping, labels: Mapping, turn_id: str) -> tuple[dict, dic
     decision.update(turnQuality=turn["turnQuality"], assessmentUncertain=turn["assessmentUncertain"],
                     objectiveCompleted=display > previous, conversationComplete=bool(ending),
                     endingReason=ending, disclosedFactIds=list(turn["disclosedFactIds"]))
+    update_memory(state, labels, decision, turn_id)
     return state, decision
 

@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import sys
 import time
-from typing import Any, Iterable, Mapping, Protocol
+from typing import Any, Callable, Iterable, Mapping, Protocol
 
 from bson import json_util
 from pymongo import ASCENDING, DESCENDING, MongoClient
@@ -28,7 +28,8 @@ from app.final_evaluation import (  # noqa: E402
     FINDING_ICON_IDS,
     FinalAssessment,
     FinalEvaluationOutputError,
-    build_text_field_messages,
+    STAGE_IDS,
+    build_assessment_messages,
     normalize_email,
     normalize_name,
     parse_text_field,
@@ -43,6 +44,7 @@ from app.final_evaluation_calculation import (  # noqa: E402
 from app.final_evaluation_openrouter import (  # noqa: E402
     FINAL_EVALUATION_MODEL, FinalEvaluationOpenRouter, FinalEvaluationProviderError,
 )
+from app.llm_service import LLMService, LLMServiceError  # noqa: E402
 from app.career_ranking import rank_careers, career_description, CAREER_RANKING_VERSION  # noqa: E402
 
 
@@ -50,9 +52,9 @@ QUESTIONNAIRE_COLLECTION = "questionnaire_submissions"
 GAME_RESULTS_COLLECTION = "game_results"
 FINAL_EVALUATIONS_COLLECTION = "final_evaluations"
 DEFAULT_MODEL = FINAL_EVALUATION_MODEL
-DEFAULT_MAX_PROMPT_CHARS = 16_000
-DEFAULT_MAX_TOKENS = 1024
-DEFAULT_REQUEST_TIMEOUT_SECONDS = 45
+DEFAULT_MAX_PROMPT_CHARS = 60_000
+DEFAULT_MAX_TOKENS = 12_000
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 180
 REMEDY_LEARNING_ACTIVITIES = {
     "information-processing": (
         "Đọc một bài báo ngắn, gạch các dữ kiện chính rồi tóm tắt nội dung trong một câu.",
@@ -87,6 +89,24 @@ class FinalEvaluationCLIError(RuntimeError):
 
 class Generator(Protocol):
     async def generate(self, messages: list[dict[str, str]], **kwargs: Any) -> str: ...
+
+
+class LocalFinalEvaluationGenerator:
+    """Local LLM writer used outside PIPELINE_MODE=openrouter."""
+
+    def __init__(self, service: LLMService) -> None:
+        self.service = service
+        self.provider = service.provider
+        self.model = service.model
+
+    async def generate(self, messages: list[dict[str, str]], **kwargs: Any) -> str:
+        try:
+            return await self.service.generate(messages, **kwargs)
+        except LLMServiceError as exc:
+            raise FinalEvaluationProviderError(f"LLM local chưa thể tạo final eval: {exc}") from None
+
+    async def close(self) -> None:
+        await self.service.close()
 
 
 def _json_safe(document: Mapping[str, Any]) -> dict[str, Any]:
@@ -256,74 +276,110 @@ def _bounded_messages(messages: list[dict[str, str]], max_chars: int) -> list[di
     return messages
 
 
-async def _write_field(
-    service: Generator, *, field: str, instruction: str, facts: Mapping[str, Any],
-    max_characters: int, max_prompt_chars: int, max_tokens: int,
-    sentence_range: tuple[int, int] | None = None,
-) -> str:
-    def parse_answer(answer: str) -> str:
-        text = parse_text_field(answer, max_characters=max_characters)
-        if sentence_range is not None:
-            count = len(re.split(r'(?<=[.!?])\s+', text.strip()))
-            if not sentence_range[0] <= count <= sentence_range[1]:
-                raise FinalEvaluationOutputError("Nhận xét nghề không đúng số câu được yêu cầu.")
-        return text
+STAGE_MAX_CHARACTERS = 900
+FINDING_MAX_CHARACTERS = 500
+REMEDY_MAX_CHARACTERS = 300
+CAREER_MAX_CHARACTERS = 1200
+STAGE_INSTRUCTIONS = {
+    "D": "Viết 2-3 câu về điều người tham gia coi trọng trong công việc. Không gọi điểm thấp là điểm yếu.",
+    "E": "Viết 2-3 câu về các năng lực đang thể hiện và một hướng luyện có căn cứ.",
+    "S": "Viết 2-3 câu về cách phối hợp hoặc đóng góp khi làm cùng người khác.",
+    "M": "Viết 2-3 câu về cách xử lý thông tin, phân tích và quyết định.",
+    "A": "Viết 2-3 câu về cách phản ứng khi yêu cầu hoặc thông tin thay đổi.",
+    "P": "Viết 2-3 câu về cách duy trì hiệu quả khi có áp lực. Không chẩn đoán khả năng chịu đựng.",
+}
+FINDING_INSTRUCTIONS = {
+    "questionnaireResult": "Viết một câu mô tả đúng kết quả tự đánh giá. Không nhắc đến VR.",
+    "vrEvidence": "Viết một câu mô tả đúng bằng chứng VR. Không biến phần không quan sát được thành điểm yếu.",
+    "summary": "Viết một câu kết luận đối chiếu hai nguồn theo đúng kind đã được backend tính; không đưa lời khuyên.",
+    "remedy": "Gợi ý một hoạt động học tập hoặc luyện tập cụ thể để phát triển kỹ năng này ngoài VR. "
+              "Viết một câu ghép ngắn; không lặp ý, cách mở đầu hoặc cấu trúc của remedy ở thẻ khác.",
+    "icon": "Chọn đúng một icon phù hợp với năng lực được mô tả trong facts.",
+}
+FINAL_INSTRUCTIONS = {
+    "headline": ("Viết một câu kết luận ngắn, dễ hiểu, không gắn nhãn tính cách.", 300),
+    "workStyle": ("Viết 1-2 câu mô tả cách người tham gia xử lý nhiệm vụ VR.", 650),
+    "benefit": ("Viết 1-2 câu về lợi ích của cách làm đã quan sát trong công việc tương tự.", 650),
+    "challenge": ("Nếu có developmentFinding, nêu một thách thức có căn cứ từ phát hiện đó; nếu không, nêu điều cần thử thêm trong bối cảnh khác mà không gọi điểm thấp nhất là điểm yếu.", 650),
+    "improvement": ("Nếu có developmentFinding, nêu một hành động luyện kỹ năng đó; nếu không, nêu một hoạt động giúp thử thêm năng lực đang có. Viết 1-2 câu cụ thể.", 650),
+    "evidence": ("Tóm tắt bằng chứng hành vi VR trong 1-2 câu.", 650),
+}
+CAREER_REJECTED_TERMS = ("yếu kém", "kém cỏi", "không có năng lực", "không phù hợp",
+                         "bảo đảm thành công", "đảm bảo thành công")
+TEXT_SCHEMA = {"type": "string"}
 
-    messages = _bounded_messages(build_text_field_messages(
-        field=field, instruction=instruction, facts=facts, max_characters=max_characters
-    ), max_prompt_chars)
-    options = {"temperature": 0.2, "top_p": 0.9, "max_tokens": max_tokens}
-    answer = await service.generate(messages, options=options, max_message_chars=max_prompt_chars)
+
+def _object_schema(properties: Mapping[str, Any]) -> dict[str, Any]:
+    return {"type": "object", "properties": dict(properties),
+            "required": list(properties), "additionalProperties": False}
+
+
+def _field(instruction: str, max_characters: int) -> dict[str, Any]:
+    return {"instruction": instruction, "maxCharacters": max_characters}
+
+
+def _career_text(ranked: Any, index: int, raw: Any) -> str:
+    """Keep the model's career prose only when it cites the backend evidence; else use the template."""
+    primary = index == 0
+    low, high = (3, 4) if primary else (2, 3)
     try:
-        return parse_answer(answer)
+        text = parse_text_field(raw, max_characters=CAREER_MAX_CHARACTERS) if isinstance(raw, str) else ""
     except FinalEvaluationOutputError:
-        pass
+        text = ""
+    sentences = len(re.split(r'(?<=[.!?])\s+', text.strip()))
+    supported = [item for item in ranked.dimensions if item['name'].casefold() in text.casefold() and f"{item['score']:g}/100" in text]
+    if not text or not low <= sentences <= high or len(supported) < 2 or (ranked.observations and not any(
+        item['evidence'] in text and f"{item['score']}/100" in text for item in ranked.observations
+    )) or any(term in text.lower() for term in CAREER_REJECTED_TERMS):
+        return career_description(ranked, primary=primary)
+    return text
 
-    reminder = (
-        f"\nViết lại đúng một giá trị, tối đa {max_characters} ký tự. "
-        "Không trả JSON, markdown, tên trường hoặc lời giải thích.\n/no_think"
-    )
-    repair_messages = [messages[0], {
+
+def _parse_json_object(content: str) -> dict[str, Any] | None:
+    text = content.strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, flags=re.DOTALL)
+    if fenced:
+        text = fenced.group(1)
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+async def _write_assessment_text(
+    service: Generator, *, payload: Mapping[str, Any], schema: Mapping[str, Any],
+    validate: Callable[[str], tuple[dict[str, Any], list[str]]],
+    max_prompt_chars: int, max_tokens: int,
+) -> dict[str, Any]:
+    """One structured-output request for every prose field, plus one repair round listing the errors."""
+    messages = _bounded_messages(build_assessment_messages(payload), max_prompt_chars)
+    options = {"temperature": 0.2, "top_p": 0.9, "max_tokens": max_tokens, "response_format": {
+        "type": "json_schema",
+        "json_schema": {"name": "final_evaluation_text", "strict": True, "schema": schema},
+    }}
+    answer = await service.generate(messages, options=options, max_message_chars=max_prompt_chars)
+    values, errors = validate(answer)
+    if not errors:
+        return values
+
+    repair_messages = _bounded_messages([*messages, {"role": "assistant", "content": answer}, {
         "role": "user",
-        "content": messages[1]["content"].removesuffix("\n/no_think") + reminder,
-    }]
-    _bounded_messages(repair_messages, max_prompt_chars)
+        "content": "JSON vừa trả chưa đạt yêu cầu:\n" + "\n".join(f"- {error}" for error in errors[:20])
+        + "\nTrả lại toàn bộ đối tượng JSON đúng schema: sửa các trường được liệt kê, "
+        "giữ nguyên các trường đã đạt.\n/no_think",
+    }], max_prompt_chars)
     answer = await service.generate(
         repair_messages,
         options={**options, "temperature": 0.0, "top_p": 1.0},
         max_message_chars=max_prompt_chars,
     )
-    try:
-        return parse_answer(answer)
-    except FinalEvaluationOutputError as exc:
+    values, errors = validate(answer)
+    if errors:
         raise FinalEvaluationOutputError(
-            f"Trường {field} không hợp lệ sau khi viết lại "
-            f"({len(answer.strip())}/{max_characters} ký tự): {exc}"
-        ) from exc
-
-
-async def _write_icon(
-    service: Generator, *, field: str, facts: Mapping[str, Any], max_prompt_chars: int,
-) -> str | None:
-    messages = _bounded_messages(
-        build_text_field_messages(
-            field=field,
-            instruction="Chọn đúng một icon phù hợp với năng lực được mô tả trong facts.",
-            facts=facts,
-            max_characters=20,
-        ),
-        max_prompt_chars,
-    )
-    answer = await service.generate(
-        messages,
-        options={"temperature": 0.0, "top_p": 1.0, "max_tokens": 16},
-        max_message_chars=max_prompt_chars,
-    )
-    try:
-        icon = parse_text_field(answer, max_characters=20)
-    except FinalEvaluationOutputError:
-        return None
-    return icon if icon in FINDING_ICON_IDS else None
+            "JSON đánh giá vẫn không hợp lệ sau khi viết lại: " + "; ".join(errors[:5])
+        )
+    return values
 
 
 async def generate_assessment(
@@ -331,7 +387,7 @@ async def generate_assessment(
     questionnaire: Mapping[str, Any], game_results: list[Mapping[str, Any]],
     completed_at: str, max_prompt_chars: int, max_tokens: int,
 ) -> FinalAssessment:
-    """Weight VR in code, ask the writer for isolated values, then assemble the contract."""
+    """Weight VR in code, ask the writer for all prose in one JSON document, then assemble the contract."""
     dimensions = extract_dimensions(questionnaire)
     missing = sorted(set(DIMENSION_IDS) - set(dimensions))
     if missing:
@@ -343,8 +399,6 @@ async def generate_assessment(
         raise FinalEvaluationCLIError(str(exc)) from exc
     experience_name = vr.experience_name
     behaviours = vr.behaviours
-    alignment = vr.alignment
-    weighted_vr = vr.weighted_results
     findings = vr.findings
     selected_interests = questionnaire.get("careerInterests", [])
     candidates = rank_careers(dimensions, behaviours, selected_interests, limit=7)
@@ -353,119 +407,145 @@ async def generate_assessment(
             "Không có đủ bảy nghề ứng viên cho các nhóm careerInterests đã chọn."
         )
 
-    async def write(field: str, instruction: str, facts: Mapping[str, Any], limit: int,
-                    sentence_range: tuple[int, int] | None = None) -> str:
-        return await _write_field(service, field=field, instruction=instruction, facts=facts,
-            max_characters=limit, max_prompt_chars=max_prompt_chars, max_tokens=max_tokens,
-            sentence_range=sentence_range)
-
-    stage_assessments = {}
-    stage_instructions = {
-        "D": "Viết 2-3 câu về điều người tham gia coi trọng trong công việc. Không gọi điểm thấp là điểm yếu.",
-        "E": "Viết 2-3 câu về các năng lực đang thể hiện và một hướng luyện có căn cứ.",
-        "S": "Viết 2-3 câu về cách phối hợp hoặc đóng góp khi làm cùng người khác.",
-        "M": "Viết 2-3 câu về cách xử lý thông tin, phân tích và quyết định.",
-        "A": "Viết 2-3 câu về cách phản ứng khi yêu cầu hoặc thông tin thay đổi.",
-        "P": "Viết 2-3 câu về cách duy trì hiệu quả khi có áp lực. Không chẩn đoán khả năng chịu đựng.",
-    }
-    for group in "DESMAP":
-        items = sorted((item for code, item in dimensions.items() if code.startswith(group)),
-                       key=lambda item: item.score, reverse=True)
-        facts = {"group": group, "groupScoreCalculatedByBackend": groups[group],
-                 "dimensions": [{"code": item.code, "name": item.name, "score": round(item.score),
-                                  "description": item.description} for item in items]}
-        stage_assessments[group] = await write(
-            f"stageAssessments.{group}", stage_instructions[group], facts, 900
-        )
-
-    finding_values = []
-    for plan in findings:
-        base_facts = {"kindCalculatedByBackend": plan.kind,
-                      "findingTitle": plan.title, "questionnaireFact": plan.questionnaire_fact,
-                      "vrFact": plan.vr_fact}
-        icon = await _write_icon(
-            service, field=f"behaviourComparison.findings.{plan.id}.icon",
-            facts=base_facts, max_prompt_chars=max_prompt_chars,
-        )
-        questionnaire_result = await write(
-            f"behaviourComparison.findings.{plan.id}.questionnaireResult",
-            "Viết một câu mô tả đúng kết quả tự đánh giá. Không nhắc đến VR.", base_facts, 500)
-        vr_evidence = await write(
-            f"behaviourComparison.findings.{plan.id}.vrEvidence",
-            "Viết một câu mô tả đúng bằng chứng VR. Không biến phần không quan sát được thành điểm yếu.", base_facts, 500)
-        summary = await write(
-            f"behaviourComparison.findings.{plan.id}.summary",
-            "Viết một câu kết luận đối chiếu hai nguồn theo đúng kind đã được backend tính; không đưa lời khuyên.", base_facts, 500)
-        finding = {"id": plan.id, "kind": plan.kind, "title": plan.title,
-            "questionnaireResult": questionnaire_result, "vrEvidence": vr_evidence,
-            "summary": summary}
-        if plan.kind in {"emerging", "development"}:
-            previous_remedies = [item["remedy"] for item in finding_values if "remedy" in item]
-            finding["remedy"] = await write(
-                f"behaviourComparison.findings.{plan.id}.remedy",
-                "Gợi ý một hoạt động học tập hoặc luyện tập cụ thể để phát triển kỹ năng này ngoài VR. "
-                "Viết một câu ghép ngắn; không lặp ý, cách mở đầu hoặc cấu trúc của previousRemedies.",
-                {"kindCalculatedByBackend": plan.kind, "findingTitle": plan.title,
-                 "summary": summary, "behaviourCode": plan.behaviour_code,
-                 "learningActivities": REMEDY_LEARNING_ACTIVITIES.get(plan.behaviour_code, ()),
-                 "previousRemedies": previous_remedies}, 300)
-        if icon is not None:
-            finding["icon"] = icon
-        finding_values.append(finding)
-
-    career_values = []
-    for index, ranked in enumerate(candidates):
-        career = ranked.career
-        score = ranked.compatibility_percent
-        sentence_range = (3, 4) if index == 0 else (2, 3)
-        try:
-            description = await write(
-                f"careerSuggestions.{career['id']}.description",
-                f"Viết một đoạn nhận xét tự nhiên bằng tiếng Việt trong {sentence_range[0]}-{sentence_range[1]} câu ngắn. Tự chọn cách mở đầu và thứ tự ý, không theo khuôn cố định. "
-                "Dẫn ít nhất hai yếu tố questionnaireEvidence bằng tên và điểm dạng số/100; phân biệt tự đánh giá với VR. "
-                "Dẫn một tiêu chí vrEvidence cùng điểm có sẵn, liên hệ với công việc mà không biến điểm tiêu chí thành thao tác đã quan sát. "
-                "Góp ý bằng hoạt động thử nghề cụ thể từ exploratoryActivity. Không chê bai, gắn nhãn hay lặp lời phủ định bảo đảm thành công. "
-                "previousDescriptions chỉ để tránh lặp cách diễn đạt, không phải dữ kiện của nghề đang viết.",
-                {"careerName": career['name'], "careerRequirements": career['description'],
-                 "compatibilityPercentCalculatedByBackend": score,
-                 "questionnaireEvidence": ranked.dimensions[:4], "vrEvidence": ranked.observations[:2],
-                 "vrExperienceName": experience_name, "exploratoryActivity": career['activity'],
-                 "previousDescriptions": [item['description'] for item in career_values[-2:]]}, 1200,
-                sentence_range=sentence_range)
-        except FinalEvaluationOutputError:
-            description = career_description(ranked, primary=index == 0)
-        supported = [item for item in ranked.dimensions if item['name'].casefold() in description.casefold() and f"{item['score']:g}/100" in description]
-        if len(supported) < 2 or (ranked.observations and not any(
-            item['evidence'] in description and f"{item['score']}/100" in description for item in ranked.observations
-        )) or any(term in description.lower() for term in ("yếu kém", "kém cỏi", "không có năng lực", "không phù hợp", "bảo đảm thành công", "đảm bảo thành công")):
-            description = career_description(ranked, primary=index == 0)
-        career_values.append({"id": career['id'], "name": career['name'],
-            "compatibilityPercent": score, "description": description})
-
     strongest = max(behaviours.values(), key=lambda item: item.score) if behaviours else None
     weakest = min(behaviours.values(), key=lambda item: item.score) if behaviours else None
     development_finding = next((item for item in findings if item.kind == "development"), None)
     emerging_finding = next((item for item in findings if item.kind == "emerging"), None)
+
+    stage_sections = {}
+    for group in STAGE_IDS:
+        items = sorted((item for code, item in dimensions.items() if code.startswith(group)),
+                       key=lambda item: item.score, reverse=True)
+        stage_sections[group] = {
+            "facts": {"group": group, "groupScoreCalculatedByBackend": groups[group],
+                      "dimensions": [{"code": item.code, "name": item.name, "score": round(item.score),
+                                      "description": item.description} for item in items]},
+            "text": _field(STAGE_INSTRUCTIONS[group], STAGE_MAX_CHARACTERS),
+        }
+
+    finding_sections = {}
+    finding_schemas = {}
+    for plan in findings:
+        facts = {"kindCalculatedByBackend": plan.kind, "findingTitle": plan.title,
+                 "questionnaireFact": plan.questionnaire_fact, "vrFact": plan.vr_fact}
+        fields = {key: _field(FINDING_INSTRUCTIONS[key], FINDING_MAX_CHARACTERS)
+                  for key in ("questionnaireResult", "vrEvidence", "summary")}
+        properties = {key: TEXT_SCHEMA for key in fields}
+        if plan.kind in {"emerging", "development"}:
+            facts["learningActivities"] = REMEDY_LEARNING_ACTIVITIES.get(plan.behaviour_code, ())
+            fields["remedy"] = _field(FINDING_INSTRUCTIONS["remedy"], REMEDY_MAX_CHARACTERS)
+            properties["remedy"] = TEXT_SCHEMA
+        fields["icon"] = {"instruction": FINDING_INSTRUCTIONS["icon"]}
+        properties["icon"] = {"type": "string", "enum": sorted(FINDING_ICON_IDS)}
+        finding_sections[plan.id] = {"facts": facts, "fields": fields}
+        finding_schemas[plan.id] = _object_schema(properties)
+
+    career_sections = {}
+    for index, ranked in enumerate(candidates):
+        career = ranked.career
+        low, high = (3, 4) if index == 0 else (2, 3)
+        career_sections[career["id"]] = {
+            "facts": {"careerName": career["name"], "careerRequirements": career["description"],
+                      "compatibilityPercentCalculatedByBackend": ranked.compatibility_percent,
+                      "questionnaireEvidence": ranked.dimensions[:4],
+                      "vrEvidence": ranked.observations[:2],
+                      "vrExperienceName": experience_name,
+                      "exploratoryActivity": career["activity"]},
+            "description": _field(
+                f"Viết một đoạn nhận xét tự nhiên bằng tiếng Việt trong {low}-{high} câu ngắn. Tự chọn cách mở đầu và thứ tự ý, không theo khuôn cố định. "
+                "Dẫn ít nhất hai yếu tố questionnaireEvidence bằng tên và điểm dạng số/100; phân biệt tự đánh giá với VR. "
+                "Dẫn một tiêu chí vrEvidence cùng điểm có sẵn, liên hệ với công việc mà không biến điểm tiêu chí thành thao tác đã quan sát. "
+                "Góp ý bằng hoạt động thử nghề cụ thể từ exploratoryActivity. Không chê bai, gắn nhãn hay lặp lời phủ định bảo đảm thành công. "
+                "Không lặp cách mở đầu hoặc cấu trúc câu của nhận xét nghề khác.",
+                CAREER_MAX_CHARACTERS,
+            ),
+        }
+
     common_facts = {"experienceName": experience_name, "groupScoresCalculatedByBackend": groups,
                     "behaviourScoresCalculatedByBackend": {key: value.score for key, value in behaviours.items()},
                     "behaviourEvidence": {key: value.evidence for key, value in behaviours.items()},
-                    "weightedVrResults": weighted_vr,
-                    "alignmentCalculatedByBackend": alignment,
+                    "weightedVrResults": vr.weighted_results,
+                    "alignmentCalculatedByBackend": vr.alignment,
                     "developmentFinding": ({"title": development_finding.title,
                                             "questionnaireFact": development_finding.questionnaire_fact,
                                             "vrFact": development_finding.vr_fact}
                                            if development_finding else None)}
-    final_text = {}
-    final_instructions = {
-        "headline": "Viết một câu kết luận ngắn, dễ hiểu, không gắn nhãn tính cách.",
-        "workStyle": "Viết 1-2 câu mô tả cách người tham gia xử lý nhiệm vụ VR.",
-        "benefit": "Viết 1-2 câu về lợi ích của cách làm đã quan sát trong công việc tương tự.",
-        "challenge": "Nếu có developmentFinding, nêu một thách thức có căn cứ từ phát hiện đó; nếu không, nêu điều cần thử thêm trong bối cảnh khác mà không gọi điểm thấp nhất là điểm yếu.",
-        "improvement": "Nếu có developmentFinding, nêu một hành động luyện kỹ năng đó; nếu không, nêu một hoạt động giúp thử thêm năng lực đang có. Viết 1-2 câu cụ thể.",
-        "evidence": "Tóm tắt bằng chứng hành vi VR trong 1-2 câu.",
+    payload = {
+        "task": "Viết toàn bộ lời văn của hồ sơ đánh giá cuối. Mỗi mục có facts riêng; "
+                "mỗi trường có instruction và maxCharacters riêng. Trả một đối tượng JSON đúng schema.",
+        "stageAssessments": stage_sections,
+        "findings": finding_sections,
+        "careerSuggestions": career_sections,
+        "finalEvaluation": {"facts": common_facts, "fields": {
+            field: _field(instruction, limit) for field, (instruction, limit) in FINAL_INSTRUCTIONS.items()
+        }},
     }
-    for field, instruction in final_instructions.items():
-        final_text[field] = await write(f"finalEvaluation.{field}", instruction, common_facts, 650)
+    schema = _object_schema({
+        "stageAssessments": _object_schema({group: TEXT_SCHEMA for group in STAGE_IDS}),
+        "findings": _object_schema(finding_schemas),
+        "careerSuggestions": _object_schema({ranked.career["id"]: TEXT_SCHEMA for ranked in candidates}),
+        "finalEvaluation": _object_schema({field: TEXT_SCHEMA for field in FINAL_INSTRUCTIONS}),
+    })
+
+    def validate(answer: str) -> tuple[dict[str, Any], list[str]]:
+        document = _parse_json_object(answer)
+        if document is None:
+            return {}, ["Phản hồi không phải một đối tượng JSON hợp lệ."]
+        errors: list[str] = []
+
+        def section(value: Any) -> Mapping[str, Any]:
+            return value if isinstance(value, Mapping) else {}
+
+        def read_text(value: Any, path: str, limit: int) -> str:
+            if not isinstance(value, str):
+                errors.append(f"{path}: thiếu hoặc không phải chuỗi.")
+                return ""
+            try:
+                return parse_text_field(value, max_characters=limit)
+            except FinalEvaluationOutputError:
+                errors.append(
+                    f"{path}: rỗng, là INSUFFICIENT_EVIDENCE hoặc vượt {limit} ký tự ({len(value.strip())})."
+                )
+                return ""
+
+        stages = section(document.get("stageAssessments"))
+        stage_assessments = {
+            group: read_text(stages.get(group), f"stageAssessments.{group}", STAGE_MAX_CHARACTERS)
+            for group in STAGE_IDS
+        }
+        written_findings = section(document.get("findings"))
+        finding_values = []
+        for plan in findings:
+            written = section(written_findings.get(plan.id))
+            finding = {"id": plan.id, "kind": plan.kind, "title": plan.title}
+            for key in ("questionnaireResult", "vrEvidence", "summary"):
+                finding[key] = read_text(written.get(key), f"findings.{plan.id}.{key}", FINDING_MAX_CHARACTERS)
+            if plan.kind in {"emerging", "development"}:
+                finding["remedy"] = read_text(
+                    written.get("remedy"), f"findings.{plan.id}.remedy", REMEDY_MAX_CHARACTERS
+                )
+            if written.get("icon") in FINDING_ICON_IDS:
+                finding["icon"] = written["icon"]
+            finding_values.append(finding)
+        written_careers = section(document.get("careerSuggestions"))
+        career_values = [
+            {"id": ranked.career["id"], "name": ranked.career["name"],
+             "compatibilityPercent": ranked.compatibility_percent,
+             "description": _career_text(ranked, index, written_careers.get(ranked.career["id"]))}
+            for index, ranked in enumerate(candidates)
+        ]
+        written_final = section(document.get("finalEvaluation"))
+        final_text = {
+            field: read_text(written_final.get(field), f"finalEvaluation.{field}", limit)
+            for field, (_instruction, limit) in FINAL_INSTRUCTIONS.items()
+        }
+        return {"stageAssessments": stage_assessments, "findings": finding_values,
+                "careers": career_values, "finalText": final_text}, errors
+
+    written = await _write_assessment_text(
+        service, payload=payload, schema=schema, validate=validate,
+        max_prompt_chars=max_prompt_chars, max_tokens=max_tokens,
+    )
 
     strength_label = strongest.label if strongest else f"Nhóm {max(groups, key=groups.get)}"
     development_label = (
@@ -475,20 +555,21 @@ async def generate_assessment(
     )
     document = {"version": 1, "participantName": normalize_name(participant_name),
         "participantEmail": normalize_email(participant_email), "completedAt": completed_at,
-        "stageAssessments": stage_assessments,
+        "stageAssessments": written["stageAssessments"],
         "dimensionLevels": {code: dimension_level(dimensions[code].score) for code in DIMENSION_IDS},
-        "behaviourComparison": {"experienceName": experience_name, "findings": finding_values},
-        "careerSuggestions": career_values,
-        "finalEvaluation": {"experienceName": experience_name, **final_text,
+        "behaviourComparison": {"experienceName": experience_name, "findings": written["findings"]},
+        "careerSuggestions": written["careers"],
+        "finalEvaluation": {"experienceName": experience_name, **written["finalText"],
             "strengthLabel": strength_label, "developmentLabel": development_label}}
     return FinalAssessment.model_validate(document)
 
 
-def save_assessment(collection: Collection, assessment: FinalAssessment) -> None:
+def save_assessment(collection: Collection, assessment: FinalAssessment, *,
+                    provider: str = "openrouter", model: str = FINAL_EVALUATION_MODEL) -> None:
     document = assessment.model_dump(mode="json", by_alias=True, exclude_none=True)
     document["careerRankingVersion"] = CAREER_RANKING_VERSION
-    document["generationProvider"] = "openrouter"
-    document["generationModel"] = FINAL_EVALUATION_MODEL
+    document["generationProvider"] = provider
+    document["generationModel"] = model
     collection.create_index(
         [("participantName", ASCENDING), ("participantEmail", ASCENDING)],
         unique=True,
@@ -527,7 +608,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--no-start-llm",
         action="store_true",
-        help="Tùy chọn cũ được giữ để tương thích; final eval hiện chỉ dùng OpenRouter.",
+        help="Tùy chọn cũ được giữ để tương thích; script không tự khởi động LLM local.",
     )
     return parser.parse_args(argv)
 
@@ -536,17 +617,22 @@ async def run(args: argparse.Namespace) -> int:
     settings = get_settings()
     if not settings.mongodb_uri:
         raise FinalEvaluationCLIError("MONGODB_URI chưa được cấu hình.")
-    model = DEFAULT_MODEL
+    openrouter_mode = settings.pipeline_mode == "openrouter"
     max_prompt_chars = _int_env(
-        "FINAL_EVALUATION_MAX_PROMPT_CHARS", DEFAULT_MAX_PROMPT_CHARS, 8_000, 120_000
+        "FINAL_EVALUATION_MAX_PROMPT_CHARS", DEFAULT_MAX_PROMPT_CHARS, 8_000, 200_000
     )
-    max_tokens = _int_env("FINAL_EVALUATION_MAX_TOKENS", DEFAULT_MAX_TOKENS, 128, 2_048)
+    max_tokens = _int_env("FINAL_EVALUATION_MAX_TOKENS", DEFAULT_MAX_TOKENS, 1_024, 32_000)
     request_timeout = _int_env(
-        "FINAL_EVALUATION_REQUEST_TIMEOUT_SECONDS", DEFAULT_REQUEST_TIMEOUT_SECONDS, 5, 120,
+        "FINAL_EVALUATION_REQUEST_TIMEOUT_SECONDS", DEFAULT_REQUEST_TIMEOUT_SECONDS, 5, 600,
     )
 
     client = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=5_000)
-    service = FinalEvaluationOpenRouter(getattr(settings, "openrouter_api_key", None), timeout_seconds=request_timeout)
+    if openrouter_mode:
+        service = FinalEvaluationOpenRouter(getattr(settings, "openrouter_api_key", None), timeout_seconds=request_timeout)
+        provider, model = "openrouter", DEFAULT_MODEL
+    else:
+        service = LocalFinalEvaluationGenerator(LLMService(settings))
+        provider, model = service.provider, service.model
     try:
         database = client[settings.mongodb_database]
         questionnaire_collection = database[QUESTIONNAIRE_COLLECTION]
@@ -619,7 +705,7 @@ async def run(args: argparse.Namespace) -> int:
                     print(json.dumps(assessment.model_dump(mode="json", by_alias=True, exclude_none=True), ensure_ascii=False, indent=2))
                     print("Dry run: chưa ghi MongoDB.")
                 else:
-                    save_assessment(evaluation_collection, assessment)
+                    save_assessment(evaluation_collection, assessment, provider=provider, model=model)
                     existing_names.add(participant_name.casefold())
                     print(
                         "Đã lưu đánh giá vào collection final_evaluations cho "

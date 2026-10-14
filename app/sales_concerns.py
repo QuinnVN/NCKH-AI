@@ -11,6 +11,7 @@ import copy
 from typing import Any, Iterable, Mapping, Sequence
 
 from app.sales_openrouter import QUESTION_TEXT
+from app.sales_memory import QUESTION_FACTS
 
 VIOLATIONS = {"unauthorizedRefund": "unauthorized_refund", "unauthorizedDiscount": "unauthorized_discount",
               "unauthorizedCompensation": "unauthorized_compensation", "absoluteGuarantee": "absolute_guarantee",
@@ -21,7 +22,7 @@ RETRACTIONS = {"retractsUnauthorizedRefund": "unauthorized_refund",
                "retractsAbsoluteGuarantee": "absolute_guarantee"}
 BAD_TURN_LABELS = ("abuse", "disrespect", "refusesRemedy", "beggingWithoutExplanation")
 COMPONENTS = ("acknowledgment", "responsibility", "policy", "lightweight", "trial",
-              "use_question", "fit_question", "cause", "explanation", "challenge_reply")
+              "use_question", "fit_question", "cause", "explanation", "open_question")
 # Order decides which two facts Lan answers first when one utterance asks more.
 FACT_QUESTIONS = (("painLocationQuestion", "pain_location"), ("painTimingQuestion", "late_discomfort"),
                   ("walkingQuestion", "walking_routine"), ("fitQuestion", "fit_condition"),
@@ -29,13 +30,16 @@ FACT_QUESTIONS = (("painLocationQuestion", "pain_location"), ("painTimingQuestio
 COMPLAINT_FACTS = frozenset({"pain_location", "late_discomfort", "walking_routine", "fit_condition", "lighter_preference"})
 FORCED_ENDINGS = frozenset({"manager_escalation", "maintained_unauthorized_promise", "second_silence"})
 CONCERNS = (1, 2, 3, 4)
+# Agreement on a suitable remedy ends the dialogue. Attitude (apology,
+# responsibility) earns points and trust but never blocks the ending.
+AGREEMENT_CONCERNS = frozenset({1, 2, 3})
 MAX_HINT = 2
 MAX_FACTS_PER_REPLY = 2
 CHALLENGE_LABELS = ("originalSaleResponsibility", "routineMatchExplanation", "fitOrWalkTrial")
 # Acts that can only help the player. Used by the monotonicity property.
 GOOD_LABELS = tuple(name for name in QUESTION_TEXT if name not in VIOLATIONS and name not in BAD_TURN_LABELS
                     and name not in ("maintainsUnauthorizedPromise", "repeatedQuestion")) + tuple(RETRACTIONS)
-CONCERN_PARTS = {1: ("acknowledgment", "problem_question"), 2: ("walking", "fit", "cause"),
+CONCERN_PARTS = {1: ("problem_question",), 2: ("walking", "fit", "cause"),
                  3: ("offer", "conditions", "lightweight", "trial"), 4: ("responsibility", "explanation", "trial")}
 
 
@@ -53,7 +57,8 @@ def lowest_open(resolved: Iterable[int]) -> int | None:
 def initial_state() -> dict:
     return {"components": {}, "violations": [], "promises": [], "resolved": [], "ackSeen": False,
             "openQuestionSeen": False, "standingOffer": False, "postChallenge": [], "statedConcern": 1,
-            "hintLevels": {str(concern): 0 for concern in CONCERNS}, "ending": None}
+            "hintLevels": {str(concern): 0 for concern in CONCERNS}, "ending": None, "dialogueActs": [],
+            "initialFacts": None}
 
 
 def _statuses(labels: Any, overrides: Mapping | None) -> dict[str, str]:
@@ -76,8 +81,6 @@ def critical_labels(state: Mapping, status: Mapping[str, str], facts: Iterable[s
     if stated == 1:
         if not state["openQuestionSeen"] and unsure("openQuestion"):
             names.append("openQuestion")
-        if not state["ackSeen"] and unsure("acknowledgment"):
-            names.append("acknowledgment")
     if 2 not in resolved and investigated(facts) and unsure("causeStatement"):
         names.append("causeStatement")
     if stated == 3:
@@ -93,10 +96,12 @@ def critical_labels(state: Mapping, status: Mapping[str, str], facts: Iterable[s
     return sorted(set(names))
 
 
-def facts_to_answer(status: Mapping[str, str], known: Iterable[str], bad: bool) -> tuple[list[str], bool]:
+def facts_to_answer(status: Mapping[str, str], known: Iterable[str], bad: bool,
+                    memory_enabled: bool = False) -> tuple[list[str], bool]:
     """Facts Lan answers now, and whether every fact asked about was already known."""
     known = set(known)
-    asked = list(dict.fromkeys(fact for label, fact in FACT_QUESTIONS if status.get(label) == "true"))
+    questions = (*QUESTION_FACTS, *FACT_QUESTIONS) if memory_enabled else FACT_QUESTIONS
+    asked = list(dict.fromkeys(fact for label, fact in questions if status.get(label) == "true"))
     if bad:
         return [], False
     new = [fact for fact in asked if fact not in known][:MAX_FACTS_PER_REPLY]
@@ -108,7 +113,7 @@ def missing_part(state: Mapping, concern: int | None, facts: Iterable[str]) -> s
     facts = set(facts)
     components = state["components"]
     if concern == 1:
-        return "acknowledgment" if not state["ackSeen"] else "problem_question"
+        return "problem_question"
     if concern == 2:
         if "walking_routine" not in facts:
             return "walking"
@@ -131,8 +136,11 @@ def advance(state: Mapping, entry: Mapping, overrides: Mapping | None = None) ->
     status = _statuses(entry.get("labels"), (overrides or {}).get(turn_id))
     yes = lambda name: status.get(name) == "true"
     facts = set(entry.get("factsKnownBefore") or [])
+    confirmed = set(entry.get("confirmedFactIds") or []) & facts
     challenge = bool(entry.get("challengeShownBefore"))
     resolved_before = set(state["resolved"])
+    if state.get("initialFacts") is None:
+        state["initialFacts"] = sorted(facts)
     stated_before = state["statedConcern"]
     promises_before = list(state["promises"])
     critical = critical_labels(state, status, facts, challenge)
@@ -176,28 +184,31 @@ def advance(state: Mapping, entry: Mapping, overrides: Mapping | None = None) ->
         if yes("openQuestion"):
             state["openQuestionSeen"] = True
         grant("acknowledgment", yes("acknowledgment") and not yes("abuse"))
+        grant("open_question", yes("openQuestion"))
         grant("policy", safe and yes("exchangeConditions") and (yes("exchangeOffer") or offer_before))
         grant("lightweight", safe and enough and yes("lightweightForWalking"))
         grant("trial", safe and enough and yes("fitOrWalkTrial"))
         grant("explanation", safe and enough and yes("routineMatchExplanation"))
-        grant("use_question", yes("walkingQuestion") and "walking_routine" not in facts)
+        grant("use_question", (yes("walkingQuestion") and "walking_routine" not in facts)
+              or (yes("walkingRecall") and "walking_routine" in confirmed))
         grant("fit_question", (yes("fitQuestion") and "fit_condition" not in facts)
-              or (yes("preferenceQuestion") and "lighter_preference" not in facts))
+              or (yes("preferenceQuestion") and "lighter_preference" not in facts)
+              or (yes("fitRecall") and "fit_condition" in confirmed)
+              or (yes("preferenceRecall") and "lighter_preference" in confirmed))
         grant("cause", yes("causeStatement") and enough)
         if challenge and safe:
             for name in CHALLENGE_LABELS:
                 if yes(name) and name not in state["postChallenge"]:
                     state["postChallenge"].append(name)
-        grant("responsibility", challenge and safe and yes("originalSaleResponsibility"))
-        grant("challenge_reply", challenge and respectful
-              and {"fitOrWalkTrial", "routineMatchExplanation"} <= set(state["postChallenge"]))
+        grant("responsibility", safe and yes("originalSaleResponsibility"))
         if yes("refusesRemedy"):
             state["standingOffer"] = False
         elif safe and yes("exchangeOffer"):
             state["standingOffer"] = True
         resolved = set(resolved_before)
         if respectful and not events and not state["promises"] and not ending:
-            if state["ackSeen"] and state["openQuestionSeen"]:
+            # Asking about the problem in any form shows Lan she is heard.
+            if state["openQuestionSeen"] or {"use_question", "fit_question", "cause"} & set(components):
                 resolved.add(1)
             if "cause" in components:
                 resolved.add(2)
@@ -206,17 +217,30 @@ def advance(state: Mapping, entry: Mapping, overrides: Mapping | None = None) ->
             if challenge and set(CHALLENGE_LABELS) <= set(state["postChallenge"]):
                 resolved.add(4)
         state["resolved"] = sorted(resolved)
-        if (not ending and 1 in resolved_before and facts & COMPLAINT_FACTS and 2 not in resolved
-                and safe and yes("exchangeOffer") and yes("exchangeConditions")):
+        # Facts Lan brought from Part 1 are not investigation in this dialogue.
+        learned = facts - set(state["initialFacts"])
+        if (not ending and 1 in resolved_before and learned & COMPLAINT_FACTS and 2 not in resolved
+                and safe and yes("exchangeConditions") and (yes("exchangeOffer") or offer_before)):
             # Lan can accept an operational remedy before the cause is proven.
             ending = "exchange_accepted"
-        if not ending and 4 in resolved:
+        if not ending and AGREEMENT_CONCERNS <= resolved:
             ending = "objectives_completed"
         quality = "bad" if bad else "good" if new_components or resolved - resolved_before else "neutral"
-    answered, repeated = facts_to_answer(status, facts, bad)
+    answered, repeated = facts_to_answer(status, facts, bad, bool(entry.get("memoryVersion")))
     disclosed = list(entry["disclosedFactIds"]) if isinstance(entry.get("disclosedFactIds"), list) else answered
     newly_resolved = sorted(set(state["resolved"]) - resolved_before)
-    progress = bool(new_components or disclosed or newly_resolved)
+    dialogue_progress = []
+    if entry.get("memoryVersion") and not bad and not critical:
+        acts = [label for label in ("inspectionRequest", "fitOrWalkTrial", "physicalActionRequest") if yes(label)]
+        acts += ["request:" + fact for label, fact in QUESTION_FACTS if yes(label)]
+        if yes("confirmationQuestion"):
+            acts += ["confirm:" + fact for label, fact in (*QUESTION_FACTS, *FACT_QUESTIONS)
+                     if yes(label) and fact in facts]
+        for act in dict.fromkeys(acts):
+            if act not in state["dialogueActs"]:
+                state["dialogueActs"].append(act)
+                dialogue_progress.append(act)
+    progress = bool(new_components or disclosed or newly_resolved or dialogue_progress)
     no_progress = (quality in ("good", "neutral") and not progress and not ending
                    and stated_before not in state["resolved"])
     hints = state["hintLevels"]
@@ -229,7 +253,7 @@ def advance(state: Mapping, entry: Mapping, overrides: Mapping | None = None) ->
     state["statedConcern"] = stated
     if ending and not state["ending"]:
         state["ending"] = ending
-    known_after = facts | set(disclosed)
+    known_after = facts | set(disclosed) | set(entry.get("volunteeredFactIds") or [])
     return state, {"turnId": turn_id, "turnQuality": quality, "assessmentUncertain": bool(critical),
                    "criticalLabels": critical, "violations": events, "newComponents": new_components,
                    "resolvedConcerns": newly_resolved, "disclosedFactIds": disclosed,
@@ -259,16 +283,17 @@ def score_ledger(entries: Sequence[Mapping], overrides: Mapping | None = None, e
     score = raw - penalty
     resolved = set(state["resolved"])
     forced = final_ending in FORCED_ENDINGS
-    accepted = final_ending == "exchange_accepted" and "policy" in components
-    restored = resolved == set(CONCERNS) and score >= 70 and not state["promises"] and not forced
-    partial = "acknowledgment" in components and not forced and not state["promises"] and (
-        (3 in resolved and score >= 40) or accepted)
+    accepted = final_ending in ("exchange_accepted", "objectives_completed") and "policy" in components
+    restored = (AGREEMENT_CONCERNS <= resolved and "acknowledgment" in components and score >= 70
+                and not state["promises"] and not forced)
+    partial = not forced and not state["promises"] and (3 in resolved or accepted)
     trust = "restored" if restored else "partially_restored" if partial else "lost"
     result = {"criterionScores": criteria, "rawScore": raw, "policyViolationPenalty": penalty, "score": score,
               "trustState": trust,
               "customerRating": {"restored": "good", "partially_restored": "considering", "lost": "bad"}[trust],
-              "emotionalHandling": 1 in resolved, "causeIdentification": 2 in resolved,
-              "solutionSuitability": 3 in resolved, "trustRebuilding": 4 in resolved}
+              "emotionalHandling": "acknowledgment" in components, "causeIdentification": 2 in resolved,
+              "solutionSuitability": 3 in resolved,
+              "trustRebuilding": {"responsibility", "explanation", "trial"} <= set(components)}
     return {"state": state, "turns": turns, "outcome": result, "endingReason": final_ending,
             "resolutionAccepted": accepted, "rubricComponents": copy.deepcopy(components),
             "policyViolations": copy.deepcopy(state["violations"]), "unresolvedPromises": list(state["promises"]),

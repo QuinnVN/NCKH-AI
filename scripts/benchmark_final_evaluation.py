@@ -30,7 +30,10 @@ from app.career_ranking import CAREER_RANKING_VERSION, CATALOG
 from app.final_evaluation import PROMPT_PATH, parse_text_field, FinalEvaluationOutputError
 from app.final_evaluation_calculation import extract_dimensions, combine_game_results
 from app.final_evaluation_openrouter import FinalEvaluationOpenRouter
-from scripts.generate_final_evaluation import load_participant_data, generate_assessment, _write_field
+from scripts.generate_final_evaluation import (
+    DEFAULT_MAX_PROMPT_CHARS, DEFAULT_MAX_TOKENS, DEFAULT_REQUEST_TIMEOUT_SECONDS,
+    _parse_json_object, generate_assessment, load_participant_data,
+)
 
 MODELS = ['deepseek/deepseek-v4.1-flash', 'qwen/qwen3.8-flash', 'xiaomi/mimo-v2.6-flash']
 FIXED_COMPLETED_AT = '2026-10-04T00:00:00Z'
@@ -149,9 +152,11 @@ def prepare(destination: Path) -> None:
         'datasetSha256': digest(cases), 'models': models,
         'systemPromptSha256': hashlib.sha256(PROMPT_PATH.read_bytes()).hexdigest(),
         'generatorSha256': hashlib.sha256((ROOT / 'scripts/generate_final_evaluation.py').read_bytes()).hexdigest(),
-        'rankingVersion': CAREER_RANKING_VERSION, 'maxTokens': 1024, 'maxPromptChars': 16000,
-        'timeoutSeconds': 45, 'reasoningEnabled': False, 'providerDataCollection': 'deny',
-        'method': 'Full production generator, same field prompts and repair/fallback logic; one sequential field at a time per eval.',
+        'rankingVersion': CAREER_RANKING_VERSION, 'maxTokens': DEFAULT_MAX_TOKENS,
+        'maxPromptChars': DEFAULT_MAX_PROMPT_CHARS, 'timeoutSeconds': DEFAULT_REQUEST_TIMEOUT_SECONDS,
+        'reasoningEnabled': False, 'providerDataCollection': 'deny', 'structuredOutput': 'json_schema strict',
+        'method': 'Full production generator, same document prompt and repair/fallback logic; '
+                  'one structured-output request per eval, plus one repair request when fields fail validation.',
         'identityExported': False, 'databaseWrites': False,
     })
     print(json.dumps({'preparedProfiles': len(cases), 'excluded': dict(excluded),
@@ -208,6 +213,43 @@ def field_checks(payload: dict, text: str) -> dict:
     return checks
 
 
+def document_fields(payload: dict, output: str) -> list[dict]:
+    """Split one structured final-eval response into the per-field rows scored by field_checks."""
+    document = _parse_json_object(output) or {}
+    rows = []
+
+    def written(*keys):
+        value = document
+        for key in keys:
+            value = value.get(key) if isinstance(value, dict) else None
+        return value
+
+    def add(field: str, facts: dict, spec: dict, value) -> None:
+        rows.append({'field': field, 'output': value, 'payload': {
+            'field': field, 'facts': facts, 'instruction': spec.get('instruction'),
+            'maxCharacters': spec.get('maxCharacters', 20)}})
+
+    for group, section in payload['stageAssessments'].items():
+        add(f'stageAssessments.{group}', section['facts'], section['text'], written('stageAssessments', group))
+    for finding_id, section in payload['findings'].items():
+        for key, spec in section['fields'].items():
+            add(f'behaviourComparison.findings.{finding_id}.{key}', section['facts'], spec,
+                written('findings', finding_id, key))
+    for career_id, section in payload['careerSuggestions'].items():
+        add(f'careerSuggestions.{career_id}.description', section['facts'], section['description'],
+            written('careerSuggestions', career_id))
+    final = payload['finalEvaluation']
+    for field, spec in final['fields'].items():
+        add(f'finalEvaluation.{field}', final['facts'], spec, written('finalEvaluation', field))
+    return rows
+
+
+def document_checks(payload: dict, output: str) -> dict:
+    rows = document_fields(payload, output)
+    return {'validJson': _parse_json_object(output) is not None,
+            'allFieldsPresent': bool(rows) and all(isinstance(row['output'], str) for row in rows)}
+
+
 async def benchmark_one(case: dict, model: str, repeat: int, destination: Path,
                         network: httpx.AsyncClient, api_key: str) -> dict:
     folder = destination / 'runs' / model.replace('/', '__') / f"{case['caseId']}-r{repeat}"
@@ -219,10 +261,10 @@ async def benchmark_one(case: dict, model: str, repeat: int, destination: Path,
     async def forward(request: httpx.Request) -> httpx.Response:
         outgoing = json.loads(request.content)
         outgoing['model'] = model
-        user = outgoing['messages'][1]['content'].split('\n/no_think')[0]
-        # Repair requests append a reminder after the JSON. Decode just the object.
-        payload, _ = json.JSONDecoder().raw_decode(user)
-        row = {'field': payload['field'], 'payload': payload, 'requestModel': model,
+        # The repair round appends the previous answer and an error list after the original payload.
+        payload = json.loads(outgoing['messages'][1]['content'].split('\n/no_think')[0])
+        row = {'request': 'repair' if len(outgoing['messages']) > 2 else 'initial',
+               'payload': payload, 'requestModel': model,
                'temperature': outgoing['temperature'], 'maxTokens': outgoing['max_tokens'],
                'startedAtUtc': datetime.now(timezone.utc).isoformat()}
         started = time.perf_counter()
@@ -241,7 +283,7 @@ async def benchmark_one(case: dict, model: str, repeat: int, destination: Path,
                            provider=body.get('provider'), usage=body.get('usage'),
                            finishReason=choice.get('finish_reason'), output=text)
                 if isinstance(text, str):
-                    row['checks'] = field_checks(payload, text)
+                    row['documentChecks'] = document_checks(payload, text)
             return response
         except httpx.HTTPError as error:
             row['networkError'] = type(error).__name__
@@ -261,16 +303,17 @@ async def benchmark_one(case: dict, model: str, repeat: int, destination: Path,
             assessment = await generate_assessment(
                 service, participant_name='Hồ sơ kiểm thử', participant_email='benchmark@example.invalid',
                 questionnaire=case['questionnaire'], game_results=case['games'], completed_at=FIXED_COMPLETED_AT,
-                max_prompt_chars=16000, max_tokens=1024)
+                max_prompt_chars=DEFAULT_MAX_PROMPT_CHARS, max_tokens=DEFAULT_MAX_TOKENS)
             output = assessment.model_dump(mode='json', by_alias=True, exclude_none=True)
             save(folder / 'assessment.json', output)
-            latest = {a['field']: a for a in attempts if isinstance(a.get('output'), str)}
-            career_fields = [a for a in latest.values() if a['field'].startswith('careerSuggestions.')]
+            accepted = next(a for a in reversed(attempts) if isinstance(a.get('output'), str))
+            latest = {row['field']: row['output'] for row in document_fields(accepted['payload'], accepted['output'])}
+            career_fields = [field for field in latest if field.startswith('careerSuggestions.')]
             fallback = 0
             for career in output['careerSuggestions']:
-                raw = latest[f"careerSuggestions.{career['id']}.description"]['output']
+                raw = latest.get(f"careerSuggestions.{career['id']}.description")
                 try:
-                    raw = parse_text_field(raw, max_characters=1200)
+                    raw = parse_text_field(raw, max_characters=1200) if isinstance(raw, str) else None
                 except FinalEvaluationOutputError:
                     pass
                 fallback += int(career['description'] != raw)
@@ -281,7 +324,7 @@ async def benchmark_one(case: dict, model: str, repeat: int, destination: Path,
             result['error'] = str(error)[:400]
     result['seconds'] = round(time.perf_counter() - start, 5)
     result['attemptCount'] = len(attempts)
-    result['distinctFields'] = len({a['field'] for a in attempts})
+    result['repairRequests'] = sum(a['request'] == 'repair' for a in attempts)
     costs = [a['usage']['cost'] for a in attempts if isinstance(a.get('usage'), dict)
              and isinstance(a['usage'].get('cost'), (int, float))]
     result['costUsd'] = sum(costs)
@@ -307,7 +350,7 @@ async def run(destination: Path, limit: int | None, repeats: int, parallel: int)
     semaphore = asyncio.Semaphore(parallel)
     save(destination / 'run-config.json', {'profiles': len(cases), 'repeats': repeats,
          'concurrentEvals': parallel, 'evalCount': len(cases) * repeats * len(MODELS)})
-    async with httpx.AsyncClient(timeout=httpx.Timeout(45, connect=10),
+    async with httpx.AsyncClient(timeout=httpx.Timeout(DEFAULT_REQUEST_TIMEOUT_SECONDS, connect=10),
                                  limits=httpx.Limits(max_connections=parallel + 3)) as network:
         async def job(case, model, repeat):
             async with semaphore:
@@ -339,7 +382,7 @@ def summarize(destination: Path) -> dict:
     for model, entries in groups.items():
         results = [r for r, _ in entries]
         success = [r for r in results if r['success']]
-        first_counts, final_counts = defaultdict(list), defaultdict(list)
+        first_counts, final_counts, document_counts = defaultdict(list), defaultdict(list), defaultdict(list)
         first_all, last_all = [], []
         career_lengths = []
         career_over_limit = 0
@@ -361,11 +404,16 @@ def summarize(destination: Path) -> dict:
                 tokens['cached_tokens'] += ((a.get('usage') or {}).get('prompt_tokens_details') or {}).get('cached_tokens', 0)
                 tokens['reasoning_tokens'] += ((a.get('usage') or {}).get('completion_tokens_details') or {}).get('reasoning_tokens', 0)
                 if isinstance(a.get('output'), str):
-                    # Recompute from original output so rubric updates cannot mix versions.
-                    a['checks'] = field_checks(a['payload'], a['output'])
                     responses += 1
-                    first.setdefault(a['field'], a)
-                    last[a['field']] = a
+                    for name, ok in document_checks(a['payload'], a['output']).items():
+                        document_counts[name].append(ok)
+                    # Recompute from original output so rubric updates cannot mix versions.
+                    for row in document_fields(a['payload'], a['output']):
+                        if not isinstance(row['output'], str):
+                            continue
+                        row['checks'] = field_checks(row['payload'], row['output'])
+                        first.setdefault(row['field'], row)
+                        last[row['field']] = row
             for collection, target in ((first, first_counts), (last, final_counts)):
                 for a in collection.values():
                     if target is first_counts and a['field'].startswith('careerSuggestions.'):
@@ -391,7 +439,8 @@ def summarize(destination: Path) -> dict:
             'medianCompletedSeconds': quantile([r['seconds'] for r in success], .5),
             'p95CompletedSeconds': quantile([r['seconds'] for r in success], .95),
             'meanCallsPerCompletedEval': statistics.mean(r['attemptCount'] for r in success) if success else None,
-            'extraRequests': sum(r['attemptCount'] - r['distinctFields'] for r in results),
+            'repairRequests': sum(r.get('repairRequests', 0) for r in results),
+            'documentChecks': rates(document_counts),
             'careerFallbacks': fallback, 'careerDescriptionsDelivered': sum(r.get('careerCount', 0) for r in success),
             'careerFallbackPercent': 100 * fallback / (7 * len(success)) if success else None,
             'unpricedSuccessResponses': sum(r['unpricedSuccessResponses'] for r in results),
@@ -425,22 +474,24 @@ def summarize(destination: Path) -> dict:
 async def diagnose_names(destination: Path) -> None:
     """Paired diagnostic only: replace opaque dimension names with catalog labels.
 
-    This does not change the full benchmark dataset, production or full-eval scores.
-    Original first answers are reused, not billed a second time.
+    Each probe reruns the production generator once with catalog names and compares the D and E
+    stage prose with the original first-repeat assessment. This does not change the full
+    benchmark dataset, production or full-eval scores.
     """
     settings = get_settings()
+    cases = {case['caseId']: case for case in read(destination / 'cases.json')}
     records = []
     semaphore = asyncio.Semaphore(6)
-    async with httpx.AsyncClient(timeout=httpx.Timeout(45, connect=10)) as network:
-        async def probe(case_id: str, model: str, field: str):
+    async with httpx.AsyncClient(timeout=httpx.Timeout(DEFAULT_REQUEST_TIMEOUT_SECONDS, connect=10)) as network:
+        async def probe(case_id: str, model: str):
             async with semaphore:
-                source = destination / 'runs' / model.replace('/', '__') / f'{case_id}-r1' / 'attempts.json'
-                before = next((r for r in read(source) if r['field'] == field and isinstance(r.get('output'), str)), None)
-                if before is None:
+                source = destination / 'runs' / model.replace('/', '__') / f'{case_id}-r1' / 'assessment.json'
+                if case_id not in cases or not source.exists():
                     return
-                payload = json.loads(json.dumps(before['payload']))
-                for item in payload['facts']['dimensions']:
-                    item['name'] = CATALOG['dimensionNames'][item['code']]
+                before = read(source)['stageAssessments']
+                case = json.loads(json.dumps(cases[case_id]))
+                for item in case['questionnaire']['dimensions']:
+                    item['name'] = CATALOG['dimensionNames'][item['id']]
                 calls = []
                 async def forward(request):
                     outgoing = json.loads(request.content)
@@ -450,27 +501,29 @@ async def diagnose_names(destination: Path) -> None:
                     response = await network.post(str(request.url), headers=headers, json=outgoing)
                     body = response.json() if response.is_success else {}
                     calls.append({'status': response.status_code, 'usage': body.get('usage'),
-                                  'provider': body.get('provider'), 'seconds': time.perf_counter() - started,
-                                  'output': ((body.get('choices') or [{}])[0].get('message') or {}).get('content')})
+                                  'provider': body.get('provider'), 'seconds': time.perf_counter() - started})
                     return response
-                result = {'caseId': case_id, 'model': model, 'field': field,
-                          'before': before['output'], 'factsAfter': payload['facts']}
+                result = {'caseId': case_id, 'model': model,
+                          'before': {group: before[group] for group in 'DE'}}
                 async with httpx.AsyncClient(transport=httpx.MockTransport(forward)) as proxy:
                     writer = FinalEvaluationOpenRouter(settings.openrouter_api_key, client=proxy)
                     try:
-                        result['after'] = await _write_field(
-                            writer, field=field, instruction=payload['instruction'], facts=payload['facts'],
-                            max_characters=payload['maxCharacters'], max_prompt_chars=16000, max_tokens=1024)
+                        assessment = await generate_assessment(
+                            writer, participant_name='Hồ sơ kiểm thử', participant_email='benchmark@example.invalid',
+                            questionnaire=case['questionnaire'], game_results=case['games'],
+                            completed_at=FIXED_COMPLETED_AT, max_prompt_chars=DEFAULT_MAX_PROMPT_CHARS,
+                            max_tokens=DEFAULT_MAX_TOKENS)
+                        result['after'] = {group: assessment.stage_assessments[group] for group in 'DE'}
                         result['success'] = True
                     except Exception as error:
                         result.update(success=False, errorType=type(error).__name__)
                 result['calls'] = calls
                 records.append(result)
-        await asyncio.gather(*(probe(case_id, model, field)
+        await asyncio.gather(*(probe(case_id, model)
                                for case_id in ('profile-02', 'profile-03', 'profile-04')
-                               for model in MODELS for field in ('stageAssessments.D', 'stageAssessments.E')))
+                               for model in MODELS))
     save(destination / 'dimension-name-diagnostic.json', records)
-    print(json.dumps({'diagnosticFields': len(records), 'completed': sum(r['success'] for r in records),
+    print(json.dumps({'diagnosticProfiles': len(records), 'completed': sum(r['success'] for r in records),
                       'extraCostUsd': sum((c.get('usage') or {}).get('cost', 0)
                                           for r in records for c in r['calls'])}), flush=True)
 

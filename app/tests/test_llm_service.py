@@ -10,7 +10,14 @@ from app.config import (
     DEFAULT_LLM_MODEL,
     get_settings,
 )
-from app.llm_service import LLMService, LLMServiceError
+from app.final_evaluation_openrouter import FINAL_EVALUATION_MODEL
+from app.llm_service import (
+    LLMService,
+    LLMServiceError,
+    OPENROUTER_BASE_URL,
+    OpenRouterLLMService,
+    create_llm_service,
+)
 
 
 class FakeResponse:
@@ -146,6 +153,78 @@ class LLMServiceTests(unittest.IsolatedAsyncioTestCase):
                 await service.generate([{"role": "user", "content": ""}])
             self.assertEqual(raised.exception.status_code, 422)
             service.client.post.assert_not_awaited()
+        finally:
+            await service.close()
+
+
+class PipelineModeTests(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def settings(mode, key="test-key"):
+        environment = {"PIPELINE_MODE": mode, "OPENROUTER_API_KEY": key}
+        with patch.dict("os.environ", environment):
+            return get_settings()
+
+    async def test_openrouter_mode_selects_deepseek(self):
+        service = create_llm_service(self.settings("openrouter"))
+        try:
+            self.assertIsInstance(service, OpenRouterLLMService)
+            self.assertEqual(service.model, FINAL_EVALUATION_MODEL)
+            self.assertEqual(service.provider, "openrouter")
+            self.assertTrue(service.configured)
+            self.assertEqual(service.client.headers["Authorization"], "Bearer test-key")
+        finally:
+            await service.close()
+
+    async def test_legacy_and_shadow_modes_select_local_llm(self):
+        for mode in ("legacy", "shadow", "unexpected"):
+            service = create_llm_service(self.settings(mode))
+            try:
+                self.assertIs(type(service), LLMService)
+            finally:
+                await service.close()
+
+    async def test_openrouter_without_key_is_not_configured(self):
+        service = create_llm_service(self.settings("openrouter", key=""))
+        try:
+            self.assertFalse(service.configured)
+        finally:
+            await service.close()
+
+    async def test_openrouter_payload_disables_reasoning_and_requires_schema_support(self):
+        service = create_llm_service(self.settings("openrouter"))
+        response = FakeResponse({"choices": [{"message": {"content": "{}"}}]})
+        service.client.post = AsyncMock(return_value=response)
+        schema = {"type": "json_schema", "json_schema": {"name": "x", "schema": {}}}
+        try:
+            await service.generate(
+                [
+                    {"role": "system", "content": "rules"},
+                    {"role": "user", "content": "facts\n/no_think"},
+                ],
+                options={"max_tokens": 64, "response_format": schema, "reasoning_effort": "none"},
+            )
+            url = service.client.post.await_args.args[0]
+            payload = service.client.post.await_args.kwargs["json"]
+            self.assertEqual(url, f"{OPENROUTER_BASE_URL}/chat/completions")
+            self.assertEqual(payload["model"], FINAL_EVALUATION_MODEL)
+            self.assertEqual(payload["messages"][1]["content"], "facts")
+            self.assertEqual(payload["reasoning"], {"enabled": False})
+            self.assertNotIn("reasoning_effort", payload)
+            self.assertEqual(payload["response_format"], schema)
+            self.assertEqual(
+                payload["provider"], {"data_collection": "allow", "require_parameters": True}
+            )
+        finally:
+            await service.close()
+
+    async def test_openrouter_without_schema_does_not_require_parameters(self):
+        service = create_llm_service(self.settings("openrouter"))
+        response = FakeResponse({"choices": [{"message": {"content": "ok"}}]})
+        service.client.post = AsyncMock(return_value=response)
+        try:
+            await service.generate([{"role": "user", "content": "hello"}])
+            payload = service.client.post.await_args.kwargs["json"]
+            self.assertEqual(payload["provider"], {"data_collection": "allow"})
         finally:
             await service.close()
 

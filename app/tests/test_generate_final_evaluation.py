@@ -4,8 +4,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from app.config import get_settings as load_settings
-from app.final_evaluation_openrouter import FinalEvaluationProviderError
-from app.final_evaluation import DIMENSION_IDS, FinalAssessment
+from app.final_evaluation_openrouter import FINAL_EVALUATION_MODEL, FinalEvaluationProviderError
+from app.llm_service import LLMServiceError
+from app.final_evaluation import DIMENSION_IDS, FinalAssessment, FinalEvaluationOutputError
 from app.final_evaluation_calculation import (
     behavioural_alignment,
     calculate_behaviours,
@@ -17,8 +18,6 @@ from app.final_evaluation_calculation import (
     weighted_behaviour_data,
 )
 from scripts.generate_final_evaluation import (
-    _write_field,
-    _write_icon,
     choose_participant,
     generate_assessment,
     parse_args,
@@ -164,45 +163,87 @@ class CalculationTests(unittest.TestCase):
         )
 
 
+def structured_answer(messages, **kwargs):
+    payload = json.loads(messages[1]["content"].split("\n/no_think")[0])
+    schema = kwargs["options"]["response_format"]["json_schema"]["schema"]
+    findings = {
+        finding_id: {key: "analysis" if key == "icon" else f"Nhận xét {key} cho {finding_id}."
+                     for key in spec["required"]}
+        for finding_id, spec in schema["properties"]["findings"]["properties"].items()
+    }
+    return json.dumps({
+        "stageAssessments": {group: f"Nhận định có căn cứ cho nhóm {group}." for group in "DESMAP"},
+        "findings": findings,
+        "careerSuggestions": {
+            career_id: "Nhận xét dựa trên dữ liệu. Có dẫn chứng trong hồ sơ. Bạn có thể thử một hoạt động phù hợp."
+            for career_id in payload["careerSuggestions"]
+        },
+        "finalEvaluation": {field: "Nhận xét được viết từ facts đã cung cấp."
+                            for field in payload["finalEvaluation"]["fields"]},
+    }, ensure_ascii=False)
+
+
+def mixed_games() -> list[dict]:
+    doctor = {"gameId": "doctor", "data": {"cases": [{
+        "categorizationAccuracyPercent": 80,
+        "essentialCategorizationAccuracyPercent": 60,
+    }]}}
+    clinic = {"gameId": "clinic", "data": {"patientResults": [
+        {"scoreDelta": 1}, {"scoreDelta": -1},
+    ]}}
+    return [lawyer_game(), doctor, clinic]
+
+
 class AssemblyTests(unittest.IsolatedAsyncioTestCase):
-    async def test_career_writer_repairs_sentence_count_without_splitting_decimal_scores(self):
+    async def generate(self, service):
+        return await generate_assessment(service, participant_name=NAME,
+            participant_email=EMAIL, questionnaire=questionnaire(), game_results=mixed_games(),
+            completed_at=COMPLETED_AT, max_prompt_chars=60_000, max_tokens=12_000)
+
+    async def test_repairs_invalid_fields_in_one_follow_up_request(self):
         service = AsyncMock()
-        service.generate.side_effect = [
-            "Nhận xét ngắn. " * 6,
-            "Bạn tự đánh giá phân tích 82.5/100 và truyền đạt 75/100. Tiêu chí VR đạt 80/100. Bạn có thể thử một tình huống thực tế.",
-        ]
-        text = await _write_field(service, field="careerSuggestions.researcher.description",
-            instruction="Viết 2-3 câu ngắn.", facts={}, max_characters=1200,
-            max_prompt_chars=16_000, max_tokens=512, sentence_range=(2, 3))
-        self.assertIn("82.5/100", text)
+        def answer(messages, **kwargs):
+            if service.generate.await_count == 1:
+                document = json.loads(structured_answer(messages, **kwargs))
+                document["stageAssessments"]["D"] = "INSUFFICIENT_EVIDENCE"
+                document["finalEvaluation"]["headline"] = "Quá dài. " * 50
+                return json.dumps(document, ensure_ascii=False)
+            return structured_answer(messages, **kwargs)
+        service.generate.side_effect = answer
+
+        result = await self.generate(service)
+
+        self.assertEqual(service.generate.await_count, 2)
+        repair = service.generate.await_args_list[1]
+        self.assertEqual([item["role"] for item in repair.args[0]], ["system", "user", "assistant", "user"])
+        self.assertIn("stageAssessments.D", repair.args[0][-1]["content"])
+        self.assertIn("finalEvaluation.headline", repair.args[0][-1]["content"])
+        self.assertEqual(repair.kwargs["options"]["temperature"], 0.0)
+        self.assertIn("response_format", repair.kwargs["options"])
+        self.assertEqual(result.stage_assessments["D"], "Nhận định có căn cứ cho nhóm D.")
+
+    async def test_rejects_output_that_stays_invalid_after_repair(self):
+        service = AsyncMock()
+        service.generate.return_value = "không phải JSON"
+        with self.assertRaises(FinalEvaluationOutputError):
+            await self.generate(service)
         self.assertEqual(service.generate.await_count, 2)
 
-    async def test_retries_an_invalid_single_field_answer(self):
-        for invalid in ('{"text":"Một câu hợp lệ."}', "Câu quá dài. " * 20):
-            with self.subTest(invalid=invalid[:20]):
-                service = AsyncMock()
-                service.generate.side_effect = [invalid, "Một câu hợp lệ."]
-                result = await _write_field(
-                    service, field="finalEvaluation.headline", instruction="Viết một câu.",
-                    facts={"scoreCalculatedByBackend": 75}, max_characters=100,
-                    max_prompt_chars=16_000, max_tokens=512,
-                )
-                self.assertEqual(result, "Một câu hợp lệ.")
-                self.assertEqual(service.generate.await_count, 2)
-                retry = service.generate.await_args_list[1]
-                self.assertIn("100 ký tự", retry.args[0][1]["content"])
-                self.assertNotIn("reasoning_effort", retry.kwargs["options"])
-
-    async def test_invalid_icon_falls_back_to_kind(self):
+    async def test_invalid_icon_is_omitted(self):
         service = AsyncMock()
-        service.generate.return_value = "unknown-icon"
-        self.assertIsNone(await _write_icon(
-            service, field="behaviourComparison.findings.test.icon",
-            facts={"findingTitle": "Xử lý thông tin"}, max_prompt_chars=16_000,
-        ))
+        def answer(messages, **kwargs):
+            document = json.loads(structured_answer(messages, **kwargs))
+            for finding in document["findings"].values():
+                finding["icon"] = "unknown-icon"
+            return json.dumps(document, ensure_ascii=False)
+        service.generate.side_effect = answer
+        result = await self.generate(service)
+        self.assertEqual(service.generate.await_count, 1)
+        self.assertTrue(all(item.icon is None for item in result.behaviour_comparison.findings))
 
     async def test_existing_evaluation_is_skipped_in_single_and_all_modes(self):
-        settings = SimpleNamespace(mongodb_uri="mongodb://example.invalid", mongodb_database="test")
+        settings = SimpleNamespace(mongodb_uri="mongodb://example.invalid", mongodb_database="test",
+                                   pipeline_mode="openrouter")
         client = MagicMock()
         database = MagicMock()
         client.__getitem__.return_value = database
@@ -235,6 +276,7 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
             "LLM_USE_AMD_HYBRID": "true",
             "LLM_BASE_URL": "http://127.0.0.1:8080/v1",
             "OPENROUTER_API_KEY": "test-key",
+            "PIPELINE_MODE": "openrouter",
         }):
             settings = load_settings()
         client = MagicMock()
@@ -261,10 +303,42 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(load.call_args.args[-1], other_name)
         self.assertTrue(settings.llm_use_amd_hybrid)
         self.assertEqual(service_factory.call_args.args[0], "test-key")
-        self.assertEqual(service_factory.call_args.kwargs, {"timeout_seconds": 45})
+        self.assertEqual(service_factory.call_args.kwargs, {"timeout_seconds": 180})
         start.assert_not_called()
         generate.assert_awaited_once()
-        save.assert_called_once_with(evaluation_collection, assessment)
+        save.assert_called_once_with(
+            evaluation_collection, assessment, provider="openrouter", model=FINAL_EVALUATION_MODEL
+        )
+
+    async def test_legacy_mode_writes_with_the_local_llm(self):
+        settings = SimpleNamespace(
+            mongodb_uri="mongodb://example.invalid", mongodb_database="test",
+            openrouter_api_key="test-key", pipeline_mode="legacy",
+        )
+        client = MagicMock()
+        evaluation_collection = MagicMock()
+        evaluation_collection.distinct.return_value = []
+        evaluation_collection.count_documents.return_value = 0
+        client.__getitem__.return_value.__getitem__.return_value = evaluation_collection
+        local = MagicMock(provider="llama.cpp", model="qwen3-4b")
+        local.generate = AsyncMock(side_effect=LLMServiceError("The language model is unavailable."))
+        local.close = AsyncMock()
+        with patch("scripts.generate_final_evaluation.get_settings", return_value=settings), patch(
+            "scripts.generate_final_evaluation.MongoClient", return_value=client
+        ), patch("scripts.generate_final_evaluation.LLMService", return_value=local), patch(
+            "scripts.generate_final_evaluation.FinalEvaluationOpenRouter"
+        ) as openrouter, patch(
+            "scripts.generate_final_evaluation.list_participant_names", return_value=[NAME]
+        ), patch(
+            "scripts.generate_final_evaluation.load_participant_data",
+            return_value=(questionnaire(), EMAIL, [lawyer_game()], NAME),
+        ), patch("scripts.generate_final_evaluation.save_assessment") as save, patch("builtins.print"):
+            with self.assertRaises(FinalEvaluationProviderError):
+                await run(parse_args(["--participant", NAME]))
+        openrouter.assert_not_called()
+        local.generate.assert_awaited()
+        save.assert_not_called()
+        local.close.assert_awaited_once()
 
     def test_legacy_no_start_flag_remains_accepted_without_a_local_runtime(self):
         self.assertTrue(parse_args(["--all", "--no-start-llm"]).no_start_llm)
@@ -272,7 +346,7 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
     async def test_provider_failure_does_not_save_an_incomplete_evaluation(self):
         settings = SimpleNamespace(
             mongodb_uri="mongodb://example.invalid", mongodb_database="test",
-            openrouter_api_key="test-key",
+            openrouter_api_key="test-key", pipeline_mode="openrouter",
         )
         client = MagicMock()
         evaluation_collection = MagicMock()
@@ -298,41 +372,29 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
         service.close.assert_awaited_once()
         client.close.assert_called_once()
 
-    async def test_llm_writes_only_isolated_values_and_code_assembles_json(self):
+    async def test_llm_writes_all_prose_in_one_structured_request_and_code_assembles_json(self):
         service = AsyncMock()
-        def answer(messages, **_kwargs):
-            payload = json.loads(messages[1]["content"].split("\n/no_think")[0])
-            if payload["field"].endswith(".compatibilityPercent"):
-                return "82"
-            if payload["field"].endswith(".icon"):
-                return "analysis"
-            if payload["field"].startswith("careerSuggestions."):
-                return "Nhận xét dựa trên dữ liệu. Có dẫn chứng trong hồ sơ. Bạn có thể thử một hoạt động phù hợp."
-            return "Nhận xét được viết từ facts đã cung cấp."
-        service.generate.side_effect = answer
+        service.generate.side_effect = structured_answer
 
-        doctor = {"gameId": "doctor", "data": {"cases": [{
-            "categorizationAccuracyPercent": 80,
-            "essentialCategorizationAccuracyPercent": 60,
-        }]}}
-        clinic = {"gameId": "clinic", "data": {"patientResults": [
-            {"scoreDelta": 1}, {"scoreDelta": -1},
-        ]}}
-        result = await generate_assessment(service, participant_name=NAME,
-            participant_email=EMAIL, questionnaire=questionnaire(),
-            game_results=[lawyer_game(), doctor, clinic],
-            completed_at=COMPLETED_AT, max_prompt_chars=16_000, max_tokens=512)
+        result = await self.generate(service)
+
+        self.assertEqual(service.generate.await_count, 1)
+        call = service.generate.await_args_list[0]
+        messages = call.args[0]
+        payload = json.loads(messages[1]["content"].split("\n/no_think")[0])
+        response_format = call.kwargs["options"]["response_format"]
+        self.assertEqual(response_format["type"], "json_schema")
+        self.assertTrue(response_format["json_schema"]["strict"])
+        schema = response_format["json_schema"]["schema"]
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(set(schema["required"]),
+                         {"stageAssessments", "findings", "careerSuggestions", "finalEvaluation"})
 
         self.assertEqual(result.participant_name, NAME)
         self.assertEqual(len(result.dimension_levels), 28)
         self.assertEqual(len(result.career_suggestions), 7)
         self.assertGreater(len({item.compatibility_percent for item in result.career_suggestions}), 1)
-        self.assertFalse(any(
-            json.loads(call.args[0][1]["content"].split("\n/no_think")[0])["field"].endswith(".compatibilityPercent")
-            for call in service.generate.await_args_list
-        ), "Career percentages must come from occupational weights, not repeated AI scores")
         self.assertEqual(result.behaviour_comparison.experience_name, "Luật sư, Bác sĩ")
-        self.assertGreaterEqual(len(result.behaviour_comparison.findings), 2)
         self.assertTrue({"confirmed", "emerging"}.issubset(
             {item.kind for item in result.behaviour_comparison.findings}
         ))
@@ -342,69 +404,41 @@ class AssemblyTests(unittest.IsolatedAsyncioTestCase):
             item.remedy is None if item.kind == "confirmed" else bool(item.remedy)
             for item in result.behaviour_comparison.findings
         ))
-        self.assertGreater(service.generate.await_count, 10)
-        remedy_prompts = [
-            json.loads(call.args[0][1]["content"].split("\n/no_think")[0])
-            for call in service.generate.await_args_list
-            if json.loads(call.args[0][1]["content"].split("\n/no_think")[0])["field"].endswith(".remedy")
-        ]
-        self.assertEqual(len(remedy_prompts), sum(
-            item.kind in {"emerging", "development"}
-            for item in result.behaviour_comparison.findings
-        ))
-        self.assertTrue(all(
-            prompt["facts"]["kindCalculatedByBackend"] in {"emerging", "development"}
-            for prompt in remedy_prompts
-        ))
-        self.assertIn("summary", remedy_prompts[0]["facts"])
-        self.assertEqual(remedy_prompts[0]["facts"]["previousRemedies"], [])
-        self.assertTrue(all(
-            prompt["facts"]["learningActivities"]
-            for prompt in remedy_prompts
-        ))
-        self.assertTrue(all("vrFact" not in prompt["facts"] for prompt in remedy_prompts))
-        self.assertTrue(all("game" not in prompt["instruction"].casefold() for prompt in remedy_prompts))
-        if len(remedy_prompts) > 1:
-            first_remedy = next(
-                item.remedy for item in result.behaviour_comparison.findings
-                if item.remedy is not None
-            )
-            self.assertEqual(
-                remedy_prompts[1]["facts"]["previousRemedies"],
-                [first_remedy],
-            )
-        challenge_prompt = next(
-            json.loads(call.args[0][1]["content"].split("\n/no_think")[0])
-            for call in service.generate.await_args_list
-            if json.loads(call.args[0][1]["content"].split("\n/no_think")[0])["field"]
-            == "finalEvaluation.challenge"
-        )
-        has_development = any(
-            item.kind == "development" for item in result.behaviour_comparison.findings
-        )
-        self.assertEqual(challenge_prompt["facts"]["developmentFinding"] is not None,
-                         has_development)
-        self.assertIn("không gọi điểm thấp nhất là điểm yếu", challenge_prompt["instruction"])
-        career_prompts = [
-            json.loads(call.args[0][1]["content"].split("\n/no_think")[0])
-            for call in service.generate.await_args_list
-            if json.loads(call.args[0][1]["content"].split("\n/no_think")[0])["field"].startswith("careerSuggestions.")
-        ]
-        self.assertEqual(len(career_prompts), 7)
-        self.assertTrue(all(len(item["facts"]["questionnaireEvidence"]) >= 2 for item in career_prompts))
-        self.assertTrue(all(item["facts"]["vrEvidence"] for item in career_prompts))
-        self.assertTrue(all(item["facts"]["exploratoryActivity"] for item in career_prompts))
+
+        finding_schemas = schema["properties"]["findings"]["properties"]
+        self.assertEqual(list(finding_schemas), [item.id for item in result.behaviour_comparison.findings])
+        for finding in result.behaviour_comparison.findings:
+            section = payload["findings"][finding.id]
+            has_remedy = finding.kind in {"emerging", "development"}
+            self.assertEqual("remedy" in finding_schemas[finding.id]["required"], has_remedy)
+            self.assertEqual("remedy" in section["fields"], has_remedy)
+            self.assertEqual(bool(section["facts"].get("learningActivities")), has_remedy)
+            self.assertEqual(section["facts"]["kindCalculatedByBackend"], finding.kind)
+        self.assertTrue(all("game" not in section["fields"]["remedy"]["instruction"].casefold()
+                            for section in payload["findings"].values() if "remedy" in section["fields"]))
+
+        final_section = payload["finalEvaluation"]
+        has_development = any(item.kind == "development" for item in result.behaviour_comparison.findings)
+        self.assertEqual(final_section["facts"]["developmentFinding"] is not None, has_development)
+        self.assertIn("không gọi điểm thấp nhất là điểm yếu",
+                      final_section["fields"]["challenge"]["instruction"])
+
+        career_sections = list(payload["careerSuggestions"].values())
+        self.assertEqual(list(payload["careerSuggestions"]), [item.id for item in result.career_suggestions])
+        self.assertFalse(any("compatibilityPercent" in str(spec)
+                             for spec in schema["properties"]["careerSuggestions"]["properties"].values()),
+                         "Career percentages must come from occupational weights, not AI scores")
+        self.assertTrue(all(len(item["facts"]["questionnaireEvidence"]) >= 2 for item in career_sections))
+        self.assertTrue(all(item["facts"]["vrEvidence"] for item in career_sections))
+        self.assertTrue(all(item["facts"]["exploratoryActivity"] for item in career_sections))
+        self.assertIn("3-4 câu ngắn", career_sections[0]["description"]["instruction"])
+        self.assertTrue(all("2-3 câu ngắn" in item["description"]["instruction"] for item in career_sections[1:]))
+        # The generic answer cites no evidence, so every description falls back to the template.
         self.assertTrue(all("/100" in item.description for item in result.career_suggestions))
-        self.assertIn("3-4 câu ngắn", career_prompts[0]["instruction"])
-        self.assertTrue(all("2-3 câu ngắn" in item["instruction"] for item in career_prompts[1:]))
         import re
         for index, career in enumerate(result.career_suggestions):
             count = len(re.split(r'(?<=[.!?])\s+', career.description))
             self.assertIn(count, (3, 4) if index == 0 else (2, 3))
-        for call in service.generate.await_args_list:
-            messages = call.args[0]
-            self.assertIn('"field":', messages[1]["content"])
-            self.assertNotIn("response_format", call.kwargs["options"])
 
 
 if __name__ == "__main__":

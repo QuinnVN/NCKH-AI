@@ -16,10 +16,15 @@ from app.sales_concerns import score_session
 from app.sales_customer_lines import select_customer_line
 from app.sales_rubric import VERSIONS, VIOLATIONS, evaluate, normalized_labels, outcome, remaining, supports_versions
 from app.sales_openrouter import customer_text_rejections
+from app.sales_memory import (QUESTION_FACTS, confirmed_facts, fact_texts, model_context,
+                              related_facts, remember_volunteered_facts)
+from app.sales_concerns import FACT_QUESTIONS
 
 # A model that timed out produced no assessment. The turn is retried from its
 # checkpoint instead of being answered with a clarification or fallback line.
 TIMEOUT_CODES = {"classifier_timeout", "arbitrator_timeout", "writer_timeout", "openrouter_timeout"}
+
+PHYSICAL_LABELS = ("inspectionRequest", "fitOrWalkTrial", "physicalActionRequest")
 
 TERMINAL_REPLIES = {
     "good": "Giờ chị thấy yên tâm hơn. Chị hài lòng, cảm ơn em, chị chào em nhé.",
@@ -45,6 +50,9 @@ def plan_reply(before: Mapping, state: dict, result: dict, labels: Mapping) -> d
     turn = (state.get("customerState") or {}).get("lastTurn", {})
     known = sorted(before.get("investigationEvidence", []))
     answers = list(result.get("disclosedFactIds", []))
+    recalled = confirmed_facts(before, labels)
+    asked = [fact for label, fact in (*QUESTION_FACTS, *FACT_QUESTIONS) if yes(label)]
+    response_facts = list(dict.fromkeys(answers + [fact for fact in asked if fact in known] + recalled))[:2]
     recent = [item.get("customerText", "") for item in before.get("turns", [])[-3:] if item.get("customerText")]
     hostile = bool(before.get("badResponseCount") or result["turnQuality"] == "bad" or state.get("policyViolations"))
     intent, topic, content = "raise_concern", None, []
@@ -75,19 +83,37 @@ def plan_reply(before: Mapping, state: dict, result: dict, labels: Mapping) -> d
         content = ["clarify_refusal"] if topic == "refusal" else []
     elif turn.get("challengeShownNow"):
         intent, content = "trust_challenge", ["trust_challenge"]
+    elif before.get("customerMemory") and (recalled or (yes("confirmationQuestion") and response_facts)):
+        intent = "confirm_fact"
+    elif before.get("customerMemory") and any(yes(label) for label, _ in QUESTION_FACTS):
+        intent = "answer_request"
     elif turn.get("repeatedQuestion"):
         intent = "repeated_question"
     hint = turn.get("hintLevel", 0)
     disposition = ("irritated" if result["turnQuality"] == "bad" else
                    "receptive" if turn.get("resolvedConcerns") or answers else
                    "irritated" if hint >= 2 else "guarded")
+    # Repeating a diagnostic question still gets a reminder. A verification or
+    # operational request gets the factual answer instead of a reprimand.
+    required = response_facts if intent in ("answer_request", "confirm_fact") else answers
+    volunteered = related_facts(state, required) if before.get("customerMemory") else []
+    if (before.get("customerMemory") and any(yes(label) for label in PHYSICAL_LABELS)
+            and intent in ("raise_concern", "repeated_question", "answer_request", "confirm_fact")
+            and len(" ".join(fact_texts(state, list(dict.fromkeys(
+                required + (recalled if intent == "confirm_fact" else [])))).values()).split()) <= 35):
+        # VR has no hand-over or try-on: Lan defers it and the dialogue goes on.
+        # Requested facts come first; a deferral that would not fit is dropped.
+        content = content + ["physical_deferral"]
     return dict(intent=intent, clarifyTopic=topic, concern=turn.get("statedConcern"),
                 missingPart=turn.get("missingPart"), hintLevel=hint,
                 emotion="firm" if disposition == "irritated" else "warmer" if disposition == "receptive" else "cautious",
-                customerDisposition=disposition, fallbackText="", allowedNewFacts=answers, knownFacts=known,
-                requiredPhrases=[], requiredFactIds=answers, requiredContent=content,
+                customerDisposition=disposition, fallbackText="", allowedNewFacts=list(dict.fromkeys(answers + volunteered)), knownFacts=known,
+                requiredPhrases=[], requiredFactIds=required, requiredContent=content,
                 avoidReplyTexts=recent, ending=result.get("endingReason"), hostile=hostile,
-                unresolvedPromises=state.get("unresolvedPromises", []))
+                unresolvedPromises=state.get("unresolvedPromises", []), confirmedFactIds=recalled,
+                allowedVolunteeredFacts=volunteered,
+                factTexts=fact_texts(state, list(dict.fromkeys(known + answers + volunteered))),
+                dialogueMemory=model_context(state)["dialogueMemory"])
 
 
 
@@ -99,6 +125,9 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
             raise KeyError("session_not_found")
         if state.get("diagnosticsDeleted"):
             raise RuntimeError("diagnostics_deleted")
+        # Part 2 always continues the Part 1 customer; there is no separate profile.
+        if not (state.get("customerMemory") or {}).get("priorSaleLinked"):
+            raise ValueError("part1_context_required")
         audio = decode_sales_audio(request.audio)
         request_hash = hashlib.sha256(audio).hexdigest()
         pending = _turn_record(session_id, request, request_hash, int(state["phase"]))
@@ -171,7 +200,7 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
                            "unresolvedPromiseTypes": [promise_labels[code] for code in state.get("unresolvedPromises", []) if code in promise_labels],
                            "challengeShown": state.get("challengeShown", False),
                            "history": [{"player": item.get("transcript", ""), "lan": item.get("customerText", "")}
-                                       for item in state.get("turns", [])[-3:]], **VERSIONS}
+                                       for item in state.get("turns", [])[-3:]], **model_context(state), **VERSIONS}
                 try:
                     classification = await asyncio.wait_for(classifier.classify(transcript, context), state["jevDeadlineSeconds"])
                 except asyncio.TimeoutError as exc:
@@ -195,7 +224,7 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
                     promise_labels = {code: name for name, code in VIOLATIONS.items()}
                     context = {"objective": state["phase"], "knownFacts": state.get("investigationEvidence", []),
                                "unresolvedPromiseTypes": [promise_labels[code] for code in state.get("unresolvedPromises", []) if code in promise_labels],
-                               "history": state.get("turns", [])[-3:]}
+                               "history": state.get("turns", [])[-3:], **model_context(state)}
                     try:
                         if arbitrator is None:
                             arbitrator = LunaSalesArbitrator(settings=replace(get_settings(), sales_luna_timeout_seconds=state["lunaDeadlineSeconds"]))
@@ -255,6 +284,7 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
                 checkpoint.update(written=written, writtenAtUtc=_now())
                 await save_checkpoint()
             written = checkpoint["written"]
+            volunteered = remember_volunteered_facts(candidate, plan, written["customerText"], request.turn_id)
             rating = decision["turnQuality"] if any(label.get("noul") is not None or label.get("source") == "luna"
                                                     for label in labels.values()) else None
             arbitration_error = (checkpoint.get("arbitration") or {}).get("metadata", {}).get("errorCode")
@@ -274,6 +304,7 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
                           activeObjective=candidate["phase"], objectiveActiveDuringTurn=state["phase"],
                           turnAssessment=labels, classifierMetadata=checkpoint["resolvedClassification"].get("metadata", {}),
                           writerMetadata=written.get("metadata", {}), fallbackUsed=written.get("fallbackUsed", False),
+                          volunteeredFactIds=volunteered,
                           policyViolations=[event["code"] for event in candidate.get("policyViolations", []) if event["turnId"] == request.turn_id],
                           processingDurationSeconds=time.monotonic() - started, createdAtUtc=_now())
             def commit(current):
@@ -281,7 +312,7 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
                 keys = ("phase", "assessmentStatus", "clarificationCount", "clarificationIssue", "clarificationIssues", "rubricComponents",
                         "objectiveEvidence", "completedObjectives", "unresolvedPromises", "policyViolations",
                         "evaluableTurnCount", "dialogueTurnCount", "assessmentReviewItems", "supplementalTurnGranted", "endingReason", "status", "challengeShown",
-                        "challengeAnswered", "investigationEvidence", "resolutionAccepted", "customerState")
+                        "challengeAnswered", "investigationEvidence", "resolutionAccepted", "customerState", "customerMemory")
                 for key in keys:
                     if key in candidate:
                         current[key] = copy.deepcopy(candidate[key])
@@ -361,17 +392,24 @@ async def complete(session_id, request, *, store):
                          completionReason=state.get("endingReason") or request.reason)
             state.setdefault("dialogueEndedAtUtc", _now())
             return await store.save(state)
-        # The same ledger fold that rated each turn decides the final result.
-        scored = score_session(state)
-        state.update(scored["outcome"], rubricComponents=scored["rubricComponents"],
-                     policyViolations=scored["policyViolations"], unresolvedPromises=scored["unresolvedPromises"],
-                     completedObjectives=scored["resolvedConcerns"], resolutionAccepted=scored["resolutionAccepted"],
-                     challengeAnswered=4 in scored["resolvedConcerns"])
-        state.update(status="finished", assessmentStatus="completed", completionStatus="completed",
-                     completionId=request.completion_id, completionReason=state.get("endingReason") or request.reason,
-                     completedAtUtc=_now())
-        rating = state["customerRating"]
-        terminal_turns = [turn for turn in state.get("turns", []) if turn.get("conversationComplete") and turn.get("endingReason") == state.get("endingReason")]
-        state["finalCustomerText"] = (terminal_turns[-1]["customerText"] if terminal_turns else
-                                      state.get("finalCustomerText") or TERMINAL_REPLIES[rating])
+        apply_completed_outcome(state, completion_id=request.completion_id, reason=request.reason)
         return await store.save(state)
+
+
+def apply_completed_outcome(state: dict, *, completion_id: str, reason: str) -> None:
+    """Score the ledger and mark the session completed. Labels still uncertain
+    after review earn no credit."""
+    from app.sales_returning_customer import _now
+    # The same ledger fold that rated each turn decides the final result.
+    scored = score_session(state)
+    state.update(scored["outcome"], rubricComponents=scored["rubricComponents"],
+                 policyViolations=scored["policyViolations"], unresolvedPromises=scored["unresolvedPromises"],
+                 completedObjectives=scored["resolvedConcerns"], resolutionAccepted=scored["resolutionAccepted"],
+                 challengeAnswered=4 in scored["resolvedConcerns"])
+    state.update(status="finished", assessmentStatus="completed", completionStatus="completed",
+                 completionId=completion_id, completionReason=state.get("endingReason") or reason,
+                 completedAtUtc=_now())
+    rating = state["customerRating"]
+    terminal_turns = [turn for turn in state.get("turns", []) if turn.get("conversationComplete") and turn.get("endingReason") == state.get("endingReason")]
+    state["finalCustomerText"] = (terminal_turns[-1]["customerText"] if terminal_turns else
+                                  state.get("finalCustomerText") or TERMINAL_REPLIES[rating])

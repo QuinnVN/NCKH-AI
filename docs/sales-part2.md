@@ -2,7 +2,21 @@
 
 ## Versioned OpenRouter pipeline
 
-New sessions can opt into the Sales-only OpenRouter pipeline, currently v3 (see the section on customer concerns below). Jev recognizes independent player acts, backend evidence rules own progression and assessment, Qwen writes Lan's response from an approved plan, and local Supertonic speaks committed text. The rollout default remains legacy. Shadow mode observes Jev without changing legacy gameplay.
+New sessions can opt into the Sales-only OpenRouter pipeline, currently v3.1. Jev recognizes independent player acts, backend evidence rules own progression and assessment, Qwen writes Lan's response from an approved plan, and local Supertonic speaks committed text. The rollout default remains legacy. Shadow mode observes Jev without changing legacy gameplay.
+
+### Customer facts and Part 1 continuity in v3.1
+
+Unity's returning-customer scenario sends `customerId` and `continuesPart1Customer=true` with the Part 1 attempt and run IDs. The backend inherits needs, the original budget and purchased product only when the attempt belongs to the same customer, session and run. A distinct-customer scenario sets the flag to false. Omitted flags preserve the existing identity on resume and default to false for a new API session. Linking or changing identity after dialogue has started is rejected; rejected requests leave the saved session unchanged.
+
+`customerMemory` stores each authored fact's text, source, certainty, whether Lan has shared it and its first disclosure turn. Purchase history, the complaint and earlier advice are already shared in the opening. Part 1 disclosures stay available after they leave the last-three-turn prompt window. Private scenario knowledge does not earn investigation credit until disclosed. A recognized, accurate recall of a shared need or fit/preference fact can earn the corresponding investigation component without forcing another question.
+
+Receipt requests receive Lan's missing-receipt answer. The pipeline also handles purchase date, shoe condition, socks, earlier shoes, model/price, budget, packaging, medical history and use duration. Unknown values remain unknown. The original purchase budget does not imply agreement to pay a surcharge. A linked purchase uses its actual needs and product; the separate scenario's heavy-shoe cause and campus routine cannot replace them.
+
+Lan's authored answers may volunteer related facts, such as thin socks in a preference answer. Only allowed clauses actually spoken in the committed reply enter shared memory. VR has no physical actions. When the player asks Lan to hand over, inspect, try on or take home shoes (`inspectionRequest`, `fitOrWalkTrial`, `physicalActionRequest`), the plan adds `physical_deferral`: Lan says she did not bring the shoes today and will bring them back another day, then continues her concern or answer. The deferral is dropped when a long factual answer would not fit, and never replaces an ending, warning or challenge. Memory records such actions as `requested` then `deferred`; no state claims that a hand-over, inspection or trial happened, and the `physical_action` guard rejects replies in which Lan performs one. The first operational request or factual confirmation counts as dialogue progress without adding rubric points. Repeated requests still consume the turn budget.
+
+Classifier and arbitration requests receive allowlisted fact text and bounded dialogue state. The writer receives planned answers and shared facts. Guards reject invented model/price/size/medical details, false claims that known needs are missing, completed inspections/trials without evidence, and extra receipt/tag/box/unworn exchange conditions. Public session responses omit customer memory; diagnostic deletion removes memory text and model-context snapshots while preserving scoring IDs.
+
+New sessions freeze `sales-openrouter-v3.1`, `sales-rubric-v3.1`, `returning-shoes-v3`, `sales-jev-v5`, `sales-thresholds-v2.1` and `lan-writer-v5`. Stored results are not rewritten. Active sessions from an older version require a new run. See [verification](verification/sales-memory-2026-10-08.md).
 
 V2 allows at most eight processed dialogue turns by default and requires a player response after the trust challenge for restored trust. Completing the objectives ends the conversation immediately, including when turns remain. The limit is strict: a solution completed on the last turn does not grant a ninth turn or emit a challenge the player cannot answer. `supplementalTurnGranted` remains false for new sessions. An explicit manager transfer, maintained unauthorized promise or two valid silent turns can also end it early. A client completion request after an accepted turn records `stopped_early` when the objectives are incomplete.
 
@@ -75,7 +89,8 @@ Run one backend worker for this file-backed store. Atomic file replacement prote
 
 | Method and route | Request / behavior |
 | --- | --- |
-| `POST /api/sales/sessions` | `{ "sessionId": "...", "part1AttemptId": "..." }`; omit the optional Part 1 ID until uploaded. Creates or resumes without resetting progress. |
+| `POST /api/sales/sessions` | `{ "sessionId": "...", "part1AttemptId": "...", "runId": "...", "customerId": "Lan", "continuesPart1Customer": true }`; omit the optional Part 1 ID until uploaded. Creates or resumes without resetting progress. |
+| `POST /api/sales/sessions/{sessionId}/part1` | Associates an uploaded `part1AttemptId`; accepts the same run/customer continuity fields. Explicit continuity validates ownership before inheriting facts. |
 | `GET /api/sales/sessions/{sessionId}` | Current phase, counts, last customer text, and completion status; excludes stored conversation and turn caches. |
 | `GET /api/sales/sessions/{sessionId}/speech/{speechId}` | Resolves an opaque speech ID to authoritative Lan text, synthesizes a complete WAV in memory, and returns `audio/wav`. It never accepts caller text. |
 | `POST /api/tts` | Internal bounded text-to-speech endpoint. Accepts `{ "text": "..." }` with at most 600 characters and returns a complete WAV. |

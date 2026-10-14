@@ -6,9 +6,10 @@ bypass the repetition, fact or policy checks.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping
 
-from app.sales_openrouter import FACTS, customer_text_rejections
+from app.sales_openrouter import customer_text_rejections, fact_texts as allowed_fact_texts
 
 MANDATORY_CHALLENGE = ("Nhưng lần trước em cũng tư vấn đôi này phù hợp với chị. "
                        "Làm sao chị biết lần này sẽ không gặp vấn đề tương tự?")
@@ -105,9 +106,9 @@ CONCERN_LINES: dict[int, dict[str, tuple[tuple[str, ...], ...]]] = {
             ("Em chưa nói đôi mới khác đôi này ở điểm nào cho hợp với chị.",
              "Chị chưa thấy em đề xuất đôi nào hợp với cách chị dùng giày.",
              "Em nói đổi mà chưa nói chị nên đổi sang loại giày thế nào."),
-            ("Chị cần một đôi nhẹ hơn, hợp với việc phải đi nhiều mỗi ngày.",
-             "Em giới thiệu cho chị loại giày nhẹ, hợp để chị mang cả ngày được không?",
-             "Chị muốn em chọn đôi nào nhẹ chân hơn đôi này cho chị."),
+            ("Chị cần em đề xuất cách xử lý hợp với đúng việc chị dùng giày, chứ không chỉ đổi cho có.",
+             "Em nói rõ giúp chị nên đổi sang đôi nào, cỡ nào hay xử lý thế nào cho hợp với chị.",
+             "Chị muốn em chọn cách nào để chị mang đôi giày mà không bị đau nữa."),
         ),
         "trial": (
             ("Chị vẫn lo đôi mới mang vào lại khó chịu như đôi này.",
@@ -116,8 +117,8 @@ CONCERN_LINES: dict[int, dict[str, tuple[tuple[str, ...], ...]]] = {
             ("Em chưa cho chị cách nào để biết đôi mới có hợp hay không.",
              "Em giới thiệu đôi khác nhưng chị chưa có cách nào kiểm tra trước.",
              "Chị chưa được thử gì mà em đã bảo đôi mới hợp rồi."),
-            ("Chị cần được mang thử và bước vài bước trong tiệm trước khi quyết định.",
-             "Em cho chị thử đôi mới ngay ở đây xem có thoải mái không.",
+            ("Chị cần được thử đôi mới cho chắc trước khi quyết định đổi.",
+             "Em tính cho chị thử đôi mới thế nào trước khi đổi hẳn?",
              "Chị muốn kiểm tra xem đôi mới mang có êm chân không đã."),
         ),
     },
@@ -151,8 +152,8 @@ CONCERN_LINES: dict[int, dict[str, tuple[tuple[str, ...], ...]]] = {
             ("Em chưa cho chị cách nào để kiểm chứng đôi mới trước khi mang về.",
              "Em nói hay nhưng chị chưa được thử đôi mới lần nào.",
              "Chị chưa có cách nào biết trước đôi mới có hợp hay không."),
-            ("Chị cần được thử đôi mới ngay tại tiệm trước khi đồng ý.",
-             "Em để chị mang thử đôi mới bước vài vòng trong tiệm đã.",
+            ("Chị cần được thử đôi mới cho chắc trước khi đồng ý.",
+             "Em cho chị cách nào để thử đôi mới trước khi đổi hẳn đã.",
              "Chị muốn tự kiểm tra cảm giác khi mang đôi mới trước đã."),
         ),
     },
@@ -253,10 +254,18 @@ GENERIC_LINES = ("Chị vẫn chưa thấy chuyện của chị được giải 
                  "Chị vẫn đang chờ em giải quyết chuyện đôi giày này.")
 LAST_RESORT = "Chị vẫn đang chờ em giải quyết chuyện đôi giày này."
 
+# VR has no hand-over or try-on. Lan defers any physical request instead of
+# pretending it happens; each line is one sentence so a concern can follow.
+DEFERRAL_LINES = (
+    "Hôm nay chị không mang giày theo, hôm khác chị mang lại cho em.",
+    "Chị không mang đôi giày theo đây, để hôm khác chị mang lại.",
+    "Giờ chị không mang giày theo, lần sau ghé chị mang lại nhé.",
+    "Hôm nay chị không mang theo đôi đó, để chị mang lại sau.")
 
-def fact_sentence(fact_ids: Any) -> str:
+
+def fact_sentence(fact_ids: Any, fact_texts: Any = None) -> str:
     """One sentence answering up to two facts, so a concern can follow it."""
-    texts = [FACTS[fact].strip() for fact in (fact_ids or []) if fact in FACTS]
+    texts = list(allowed_fact_texts(fact_ids, fact_texts).values())
     if not texts:
         return ""
     sentence = texts[0].rstrip(".")
@@ -280,7 +289,10 @@ def _join(prefix: str, core: str) -> str:
 
 def candidates(plan: Mapping) -> list[str]:
     intent = plan.get("intent")
-    prefix = fact_sentence(plan.get("requiredFactIds"))
+    answers = list(plan.get("requiredFactIds") or [])
+    if intent == "confirm_fact":
+        answers = list(dict.fromkeys(answers + list(plan.get("confirmedFactIds") or [])))
+    prefix = fact_sentence(answers, plan.get("factTexts"))
     content = plan.get("requiredContent") or []
     content = [content] if isinstance(content, str) else list(content)
     concern = concern_lines(plan.get("concern"), plan.get("missingPart"), plan.get("hintLevel"))
@@ -291,6 +303,19 @@ def candidates(plan: Mapping) -> list[str]:
         return [_join(prefix, line) for line in ENDING_LINES.get(key, ENDING_LINES["ending_review"])]
     if intent in ACTION_LINES:
         return [_join(prefix, line) for line in ACTION_LINES[intent]]
+    if "physical_deferral" in content:
+        # At most two sentences: an answer or the core line follows the deferral.
+        if prefix:
+            return [_join(prefix, line) for line in DEFERRAL_LINES]
+        core = candidates({**plan, "requiredContent": [c for c in content if c != "physical_deferral"]})
+        single = [line for line in core if len([p for p in re.split(r"[.!?]+", line) if p.strip()]) == 1]
+        return [_join(line, extra) for extra in single for line in DEFERRAL_LINES] + list(DEFERRAL_LINES)
+    if intent in {"answer_request", "confirm_fact"}:
+        # Verification gets a plain answer instead of a repeated-question
+        # reprimand. Different openings preserve authored factual clauses.
+        if prefix:
+            return [opening + prefix for opening in ("", "Đúng rồi em, ", "Ừ em, ", "Chị nói rõ nhé, ")]
+        return list(GENERIC_LINES)
     if intent == "clarify_meaning":
         topic = plan.get("clarifyTopic") if plan.get("clarifyTopic") in CLARIFY_LINES else "general"
         lines = [_join(prefix, line) for line in CLARIFY_LINES[topic]]
@@ -313,10 +338,16 @@ def select_customer_line(plan: Mapping, transcript: str = "") -> dict:
         if not codes:
             return {"text": text, "candidateIndex": index, "rejectedCandidates": rejected, "exhausted": False}
         rejected.append({"index": index, "rejectionCodes": codes})
-    # Unreachable for well-formed plans: the pools are sized against the
-    # three-reply repetition window. Keep the session alive and flag it.
-    return {"text": options[0] if options else LAST_RESORT, "candidateIndex": None,
-            "rejectedCandidates": rejected, "exhausted": True}
+    # Never replace an answer or consent with a generic concern if incidental
+    # repetition/length checks exhaust the pool. Keep explicit diagnostics.
+    required = list(plan.get("requiredFactIds") or [])
+    if plan.get("intent") == "confirm_fact":
+        required = list(dict.fromkeys(required + list(plan.get("confirmedFactIds") or [])))
+    answer = fact_sentence(required, plan.get("factTexts"))
+    consent = DEFERRAL_LINES if "physical_deferral" in (plan.get("requiredContent") or []) else ()
+    last_resort = _join(answer, consent[0]) if consent else answer
+    return {"text": last_resort or (options[0] if options else LAST_RESORT), "candidateIndex": None,
+             "rejectedCandidates": rejected, "exhausted": True}
 
 
 def choose_customer_line(plan: Mapping, transcript: str = "") -> str:

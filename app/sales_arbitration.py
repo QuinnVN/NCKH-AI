@@ -10,13 +10,14 @@ import unicodedata
 from collections.abc import Mapping, Sequence
 
 from app.sales_openrouter import (ARBITRATOR_VERSION, CHAT_ENDPOINT, LUNA_MODEL,
-    QUESTION_TEXT, SCENARIO, SalesClassifierError, _OpenRouterAdapter, _SCOPE,
+    QUESTION_TEXT, SalesClassifierError, _OpenRouterAdapter, _SCOPE,
     _fact_ids, _history, _metadata, _text)
 from app.sales_concerns import (BAD_TURN_LABELS, FACT_QUESTIONS, RETRACTIONS, VIOLATIONS, critical_labels,
     score_ledger)
+from app.sales_memory import QUESTION_FACTS as MEMORY_QUESTIONS, RECALL_FACTS
 
 MAX_LABELS = 8
-QUESTION_FACTS = {label: fact for label, fact in FACT_QUESTIONS if fact != "appearance"}
+QUESTION_FACTS = {label: fact for label, fact in (*MEMORY_QUESTIONS, *FACT_QUESTIONS) if fact != "appearance"}
 
 
 def select_arbitration_labels(state: Mapping, labels: Mapping) -> list[str]:
@@ -52,8 +53,15 @@ def select_arbitration_labels(state: Mapping, labels: Mapping) -> list[str]:
     statuses = {name: value.get("status", "uncertain") for name, value in labels.items() if isinstance(value, Mapping)}
     add(*critical_labels(customer, statuses, known, bool(state.get("challengeShown"))))
     for name, fact in QUESTION_FACTS.items():
-        if fact not in known and status(name) == "uncertain":
+        if (state.get("customerMemory") or (name, fact) in FACT_QUESTIONS) and fact not in known and status(name) == "uncertain":
             add(name)
+    if state.get("customerMemory"):
+        for name, fact in RECALL_FACTS.items():
+            if fact in known and status(name) == "uncertain":
+                add(name)
+        for name in ("receiptRequest", "inspectionRequest", "physicalActionRequest", "confirmationQuestion"):
+            if status(name) == "uncertain":
+                add(name)
     return selected[:MAX_LABELS]
 
 
@@ -136,12 +144,18 @@ class LunaSalesArbitrator(_OpenRouterAdapter):
         objective = context.get("objective", context.get("phase"))
         unresolved = context.get("unresolvedPromiseTypes", [])
         unresolved = unresolved if isinstance(unresolved, (list, tuple)) else []
-        data = {"scenario": SCENARIO, "current_player_utterance": _text(transcript),
+        from app.sales_memory import scenario_context
+        from app.sales_memory import bounded_model_memory
+        memory = bounded_model_memory(context)
+        scenario = scenario_context({"factTexts": memory["known_fact_texts"],
+                                     "dialogueMemory": memory["dialogue_memory"]})
+        data = {"scenario": scenario, "current_player_utterance": _text(transcript),
             "objective": objective if type(objective) is int and 1 <= objective <= 4 else None,
             "known_fact_ids": _fact_ids(context.get("knownFacts", [])),
             "prior_dialogue": _history(context.get("history", [])),
             "unresolved_promise_types": [name for name in unresolved if name in VIOLATIONS],
             "questions": {name: QUESTION_TEXT[name] for name in selected}}
+        data.update(memory)
         instruction = (_SCOPE + "Classify each supplied independent act as true, false or uncertain. "
             "Output only the requested JSON object. For true, quote a short exact span from "
             "current_player_utterance as evidence. For false, use an empty evidence string if the act is absent, "

@@ -90,7 +90,7 @@ class Settings:
     mongodb_uri: str | None
     mongodb_database: str
     mongodb_results_collection: str
-    sales_pipeline_mode: str = "legacy"
+    pipeline_mode: str = "legacy"
     openrouter_api_key: str | None = field(default=None, repr=False)
     sales_max_turns: int = 8
     sales_jev_timeout_seconds: float = 3.0
@@ -187,8 +187,8 @@ def get_settings() -> Settings:
         mongodb_uri=os.environ.get("MONGODB_URI", "").strip() or None,
         mongodb_database=os.environ.get("MONGODB_DATABASE", "desmap").strip() or "desmap",
         mongodb_results_collection=os.environ.get("MONGODB_RESULTS_COLLECTION", "game_results").strip() or "game_results",
-        sales_pipeline_mode=(os.environ.get("SALES_PIPELINE_MODE", "legacy").strip().lower()
-                             if os.environ.get("SALES_PIPELINE_MODE", "legacy").strip().lower()
+        pipeline_mode=(os.environ.get("PIPELINE_MODE", "legacy").strip().lower()
+                             if os.environ.get("PIPELINE_MODE", "legacy").strip().lower()
                              in {"legacy", "shadow", "openrouter"} else "legacy"),
         openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", "").strip() or None,
         sales_max_turns=_env_int("SALES_MAX_TURNS", 8, minimum=4, maximum=32),

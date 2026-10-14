@@ -101,7 +101,7 @@ class FakeAnalyzer:
 class ReturningCustomerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.enterContext(patch.dict(os.environ, {
-            "SALES_PIPELINE_MODE": "legacy", "DISABLE_AI_SALE_PT2": "false",
+            "PIPELINE_MODE": "legacy", "DISABLE_AI_SALE_PT2": "false",
         }))
         self.temp = tempfile.TemporaryDirectory()
         self.store = ReturningSessionStore(Path(self.temp.name))

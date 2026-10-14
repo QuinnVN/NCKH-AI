@@ -5,7 +5,10 @@ import tempfile
 import unittest
 import wave
 
+from app.config import get_settings
 from app.lawyer_assessment import (
+    LAWYER_ASSESSMENT_FORMAT,
+    LLMLawyerAssessor,
     LawyerAttemptConflictError,
     LawyerAttemptStore,
     LawyerCriterionAssessment,
@@ -167,6 +170,30 @@ class LawyerAssessmentTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(LawyerAttemptConflictError):
             await self.store.accept(submission(restarts=4))
 
+
+class LLMLawyerAssessorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sends_schema_with_no_think_and_per_message_limit(self):
+        calls = []
+
+        class LocalService:
+            configured = True
+
+            async def generate(self, messages, *, options, max_message_chars):
+                calls.append((messages, options, max_message_chars))
+                return (
+                    '{"evidence_use":10,"logical_connections":10,"conclusion_fidelity":5,'
+                    '"clarity_and_persuasiveness":5,"feedback_vi":"Ổn."}'
+                )
+
+        assessment = await LLMLawyerAssessor(LocalService()).assess(
+            submission().model_dump(by_alias=True), "Chưa đủ chứng cứ."
+        )
+
+        self.assertEqual(assessment.raw_score, 30)
+        messages, options, limit = calls[0]
+        self.assertTrue(messages[1]["content"].endswith("\n/no_think"))
+        self.assertEqual(options["response_format"], LAWYER_ASSESSMENT_FORMAT)
+        self.assertEqual(limit, get_settings().max_lawyer_prompt_chars)
 
 if __name__ == "__main__":
     unittest.main()

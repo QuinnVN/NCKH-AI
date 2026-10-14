@@ -29,7 +29,7 @@ from app.career_assessment import (
     parse_assessment_response,
 )
 from app.config import get_settings
-from app.llm_service import LLMService, LLMServiceError
+from app.llm_service import LLMService, LLMServiceError, create_llm_service
 from app.lawyer_assessment import (
     LLMLawyerAssessor,
     LawyerAttemptConflictError,
@@ -172,7 +172,7 @@ async def _result_sync_loop():
 async def lifespan(app: FastAPI):
     global llm_service, disconnect_abort_task
 
-    llm_service = LLMService()
+    llm_service = create_llm_service()
     await sales_transcriber.initialize()
     await run_result_store.abort_unfinished()
     retention_task = asyncio.create_task(_sales_retention_loop())
@@ -1266,6 +1266,8 @@ async def create_sales_session(
             request.part1_attempt_id,
             run_id,
             participant.name if participant is not None else None,
+            customer_id=request.customer_id,
+            continues_part1_customer=request.continues_part1_customer,
         )
     except ValueError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
@@ -1337,6 +1339,8 @@ async def associate_sales_part1(
             request.part1_attempt_id,
             run_id,
             participant.name if participant is not None else None,
+            customer_id=request.customer_id,
+            continues_part1_customer=request.continues_part1_customer,
         )
     except ValueError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception

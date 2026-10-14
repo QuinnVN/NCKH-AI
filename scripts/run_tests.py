@@ -16,7 +16,7 @@ import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_ENV = {
-    "SALES_PIPELINE_MODE": "legacy",
+    "PIPELINE_MODE": "legacy",
     "OPENROUTER_API_KEY": "offline-test-key",
     "MONGODB_URI": "",
     "BACKEND_API_TOKEN": "",

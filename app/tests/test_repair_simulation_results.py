@@ -10,14 +10,21 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
+import wave
 
+from app.run_results import RunResultStore
+from app.sales_concerns import RETRACTIONS
+from app.sales_openrouter import QUESTION_TEXT
 from app.sales_returning_customer import ENDING_VARIANTS
+from app.sales_rubric import VERSIONS as SALES_VERSIONS
 from scripts.repair_simulation_results import (
     _draft_display_date,
     _interactive_reevaluation,
     _reevaluation_candidates,
+    SalesPipeline,
+    apply_plan,
     main,
-    maintain_results,
+    plan_maintenance,
     reevaluate_draft,
 )
 
@@ -147,6 +154,25 @@ def aggregate(run_id: str, participant: str = "Participant", *, legacy: bool = F
 
 def write_json(path: Path, value: dict) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+
+
+def write_wav(path: Path) -> None:
+    with wave.open(str(path), "wb") as recording:
+        recording.setnchannels(1)
+        recording.setsampwidth(2)
+        recording.setframerate(16000)
+        recording.writeframes((4000).to_bytes(2, "little", signed=True) * 1600)
+
+
+class FakeSpeech:
+    def __init__(self) -> None:
+        self.closed = False
+
+    async def initialize(self) -> bool:
+        return True
+
+    async def close(self) -> None:
+        self.closed = True
 
 
 class RepairSimulationResultsTests(unittest.TestCase):
@@ -323,6 +349,190 @@ class RepairSimulationResultsTests(unittest.TestCase):
             self.assertEqual(repaired["data"]["turns"][0]["turnId"], "turn-1")
             self.assertEqual(repaired["requiredFields"], ["part1", "part2"])
 
+    def _openrouter_sale_fixture(self, recordings: Path) -> tuple[str, dict]:
+        session_id = "c" * 32
+        attempt_id = "attempt-or"
+        session = {
+            "sessionId": session_id, "runId": "sale-run", "part1AttemptId": attempt_id,
+            "pipelineMode": "openrouter", "maxTurns": 8, "status": "awaitingCompletion",
+            "assessmentStatus": "needs-review", "endingReason": "stalemate",
+            "assessmentReviewItems": [{"turnId": "turn-1", "objective": 1, "labels": ["openQuestion"]}],
+            "evidenceLedger": [], "policyViolations": [], "silenceCount": 0,
+            "acceptedTurnCount": 2, "goodResponseCount": 0, "badResponseCount": 0,
+            **{name: "old-v1" for name in SALES_VERSIONS},
+            "turns": [
+                {"turnId": "turn-1", "accepted": True, "transcript": "Em xin lỗi chị.",
+                 "customerText": "Chị vẫn đau chân."},
+                {"turnId": "turn-2", "accepted": True, "transcript": "Chị đi bao lâu thì đau ạ?",
+                 "customerText": "Chị đi mới ba ngày."},
+            ],
+        }
+        part1 = {
+            "attemptId": attempt_id, "salesSessionId": session_id, "runId": "sale-run",
+            "customerId": "Lan", "selectedShoeId": "shoe-1", "bestFitShoeId": "shoe-1",
+            "customerNeeds": "Cần giày chạy bộ.", "objection": "Mẫu còn đơn giản.",
+            "availableShoes": [{"shoeId": "shoe-1", "name": "Giày A", "price": 1200000,
+                                "details": "Nhẹ, phù hợp chạy bộ."}],
+            "transcript": "Em đề xuất Giày A vì nhẹ và phù hợp chạy bộ.",
+            "createdAtUtc": "2026-09-16T01:00:00Z",
+        }
+        write_json(recordings / f"sales-session-{session_id}.json", session)
+        write_json(recordings / f"sales-persuasion-{attempt_id}.json", part1)
+        original = draft("sale-run", game_id="sale")
+        original["data"] = {}
+        original["requiredFields"] = []
+        return session_id, original
+
+    def test_needs_review_sale_rerun_replays_audio_through_full_pipeline(self):
+        class FakeTranscriber:
+            def __init__(self, texts):
+                self.texts = texts
+
+            async def transcribe(self, path):
+                return next(text for turn_id, text in self.texts.items()
+                            if Path(path).stem.endswith("-turn-" + turn_id))
+
+        class FakeJev:
+            def __init__(self):
+                self.transcripts = []
+
+            async def classify(self, transcript, context):
+                self.transcripts.append(transcript)
+                self.versions = {name: context.get(name) for name in SALES_VERSIONS}
+                return {"labels": {name: {"noul": 0.95 if name == "acknowledgment" else 0.0}
+                                   for name in (*QUESTION_TEXT, *RETRACTIONS)}}
+
+        class FakeLuna:
+            async def adjudicate(self, transcript, context, requested):
+                return {"labels": {}, "metadata": {}}
+
+        class FakeWriter:
+            def __init__(self):
+                self.calls = 0
+
+            async def write(self, plan, transcript, history):
+                self.calls += 1
+                return {"customerText": plan["fallbackText"], "metadata": {}, "fallbackUsed": False}
+
+        with tempfile.TemporaryDirectory() as temporary:
+            recordings = Path(temporary)
+            session_id, original = self._openrouter_sale_fixture(recordings)
+            for turn_id in ("turn-1", "turn-2"):
+                write_wav(recordings / f"sales-session-{session_id}-turn-{turn_id}.wav")
+            transcriber = FakeTranscriber({"turn-1": "STT một", "turn-2": "STT hai"})
+            jev, writer = FakeJev(), FakeWriter()
+            session_path = recordings / f"sales-session-{session_id}.json"
+            recorded = session_path.read_bytes()
+
+            with patch.dict(os.environ, {"LLM_USE_AMD_HYBRID": "false", "PIPELINE_MODE": "openrouter"}):
+                repaired = asyncio.run(reevaluate_draft(
+                    original, recordings, session_id, FakeLLMService(),
+                    pipeline=SalesPipeline(transcriber, jev, writer, FakeLuna()),
+                ))
+
+            part2 = repaired["data"]["part2"]
+            self.assertEqual(jev.transcripts, ["STT một", "STT hai"])
+            self.assertEqual(writer.calls, 2)
+            self.assertEqual(jev.versions, SALES_VERSIONS)
+            self.assertEqual([turn["transcript"] for turn in repaired["data"]["turns"]], ["STT một", "STT hai"])
+            self.assertEqual(part2["rubricVersion"], SALES_VERSIONS["rubricVersion"])
+            self.assertEqual(part2["assessmentStatus"], "completed")
+            self.assertEqual(part2["repair"]["method"], "full_pipeline_rerun")
+            self.assertEqual(part2["repair"]["recordedVersions"]["rubricVersion"], "old-v1")
+            self.assertEqual(part2["repair"]["turnsReplayed"], 2)
+            self.assertTrue(part2["emotionalHandling"])
+            self.assertTrue(RunResultStore._ready_to_finalize(repaired))
+            self.assertEqual(session_path.read_bytes(), recorded)
+
+    def test_needs_review_sale_rerun_requires_stored_turn_audio(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            recordings = Path(temporary)
+            session_id, original = self._openrouter_sale_fixture(recordings)
+
+            with (
+                patch.dict(os.environ, {"LLM_USE_AMD_HYBRID": "false", "PIPELINE_MODE": "openrouter"}),
+                self.assertRaisesRegex(FileNotFoundError, "turn-1"),
+            ):
+                asyncio.run(reevaluate_draft(
+                    original, recordings, session_id, FakeLLMService(),
+                    pipeline=SalesPipeline(transcriber=object()),
+                ))
+
+    def test_needs_review_sale_without_rerun_replays_recorded_ledger(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            recordings = Path(temporary)
+            session_id, original = self._openrouter_sale_fixture(recordings)
+
+            with patch.dict(os.environ, {"LLM_USE_AMD_HYBRID": "false"}):
+                repaired = asyncio.run(reevaluate_draft(original, recordings, session_id, FakeLLMService()))
+
+            part2 = repaired["data"]["part2"]
+            self.assertEqual(part2["rubricVersion"], "old-v1")
+            self.assertEqual(part2["assessmentStatus"], "completed")
+            self.assertEqual(part2["repair"]["method"], "ledger_replay")
+            self.assertEqual(part2["repair"]["unresolvedReviewItems"], 1)
+            self.assertTrue(RunResultStore._ready_to_finalize(repaired))
+
+    def test_interactive_reevaluation_offers_pipeline_rerun_for_needs_review_sale(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            results = root / "simulation-results"
+            results.mkdir()
+            session_id, original = self._openrouter_sale_fixture(root)
+            write_json(results / "run-sale-run.draft.json", original)
+            answers = iter(("1", session_id, "", "y"))
+            prompts = []
+
+            def answer(prompt):
+                prompts.append(prompt)
+                return next(answers)
+
+            transcriber = FakeSpeech()
+
+            with (
+                patch("scripts.repair_simulation_results._llm_endpoint_reachable", return_value=True),
+                patch(
+                    "scripts.repair_simulation_results.reevaluate_draft",
+                    new=AsyncMock(return_value=original),
+                ) as reevaluate,
+                redirect_stdout(io.StringIO()) as output,
+            ):
+                completed = _interactive_reevaluation(
+                    results, root, input_fn=answer, transcriber_factory=lambda: transcriber,
+                )
+
+            self.assertTrue(completed)
+            self.assertIn("STT, Jev, Luna, writer", prompts[2])
+            self.assertIn("rubricVersion: old-v1 -> " + SALES_VERSIONS["rubricVersion"], output.getvalue())
+            self.assertIs(reevaluate.await_args.kwargs["pipeline"].transcriber, transcriber)
+            self.assertTrue(transcriber.closed)
+
+    def test_interactive_reevaluation_does_not_offer_rerun_without_needs_review(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            results = root / "simulation-results"
+            results.mkdir()
+            session_id, original = self._openrouter_sale_fixture(root)
+            session_path = root / f"sales-session-{session_id}.json"
+            session = json.loads(session_path.read_text(encoding="utf-8"))
+            session.update(assessmentStatus="pending", assessmentReviewItems=[])
+            write_json(session_path, session)
+            write_json(results / "run-sale-run.draft.json", original)
+            answers = iter(("1", session_id, "y"))
+
+            with (
+                patch("scripts.repair_simulation_results._llm_endpoint_reachable", return_value=True),
+                patch(
+                    "scripts.repair_simulation_results.reevaluate_draft",
+                    new=AsyncMock(return_value=original),
+                ) as reevaluate,
+                redirect_stdout(io.StringIO()),
+            ):
+                completed = _interactive_reevaluation(results, root, input_fn=lambda _: next(answers))
+
+            self.assertTrue(completed)
+            self.assertIsNone(reevaluate.await_args.kwargs["pipeline"])
+
     def test_dry_run_reports_without_changes(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -330,7 +540,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             original = draft("run-1")
             write_json(path, original)
 
-            summary = maintain_results(directory, apply=False)
+            summary = plan_maintenance(directory).summary
 
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), original)
             self.assertFalse((directory / "run-run-1.json").exists())
@@ -344,7 +554,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             write_json(directory / "run-run-2.draft.json", record)
             mongo = FakeMongo()
 
-            summary = maintain_results(directory, apply=True, mongo=mongo)
+            summary = apply_plan(plan_maintenance(directory), mongo)
 
             repaired = json.loads((directory / "run-run-2.draft.json").read_text(encoding="utf-8"))
             completed = json.loads((directory / "run-run-2.json").read_text(encoding="utf-8"))
@@ -365,7 +575,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             write_json(directory / "run-run-3.json", record)
             mongo = FakeMongo()
 
-            summary = maintain_results(directory, apply=True, mongo=mongo)
+            summary = apply_plan(plan_maintenance(directory), mongo)
 
             repaired = json.loads((directory / "run-run-3.json").read_text(encoding="utf-8"))
             self.assertNotIn("criterionScores", repaired["data"])
@@ -384,7 +594,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             path = directory / "run-run-4.draft.json"
             write_json(path, record)
 
-            summary = maintain_results(directory, apply=True, mongo=FakeMongo())
+            summary = apply_plan(plan_maintenance(directory), FakeMongo())
 
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), record)
             self.assertFalse((directory / "run-run-4.json").exists())
@@ -419,14 +629,13 @@ class RepairSimulationResultsTests(unittest.TestCase):
             }
             write_json(directory / "run-sale-omitted.draft.json", record)
 
-            summary = maintain_results(directory, apply=False)
+            summary = plan_maintenance(directory).summary
 
             self.assertEqual(summary.upload_ready, 0)
             self.assertIn(
                 "WARNING run-sale-omitted.draft.json needs re-evaluation: "
                 "sales part 2 score (0) does not match penalty-adjusted "
-                "score (70 - 0 = 70). "
-                "Run again with --apply --reevaluate.",
+                "score (70 - 0 = 70).",
                 summary.actions,
             )
 
@@ -437,7 +646,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             )
             write_json(directory / "run-sale-omitted.draft.json", record)
 
-            adjusted = maintain_results(directory, apply=False)
+            adjusted = plan_maintenance(directory).summary
 
             self.assertEqual(adjusted.upload_ready, 1)
             self.assertFalse(any("needs re-evaluation" in action for action in adjusted.actions))
@@ -450,11 +659,11 @@ class RepairSimulationResultsTests(unittest.TestCase):
             record["data"] = {"lawyer": {"roundId": "round-1", "transcript": ""}}
             write_json(directory / "run-lawyer-incomplete.draft.json", record)
 
-            summary = maintain_results(directory, apply=False)
+            summary = plan_maintenance(directory).summary
 
             self.assertIn(
                 "WARNING run-lawyer-incomplete.draft.json needs re-evaluation: "
-                "completion was not requested. Run again with --apply --reevaluate.",
+                "completion was not requested.",
                 summary.actions,
             )
 
@@ -466,7 +675,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             write_json(directory / "run-lawyer-published.draft.json", record)
             write_json(directory / "run-lawyer-published.json", aggregate("lawyer-published"))
 
-            summary = maintain_results(directory, apply=False)
+            summary = plan_maintenance(directory).summary
 
             self.assertFalse(any("needs re-evaluation" in action for action in summary.actions))
 
@@ -498,7 +707,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             write_json(directory / "run-sale-1.json", record)
             mongo = FakeMongo()
 
-            summary = maintain_results(directory, apply=True, mongo=mongo)
+            summary = apply_plan(plan_maintenance(directory), mongo)
 
             repaired = json.loads((directory / "run-sale-1.json").read_text(encoding="utf-8"))
             self.assertEqual(repaired["completedAtUtc"], "2026-09-16T00:03:00Z")
@@ -515,7 +724,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             write_json(directory / "run-tester.json", aggregate("tester", "Tester"))
             mongo = FakeMongo()
 
-            summary = maintain_results(directory, apply=True, mongo=mongo)
+            summary = apply_plan(plan_maintenance(directory), mongo)
 
             self.assertFalse(any(directory.glob(f"run-{run_id}*.json")))
             self.assertTrue((directory / "run-tester.json").exists())
@@ -532,7 +741,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             write_json(directory / "run-run-6.json", mismatched)
             mongo = FakeMongo()
 
-            summary = maintain_results(directory, apply=True, mongo=mongo)
+            summary = apply_plan(plan_maintenance(directory), mongo)
 
             self.assertFalse((directory / "run-run-5.draft.json").exists())
             self.assertTrue((directory / "run-run-5.json").exists())
@@ -548,7 +757,7 @@ class RepairSimulationResultsTests(unittest.TestCase):
             write_json(directory / "run-run-7.sync.json", {"runId": "run-7", "synchronized": True})
             mongo = FakeMongo()
 
-            summary = maintain_results(directory, apply=True, mongo=mongo)
+            summary = apply_plan(plan_maintenance(directory), mongo)
 
             rebuilt = json.loads((directory / "run-run-7.json").read_text(encoding="utf-8"))
             self.assertEqual(rebuilt["status"], "completed")
@@ -560,32 +769,88 @@ class RepairSimulationResultsTests(unittest.TestCase):
             directory = Path(temporary)
             write_json(directory / "run-run-8.json", aggregate("run-8"))
 
-            failed = maintain_results(directory, apply=True, mongo=FakeMongo({"run-8"}))
+            failed = apply_plan(plan_maintenance(directory), FakeMongo({"run-8"}))
             sidecar = json.loads((directory / "run-run-8.sync.json").read_text(encoding="utf-8"))
             self.assertEqual(failed.upload_failed, 1)
             self.assertFalse(sidecar["synchronized"])
             self.assertNotIn("secret", sidecar["lastError"])
 
             mongo = FakeMongo()
-            succeeded = maintain_results(directory, apply=True, mongo=mongo)
+            succeeded = apply_plan(plan_maintenance(directory), mongo)
             sidecar = json.loads((directory / "run-run-8.sync.json").read_text(encoding="utf-8"))
             self.assertEqual(succeeded.uploaded, 1)
             self.assertTrue(sidecar["synchronized"])
             self.assertIn("run-8", mongo.documents)
 
-    def test_cli_exit_codes(self):
+    def test_apply_uploads_only_pending_runs_unless_all_are_requested(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            write_json(directory / "run-synced.json", aggregate("synced"))
+            write_json(directory / "run-synced.sync.json", {"runId": "synced", "synchronized": True})
+            write_json(directory / "run-fresh.json", aggregate("fresh"))
+            sidecar = (directory / "run-synced.sync.json").read_bytes()
+
+            plan = plan_maintenance(directory)
+            self.assertEqual(plan.pending_uploads, ["fresh"])
+            mongo = FakeMongo()
+            summary = apply_plan(plan, mongo)
+
+            self.assertEqual(sorted(mongo.documents), ["fresh"])
+            self.assertEqual(summary.uploaded, 1)
+            self.assertEqual((directory / "run-synced.sync.json").read_bytes(), sidecar)
+
+            mongo = FakeMongo()
+            apply_plan(plan_maintenance(directory), mongo, upload_all=True)
+            self.assertEqual(sorted(mongo.documents), ["fresh", "synced"])
+
+    def test_reevaluation_replaces_existing_aggregate_and_marks_it_pending(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            results = root / "simulation-results"
+            results.mkdir()
+            session_id = "b" * 32
+            record = draft("lawyer-redo", status="finalized")
+            write_json(results / "run-lawyer-redo.draft.json", record)
+            stale = aggregate("lawyer-redo")
+            stale["data"]["lawyer"]["finalScore"] = 1
+            write_json(results / "run-lawyer-redo.json", stale)
+            write_json(results / "run-lawyer-redo.sync.json", {"runId": "lawyer-redo", "synchronized": True})
+            write_json(root / f"lawyer-defense-{session_id}.json", {"roundId": session_id, "transcript": "Lời bào chữa."})
+            redone = deepcopy(record)
+            redone["data"] = {"lawyer": {**lawyer_payload(), "finalScore": 75}}
+            answers = iter(("1", session_id, "y"))
+
+            with (
+                patch("scripts.repair_simulation_results._llm_endpoint_reachable", return_value=True),
+                patch("scripts.repair_simulation_results.reevaluate_draft", new=AsyncMock(return_value=redone)),
+                redirect_stdout(io.StringIO()),
+            ):
+                self.assertTrue(_interactive_reevaluation(results, root, input_fn=lambda _: next(answers)))
+
+            stored = json.loads((results / "run-lawyer-redo.json").read_text(encoding="utf-8"))
+            self.assertEqual(stored["data"]["lawyer"]["finalScore"], 75)
+            self.assertEqual(plan_maintenance(results).pending_uploads, ["lawyer-redo"])
+
+    def test_interactive_cli_applies_the_chosen_action(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             write_json(directory / "run-run-9.json", aggregate("run-9"))
 
-            self.assertEqual(main(["--results-dir", str(directory)]), 0)
-            with patch("scripts.repair_simulation_results.configured_mongo", return_value=None):
-                self.assertEqual(main(["--apply", "--results-dir", str(directory)]), 2)
-            failing = FakeMongo({"run-9"})
-            with patch("scripts.repair_simulation_results.configured_mongo", return_value=failing):
-                self.assertEqual(main(["--apply", "--results-dir", str(directory)]), 1)
-            self.assertTrue(failing.indexes_ensured)
+            def run(answers, mongo):
+                answers = iter(answers)
+                with redirect_stdout(io.StringIO()):
+                    return main(["--results-dir", str(directory)],
+                                input_fn=lambda _: next(answers), mongo_factory=lambda: mongo)
 
+            self.assertEqual(run(("q",), None), 0)
+            self.assertFalse((directory / "run-run-9.sync.json").exists())
+            self.assertEqual(run(("1", "y", "q"), None), 1)
+            failing = FakeMongo({"run-9"})
+            self.assertEqual(run(("1", "y", "q"), failing), 1)
+            self.assertTrue(failing.indexes_ensured)
+            mongo = FakeMongo()
+            self.assertEqual(run(("1", "y", "q"), mongo), 0)
+            self.assertIn("run-9", mongo.documents)
 
 if __name__ == "__main__":
     unittest.main()

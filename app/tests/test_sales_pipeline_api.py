@@ -11,9 +11,10 @@ from unittest.mock import patch
 from httpx import ASGITransport, AsyncClient
 from app import main
 from app.config import get_settings
-from app.sales_openrouter import RUBRIC_VERSION
+from app.sales_openrouter import RUBRIC_VERSION, PIPELINE_VERSION
 from app.sales_returning_customer import ReturningSessionStore
 from app.sales_rubric import ORDINARY, SAFETY
+from app.tests.sales_fixtures import write_part1
 from app.tests.test_sales_returning_customer import FakeTranscriber, request
 
 
@@ -52,6 +53,36 @@ class Writer:
 
 
 class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
+    async def test_explicit_part1_customer_link_is_forwarded_and_private_memory_stays_private(self):
+        attempt = {"attemptId": "linked-sale", "salesSessionId": "v3", "runId": "run-v2",
+                   "customerId": "Lan", "customerNeeds": "Giày nhẹ để chạy bộ mỗi sáng.",
+                   "selectedShoeId": "Adudu", "availableShoes": []}
+        (self.store.directory / "sales-persuasion-linked-sale.json").write_text(
+            json.dumps(attempt, ensure_ascii=False), encoding="utf-8")
+        response = await self.client.post("/api/sales/sessions/v3/part1", json={
+            "part1AttemptId": "linked-sale", "runId": "run-v2", "customerId": "Lan",
+            "continuesPart1Customer": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertNotIn("customerMemory", response.json())
+        state = await self.store.get("v3")
+        self.assertTrue(state["customerMemory"]["priorSaleLinked"])
+        self.assertIn("walking_routine", state["investigationEvidence"])
+        response = await self.client.post("/api/sales/sessions", json={
+            "sessionId": "v3", "runId": "run-v2", "customerId": "other",
+            "continuesPart1Customer": True})
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual((await self.store.get("v3"))["customerIdentity"]["customerId"], "Lan")
+
+    async def test_part2_without_a_linked_part1_customer_is_rejected(self):
+        created = await self.client.post("/api/sales/sessions", json={"sessionId": "alone", "runId": "run-alone"})
+        self.assertEqual(created.status_code, 200, created.text)
+        turn = await self.client.post("/api/sales/sessions/alone/turns", json=request("t1").model_dump(by_alias=True))
+        self.assertEqual((turn.status_code, turn.json()["detail"]), (422, "part1_context_required"))
+        self.assertEqual(self.classifier.calls, 0)
+        refused = await self.client.post("/api/sales/sessions", json={
+            "sessionId": "separate", "runId": "run-alone", "continuesPart1Customer": False})
+        self.assertEqual(refused.status_code, 422)
+
     async def test_policy_exchange_after_hearing_complaint_can_end_at_four_without_full_trust(self):
         await self.turn("disrespect")
         offered = await self.turn("acknowledgment", "exchangeOffer", "exchangeConditions")
@@ -67,7 +98,7 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(final["resolutionAccepted"])
         self.assertFalse(final["causeIdentification"])
         self.assertFalse(final["trustRebuilding"])
-        self.assertEqual(final["score"], 20)
+        self.assertEqual(final["score"], 30)
         after = await self.client.post("/api/sales/sessions/v2/turns", json=request("after-exchange").model_dump(by_alias=True))
         self.assertEqual(after.status_code, 409)
 
@@ -195,11 +226,11 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
             return await original(plan, transcript, history)
         with patch.object(self.writer, "write", side_effect=capture):
             await self.turn("acknowledgment", "openQuestion")
-            answer = await self.turn("walkingQuestion")
+            answer = await self.turn("fitQuestion")
             refusal = await self.turn("refusesRemedy")
         self.assertEqual((plans[0]["intent"], plans[0]["concern"], plans[0]["requiredContent"]), ("raise_concern", 2, []))
         self.assertEqual(plans[1]["customerDisposition"], "receptive")
-        self.assertIn("bến xe", answer["customerText"])
+        self.assertIn("đúng cỡ", answer["customerText"])
         self.assertEqual(plans[2]["customerDisposition"], "irritated")
         self.assertEqual(refusal["playerResponseRating"], "bad")
 
@@ -302,8 +333,8 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.classifier, self.writer = Classifier(), Writer()
         self.stt = FakeTranscriber("Em xin lỗi chị, chị có thể nói rõ vấn đề không?")
         values = dict(vars(get_settings()))
-        values.update(sales_pipeline_mode="openrouter", sales_max_turns=8, sales_luna_arbitration_enabled=False,
-                      sales_jev_timeout_seconds=0.02, sales_writer_timeout_seconds=0.02)
+        values.update(pipeline_mode="openrouter", sales_max_turns=8, sales_luna_arbitration_enabled=False,
+                      sales_jev_timeout_seconds=2, sales_writer_timeout_seconds=2)
         self.settings = SimpleNamespace(**values)
         self.patches = [patch.object(main, "sales_returning_store", self.store),
             patch.object(main, "sales_returning_classifier", self.classifier),
@@ -316,7 +347,9 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.client = AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test",
                                   headers={"Authorization": "Bearer test"})
         self.index = 0
-        created = await self.client.post("/api/sales/sessions", json={"sessionId": "v2", "runId": "run-v2"})
+        attempt = write_part1(self.temp.name, "v2", "run-v2")
+        created = await self.client.post("/api/sales/sessions", json={"sessionId": "v2", "runId": "run-v2",
+                                                                      "part1AttemptId": attempt})
         self.assertEqual(created.status_code, 200)
         self.assertEqual(created.json()["maxTurns"], 8)
         self.assertEqual(created.json()["remainingTurns"], 8)
@@ -344,16 +377,19 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.post("/api/sales/sessions/v2/complete", json={"completionId": completion_id})
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
-    async def successful_prefix(self, expect_challenge=True):
+    async def successful_dialogue(self):
+        """Five turns that reach agreement; the last one ends the dialogue."""
         turn = await self.turn("acknowledgment", "openQuestion")
         self.assertEqual(turn["activeObjective"], 2)
-        await self.turn("walkingQuestion")
+        await self.turn("walkingRecall")
         await self.turn("fitQuestion")
         turn = await self.turn("causeStatement")
         self.assertEqual(turn["activeObjective"], 3)
-        turn = await self.turn("exchangeOffer", "exchangeConditions", "lightweightForWalking", "fitOrWalkTrial", "routineMatchExplanation")
-        self.assertEqual(turn["activeObjective"], 4)
-        self.assertEqual(turn["conversationComplete"], not expect_challenge)
+        turn = await self.turn("exchangeOffer", "exchangeConditions", "lightweightForWalking", "fitOrWalkTrial",
+                               "routineMatchExplanation", "originalSaleResponsibility")
+        self.assertEqual(turn["activeObjective"], 3)
+        self.assertTrue(turn["conversationComplete"])
+        self.assertEqual(turn["endingReason"], "objectives_completed")
         return turn
 
     async def test_exchange_without_policy_raises_the_missing_investigation_part(self):
@@ -362,15 +398,11 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         await self.turn("fitQuestion", "painLocationQuestion")
         self.stt.text = "Dạ em sẽ đổi hàng cho chị."
         turn = await self.turn("exchangeOffer")
-        self.assertEqual((plans[-1]["intent"], plans[-1]["concern"], plans[-1]["missingPart"]), ("raise_concern", 2, "walking"))
+        self.assertEqual((plans[-1]["intent"], plans[-1]["concern"], plans[-1]["missingPart"]), ("raise_concern", 2, "cause"))
         self.assertNotIn("chưa rõ", turn["customerText"])
         self.assertEqual(turn["activeObjective"], 2)
         self.assertEqual(turn["disclosedFactIds"], [])
         self.assertEqual(turn["playerResponseRating"], "neutral")
-        await self.turn("walkingQuestion")
-        turn = await self.turn("exchangeOffer")
-        self.assertEqual((plans[-1]["concern"], plans[-1]["missingPart"]), (2, "cause"))
-        self.assertNotIn("chưa rõ", turn["customerText"])
 
     async def test_early_remedy_is_credited_while_lan_raises_the_unheard_concern(self):
         plans = self.capture_plans()
@@ -399,10 +431,10 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(turn["customerText"], "Chị vẫn đang chờ em giải quyết chuyện đôi giày này.")
 
     async def test_first_open_question_is_answered_when_it_completes_emotional_objective(self):
-        turn = await self.turn("acknowledgment", "openQuestion", "walkingQuestion")
+        turn = await self.turn("acknowledgment", "openQuestion", "fitQuestion")
         self.assertEqual(turn["activeObjective"], 2)
-        self.assertEqual(turn["disclosedFactIds"], ["walking_routine"])
-        self.assertIn("bến xe", turn["customerText"])
+        self.assertEqual(turn["disclosedFactIds"], ["fit_condition"])
+        self.assertIn("đúng cỡ", turn["customerText"])
 
     async def test_phase_one_writer_cannot_repeat_previous_followup(self):
         await self.turn("acknowledgment", "exchangeOffer")
@@ -522,11 +554,8 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_reviewed_dialogue_can_finish_objectives_before_limit(self):
         await self.turn(values={"abuse": .5})
-        await self.successful_prefix()
-        turn = await self.turn("originalSaleResponsibility", "routineMatchExplanation", "fitOrWalkTrial")
-        self.assertTrue(turn["conversationComplete"])
-        self.assertEqual(turn["endingReason"], "objectives_completed")
-        self.assertEqual(turn["remainingTurns"], 1)
+        turn = await self.successful_dialogue()
+        self.assertEqual(turn["remainingTurns"], 2)
         final = await self.complete()
         self.assertEqual(final["assessmentStatus"], "needs-review")
         self.assertIsNone(final.get("trustState"))
@@ -578,12 +607,10 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.classifier.calls, calls)
 
     async def test_early_success_keeps_unused_turns_and_rejects_further_turns(self):
-        await self.successful_prefix()
-        turn = await self.turn("originalSaleResponsibility", "routineMatchExplanation", "fitOrWalkTrial")
-        self.assertEqual(turn["remainingTurns"], 2)
-        self.assertTrue(turn["conversationComplete"])
+        turn = await self.successful_dialogue()
+        self.assertEqual(turn["remainingTurns"], 3)
         final = await self.complete()
-        self.assertEqual(final["evaluableTurnCount"], 6)
+        self.assertEqual(final["evaluableTurnCount"], 5)
         self.assertEqual(final["endingReason"], "objectives_completed")
         response = await self.client.post("/api/sales/sessions/v2/turns", json=request("after-end").model_dump(by_alias=True))
         self.assertEqual(response.status_code, 409)
@@ -619,45 +646,58 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(turn["writerMetadata"]["errorCode"], "writer_guard_rejected")
         self.assertIn("unplanned_ending", turn["writerMetadata"]["rejectionCodes"])
 
-    async def test_investigation_and_post_challenge_restore_deterministic_trust(self):
-        challenge = await self.successful_prefix()
-        self.assertIn("lần trước", challenge["customerText"])
-        turn = await self.turn("originalSaleResponsibility", "routineMatchExplanation", "fitOrWalkTrial")
-        self.assertTrue(turn["conversationComplete"])
+    async def test_investigation_and_agreement_restore_deterministic_trust(self):
+        await self.successful_dialogue()
         final = await self.complete()
         self.assertEqual((final["rawScore"], final["score"], final["trustState"]), (100, 100, "restored"))
         self.assertEqual(final["criterionScores"], {"apologyAndPolicyRemedy": 50, "adaptabilityAndDeescalation": 50})
         self.assertEqual(final["assessmentStatus"], "completed")
         self.assertEqual(final["endingReason"], "objectives_completed")
+        self.assertTrue(final["resolutionAccepted"])
+        self.assertTrue(all(final[flag] for flag in ("emotionalHandling", "causeIdentification",
+                                                     "solutionSuitability", "trustRebuilding")))
+        self.assertFalse((await self.store.get("v2")).get("challengeShown", False))
         retry = await self.complete("another-id")
         self.assertEqual(final, retry)
     async def test_last_turn_ends_without_exceeding_backend_limit(self):
         state = await self.store.get("v2")
-        state["maxTurns"] = 5
+        state["maxTurns"] = 4
         await self.store.save(state)
-        challenge = await self.successful_prefix(expect_challenge=False)
-        self.assertFalse(challenge["supplementalTurnGranted"])
-        self.assertEqual(challenge["remainingTurns"], 0)
-        self.assertTrue(challenge["conversationComplete"])
-        self.assertEqual(challenge["endingReason"], "turn_limit")
+        await self.turn("acknowledgment", "openQuestion")
+        await self.turn("walkingQuestion")
+        await self.turn("fitQuestion")
+        last = await self.turn("causeStatement")
+        self.assertFalse(last["supplementalTurnGranted"])
+        self.assertEqual(last["remainingTurns"], 0)
+        self.assertTrue(last["conversationComplete"])
+        self.assertEqual(last["endingReason"], "turn_limit")
         final = await self.complete()
-        self.assertEqual(final["evaluableTurnCount"], 5)
-        self.assertEqual(final["trustState"], "partially_restored")
-        self.assertFalse(final["trustRebuilding"])
-        self.assertFalse((await self.store.get("v2")).get("challengeShown", False))
+        self.assertEqual(final["evaluableTurnCount"], 4)
+        self.assertEqual(final["trustState"], "lost")
+        self.assertFalse(final["resolutionAccepted"])
 
-    async def test_challenge_on_seventh_turn_can_finish_within_eight_turn_limit(self):
+    async def test_agreement_on_seventh_turn_finishes_within_eight_turn_limit(self):
         await self.turn()
         await self.turn()
-        challenge = await self.successful_prefix()
-        self.assertEqual(challenge["remainingTurns"], 1)
-        turn = await self.turn("originalSaleResponsibility", "routineMatchExplanation", "fitOrWalkTrial")
-        self.assertTrue(turn["conversationComplete"])
-        self.assertEqual(turn["remainingTurns"], 0)
+        turn = await self.successful_dialogue()
+        self.assertEqual(turn["remainingTurns"], 1)
         final = await self.complete()
-        self.assertEqual(final["evaluableTurnCount"], 8)
-        self.assertEqual(final["endingReason"], "objectives_completed")
+        self.assertEqual(final["evaluableTurnCount"], 7)
         self.assertEqual(final["trustState"], "restored")
+
+    async def test_agreement_without_apology_ends_the_dialogue_with_partial_trust(self):
+        await self.turn("openQuestion")
+        await self.turn("walkingRecall", "fitQuestion")
+        await self.turn("causeStatement")
+        await self.turn("exchangeOffer")
+        turn = await self.turn("exchangeConditions", "lightweightForWalking", "fitOrWalkTrial")
+        self.assertTrue(turn["conversationComplete"])
+        self.assertEqual((turn["endingReason"], turn["remainingTurns"]), ("objectives_completed", 3))
+        final = await self.complete()
+        self.assertEqual((final["score"], final["trustState"], final["resolutionAccepted"]),
+                         (70, "partially_restored", True))
+        self.assertFalse(final["emotionalHandling"])
+        self.assertNotIn("acknowledgment", final["rubricComponents"])
     async def test_apology_accumulates_neutral_is_not_bad_repetition_gives_no_points(self):
         first = await self.turn("acknowledgment")
         self.assertEqual(first["activeObjective"], 1)
@@ -670,14 +710,15 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(final["badResponseCount"], 0)
         self.assertEqual(final["endingReason"], "stopped_early")
         self.assertEqual(final["trustState"], "lost")
-    async def test_cause_before_customer_facts_does_not_advance_or_earn_points(self):
+    async def test_part1_needs_let_the_cause_count_without_asking_again(self):
         await self.turn("acknowledgment", "openQuestion")
-        turn = await self.turn("causeStatement", "walkingQuestion", "fitQuestion")
-        self.assertEqual(turn["activeObjective"], 2)
+        turn = await self.turn("causeStatement")
+        self.assertEqual(turn["activeObjective"], 3)
         final = await self.complete()
-        self.assertFalse(final["causeIdentification"])
+        self.assertTrue(final["causeIdentification"])
+        # Part 1 already told the routine; re-asking earns nothing, recalling it does.
         self.assertEqual(final["criterionScores"]["adaptabilityAndDeescalation"], 20)
-        self.assertNotIn("cause", final["rubricComponents"])
+        self.assertNotIn("use_question", final["rubricComponents"])
     async def test_uncertain_or_invalid_label_is_not_penalty_and_needs_review_after_two_clarifications(self):
         for index, value in enumerate((0.5, 2, None)):
             turn = await self.turn(values={"unauthorizedRefund": value})
@@ -717,6 +758,9 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         changed = await self.client.post("/api/sales/sessions/v2/turns", json=request("turn-1", 2000).model_dump(by_alias=True))
         self.assertEqual(changed.status_code, 422)
     async def test_classifier_deadline_does_not_spend_turn_or_finalize(self):
+        state = await self.store.get("v2")
+        state["jevDeadlineSeconds"] = .02
+        await self.store.save(state)
         self.classifier.delay = 0.1
         turn = await self.turn("acknowledgment")
         self.assertEqual(turn["error"]["code"], "classifier_timeout")
@@ -729,7 +773,7 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(turn["activeObjective"], 2)
         self.assertTrue(turn["fallbackUsed"])
         self.assertTrue(turn["customerText"])
-        self.assertEqual((await self.complete())["rawScore"], 10)
+        self.assertEqual((await self.complete())["rawScore"], 20)
     async def test_independent_violations_dedupe_abuse_and_retraction_keeps_event(self):
         turn = await self.turn("acknowledgment", "unauthorizedRefund", "unauthorizedDiscount", "abuse")
         self.assertEqual(set(turn["policyViolations"]), {"unauthorized_refund", "unauthorized_discount", "abusive_language"})
@@ -792,10 +836,10 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["turnCheckpoints"], {})
         self.assertEqual(state["evidenceLedger"][0]["transcriptRef"], "turn-1")
     async def test_session_versions_mode_and_budget_are_frozen_on_resume(self):
-        self.settings.sales_pipeline_mode = "legacy"
+        self.settings.pipeline_mode = "legacy"
         self.settings.sales_max_turns = 4
         response = await self.client.post("/api/sales/sessions", json={"sessionId": "v2", "runId": "run-v2"})
-        self.assertEqual(response.json()["pipelineVersion"], "sales-openrouter-v3")
+        self.assertEqual(response.json()["pipelineVersion"], PIPELINE_VERSION)
         self.assertEqual(response.json()["maxTurns"], 8)
 
     async def test_dismissive_and_patronizing_language_gets_firm_reply_without_abuse_penalty(self):
@@ -872,7 +916,7 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_shadow_classification_records_proposal_but_preserves_legacy_control(self):
         from app.tests.test_sales_returning_customer import FakeResponder
-        self.settings.sales_pipeline_mode = "shadow"
+        self.settings.pipeline_mode = "shadow"
         created = await self.client.post("/api/sales/sessions", json={"sessionId": "shadow"})
         self.assertEqual(created.json()["pipelineVersion"], "sales-legacy-v1")
         self.classifier.next = classification("acknowledgment", "openQuestion")
@@ -882,7 +926,7 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         state = await self.store.get("shadow")
         self.assertEqual(state["phase"], 1)
         self.assertEqual(state["shadowState"]["phase"], 2)
-        self.assertEqual(state["shadowAssessments"]["turn-1"]["proposedOutcome"]["rawScore"], 10)
+        self.assertEqual(state["shadowAssessments"]["turn-1"]["proposedOutcome"]["rawScore"], 20)
 
     async def test_backend_openrouter_authority_beats_all_client_fragments_and_blocks_pending_run(self):
         from app.run_results import RunResultStore, Participant, project_sales_part2
@@ -897,8 +941,7 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         pending = await runs.accept_fragment(forged, participant=participant)
         self.assertEqual(pending["status"], "draft")
         self.assertEqual(pending["data"]["part2"]["assessmentStatus"], "pending")
-        await self.successful_prefix()
-        await self.turn("originalSaleResponsibility", "routineMatchExplanation", "fitOrWalkTrial")
+        await self.successful_dialogue()
         await self.complete()
         forged["fragmentId"] = "forged-after-real-completion"
         forged["data"]["part2"]["score"] = 0
@@ -907,7 +950,7 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(final["data"]["part2"]["score"], 100)
         self.assertEqual(final["data"]["part2"]["rubricVersion"], RUBRIC_VERSION)
         self.assertEqual(final["data"]["part2"]["assessmentStatus"], "completed")
-        self.assertEqual(len(final["data"]["turns"]), 6)
+        self.assertEqual(len(final["data"]["turns"]), 5)
 
     async def test_retry_cannot_change_capture_to_skip_cached_transcript(self):
         payload = request("capture-retry").model_dump(by_alias=True)
@@ -933,25 +976,22 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(turn["remainingTurns"], 5)
         self.assertIsNone((await self.complete()).get("score"))
 
-    async def test_uncertain_acknowledgment_requires_clarification_unless_already_accepted(self):
+    async def test_uncertain_acknowledgment_never_stalls_the_dialogue_or_earns_credit(self):
         ambiguous = await self.turn("openQuestion", values={"acknowledgment": .5})
-        self.assertEqual(ambiguous["turnQuality"], "uncertain")
-        self.assertEqual(ambiguous["remainingTurns"], 7)
-        await self.turn("acknowledgment")
-        resolved = await self.turn("openQuestion", values={"acknowledgment": .5})
-        self.assertEqual(resolved["activeObjective"], 2)
-        self.assertNotEqual(resolved["turnQuality"], "uncertain")
+        self.assertEqual(ambiguous["turnQuality"], "good")
+        self.assertEqual(ambiguous["activeObjective"], 2)
+        self.assertNotIn("clarificationReason", ambiguous)
+        self.assertNotIn("acknowledgment", (await self.store.get("v2"))["rubricComponents"])
 
     async def test_recognized_headset_question_clarifies_meaning_without_claiming_microphone_failure(self):
         self.stt.text = "Dạ, chị đau ở đâu để em tư vấn tiếp với chị?"
         for index, value in enumerate((.58, .26)):
             payload = request(f"heard-question-{index}").model_dump(by_alias=True)
             payload["capture"] = {"deviceReady": True, "permissionGranted": True, "speechDetected": True}
-            turn = await self.turn("openQuestion", "painLocationQuestion",
-                                   values={"acknowledgment": value}, payload=payload)
+            turn = await self.turn("painLocationQuestion", values={"openQuestion": value}, payload=payload)
             self.assertEqual(turn["status"], "accepted")
             self.assertEqual(turn["transcript"], self.stt.text)
-            self.assertEqual(turn["clarificationReason"], "acknowledgment")
+            self.assertEqual(turn["clarificationReason"], "openQuestion")
             self.assertNotIn("nghe rõ", turn["customerText"])
             self.assertIn("?", turn["customerText"])
             # A fact question in a turn that is not bad is answered at once.
@@ -974,7 +1014,7 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         async def unheard(plan, transcript, history):
             return {"customerText": "Chị không nghe rõ ý em vừa nói, em nói lại cho chị được không?"}
         with patch.object(self.writer, "write", side_effect=unheard):
-            turn = await self.turn("openQuestion", values={"acknowledgment": .58})
+            turn = await self.turn(values={"openQuestion": .58})
         self.assertTrue(turn["fallbackUsed"])
         self.assertNotIn("nghe rõ", turn["customerText"])
         self.assertEqual(turn["turnQuality"], "uncertain")
@@ -1034,20 +1074,19 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
             pending = await self.complete("premature")
             self.assertEqual(pending["assessmentStatus"], "pending")
             self.assertFalse(runs._path("run-v2", ".json").exists())
-            await self.successful_prefix()
-            await self.turn("originalSaleResponsibility", "routineMatchExplanation", "fitOrWalkTrial")
+            await self.successful_dialogue()
             await self.complete()
         final = runs._read(runs._path("run-v2", ".json"))
         self.assertEqual(final["status"], "completed")
         self.assertEqual(final["data"]["part2"]["score"], 100)
-        self.assertEqual(len(final["data"]["turns"]), 6)
+        self.assertEqual(len(final["data"]["turns"]), 5)
         state = await self.store.get("v2")
-        self.assertTrue(state["evidenceLedger"][-1]["challengeShownBefore"])
+        self.assertFalse(state["evidenceLedger"][-1]["challengeShownBefore"])
 
     async def test_legacy_and_shadow_budget_decrements_and_completion_is_completed(self):
         from app.tests.test_sales_returning_customer import FakeResponder, FakeAnalyzer
         for mode in ("legacy", "shadow"):
-            self.settings.sales_pipeline_mode = mode
+            self.settings.pipeline_mode = mode
             await self.client.post("/api/sales/sessions", json={"sessionId": mode})
             with patch.object(main, "LLMSalesResponder", return_value=FakeResponder()):
                 turn = (await self.client.post(f"/api/sales/sessions/{mode}/turns", json=request().model_dump(by_alias=True))).json()
@@ -1086,8 +1125,7 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("score", after)
 
     async def test_completed_historical_result_remains_authoritative_after_version_change(self):
-        await self.successful_prefix()
-        await self.turn("originalSaleResponsibility", "routineMatchExplanation", "fitOrWalkTrial")
+        await self.successful_dialogue()
         await self.complete()
         state = await self.store.get("v2")
         state["questionSetVersion"] = "historical-questions"
@@ -1101,7 +1139,7 @@ class SalesPipelineApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unsupported_shadow_diagnostics_leave_legacy_control_running(self):
         from app.tests.test_sales_returning_customer import FakeResponder
-        self.settings.sales_pipeline_mode = "shadow"
+        self.settings.pipeline_mode = "shadow"
         await self.client.post("/api/sales/sessions", json={"sessionId": "shadow-old"})
         state = await self.store.get("shadow-old")
         state["shadowVersions"]["questionSetVersion"] = "historical-questions"

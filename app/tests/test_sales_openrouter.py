@@ -8,10 +8,11 @@ from unittest.mock import patch
 import httpx
 
 from app.config import get_settings
-from app.sales_customer_lines import choose_customer_line
+from app.sales_customer_lines import choose_customer_line, fact_sentence, select_customer_line
 from app.sales_openrouter import (
     CHAT_ENDPOINT, DECISIONS_ENDPOINT, FACTS, JEV_MODEL, PENALTY_LABELS,
-    QUESTIONS, QWEN_MODEL, JevSalesClassifier, QwenSalesWriter,
+    QUESTIONS, QUESTION_TEXT, QWEN_MODEL, JevSalesClassifier, QwenSalesWriter,
+    PIPELINE_VERSION, RUBRIC_VERSION, SCENARIO_VERSION, QUESTION_SET_VERSION, PROMPT_VERSION,
     SalesClassifierError, customer_text_rejections, validate_customer_text,
 )
 
@@ -40,6 +41,26 @@ PLAN = {"fallbackText": "Chị vẫn chưa hiểu rõ, em giải thích thêm gi
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_part2_versions_and_question_mappings(self):
+        self.assertEqual((PIPELINE_VERSION, RUBRIC_VERSION, SCENARIO_VERSION,
+                          QUESTION_SET_VERSION, PROMPT_VERSION),
+                         ("sales-openrouter-v3.1", "sales-rubric-v3.2", "returning-shoes-v4",
+                          "sales-jev-v6", "lan-writer-v6"))
+        mappings = {"receiptRequest": "receipt_status", "purchaseQuestion": "purchase_history",
+                    "conditionQuestion": "shoe_condition", "socksQuestion": "socks",
+                    "previousShoesQuestion": "previous_shoes", "productQuestion": "product_details",
+                    "budgetQuestion": "budget", "packagingQuestion": "packaging_status",
+                    "medicalQuestion": "medical_history", "durationQuestion": "use_duration",
+                    "walkingRecall": "walking_routine", "fitRecall": "fit_condition",
+                    "preferenceRecall": "lighter_preference"}
+        for label, fact in mappings.items():
+            self.assertIn(fact, QUESTION_TEXT[label])
+            self.assertNotIn(label, PENALTY_LABELS)
+        self.assertIn("waiving", QUESTION_TEXT["receiptRequest"].replace("Explicitly waiving", "waiving"))
+        self.assertIn("ALREADY SHARED", QUESTION_TEXT["walkingRecall"])
+        self.assertIn("previously disclosed", QUESTION_TEXT["confirmationQuestion"])
+        self.assertIn("never proof of completed inspection", QUESTION_TEXT["inspectionRequest"])
+
     def test_natural_exchange_fit_and_lost_wording_passes_content_guard(self):
         for text, content, ending in (
             ("Chị đồng ý đổi. Em đã hỏi chị thường đi bộ bao lâu chưa?", [], None),
@@ -76,17 +97,17 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(customer_text_rejections("Chị vẫn còn lo về đôi giày này lắm.", {**PLAN, "requiredContent": []}), [])
 
     def test_rollout_remains_legacy_and_sales_does_not_change_general_llm(self):
-        with patch.dict("os.environ", {"SALES_PIPELINE_MODE": "unexpected", "SALES_MAX_TURNS": "99",
+        with patch.dict("os.environ", {"PIPELINE_MODE": "unexpected", "SALES_MAX_TURNS": "99",
                                       "SALES_JEV_TIMEOUT_SECONDS": "0", "OPENROUTER_API_KEY": "secret"}, clear=True):
             config = get_settings()
-        self.assertEqual(config.sales_pipeline_mode, "legacy")
+        self.assertEqual(config.pipeline_mode, "legacy")
         self.assertEqual(config.sales_max_turns, 32)
         self.assertEqual(config.sales_jev_timeout_seconds, 0.1)
         self.assertEqual(config.llm_base_url, "http://127.0.0.1:8080/v1")
         self.assertNotIn("secret", repr(config))
 
     def test_schema_has_independent_promises_and_never_invents_derived_labels(self):
-        self.assertEqual(len(QUESTIONS), 30)
+        self.assertEqual(len(QUESTIONS), 46)
         self.assertTrue({"unauthorizedRefund", "unauthorizedDiscount", "unauthorizedCompensation",
                          "absoluteGuarantee", "maintainsUnauthorizedPromise"}.issubset(QUESTIONS))
         self.assertNotIn("unauthorizedPromise", QUESTIONS)
@@ -95,6 +116,57 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class ClassifierTests(unittest.IsolatedAsyncioTestCase):
+    async def test_classifier_receives_authored_known_facts_and_safe_memory(self):
+        captured = []
+        def handler(request):
+            captured.append(json.loads(request.content))
+            return httpx.Response(200, json=decisions())
+        custom = "Chị chỉ đi bộ vào cuối tuần."
+        memory = {"facts": {"walking_routine": {"text": custom, "disclosedAtTurn": 1,
+                                               "realName": "PRIVATE-NAME"}},
+                  "confirmedFactIds": ["walking_routine"],
+                  "summary": "Khách đã kể nhu cầu đi bộ.", "runId": "PRIVATE-ID",
+                  "audio": "PRIVATE-AUDIO", "realName": "PRIVATE-NAME"}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            await JevSalesClassifier(settings(), client=client).classify("Em hiểu rồi.", {
+                "knownFacts": ["walking_routine"], "allowedNewFacts": ["receipt_status"],
+                "factTexts": {"walking_routine": custom, "receipt_status": FACTS["receipt_status"],
+                              "product_details": "PRIVATE-PRODUCT", "runId": "PRIVATE-ID"},
+                "dialogueMemory": memory})
+        state = captured[0]["state"]
+        self.assertEqual(state["known_fact_texts"], {"walking_routine": custom})
+        self.assertEqual(state["factTexts"]["walking_routine"], custom)
+        self.assertEqual(state["scenario"]["facts"], state["factTexts"])
+        self.assertEqual(state["dialogueMemory"]["facts"]["walking_routine"]["disclosedAtTurn"], 1)
+        self.assertEqual(state["dialogueMemory"]["confirmedFactIds"], ["walking_routine"])
+        self.assertNotIn("PRIVATE", json.dumps(captured))
+
+    async def test_linked_sale_memory_changes_cause_context_and_preserves_actions(self):
+        captured = []
+        custom = "Chị dùng giày để chạy bộ mỗi sáng."
+        def handler(request):
+            captured.append(json.loads(request.content))
+            return httpx.Response(200, json=decisions())
+        context = {"knownFacts": ["walking_routine"], "factTexts": {"walking_routine": custom},
+                   "dialogueMemory": {"priorSaleLinked": True,
+                       "actions": {"inspection": "deferred", "trial": "not_requested", "exchange": "offered"},
+                       "unknownFactIds": ["medical_history", "PRIVATE-ID"],
+                       "purchasedShoe": {"name": "Runner A", "price": 850000, "details": "Nhẹ.",
+                                         "shoeId": "PRIVATE-ID"}, "runId": "PRIVATE-ID"}}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            await JevSalesClassifier(settings(), client=client).classify("Em sẽ xem đôi giày này.", context)
+        state = captured[0]["state"]
+        self.assertTrue(state["dialogueMemory"]["priorSaleLinked"])
+        self.assertEqual(state["dialogueMemory"]["actions"]["inspection"], "deferred")
+        self.assertEqual(state["dialogueMemory"]["purchasedShoe"]["price"], 850000)
+        self.assertEqual(state["dialogueMemory"]["unknownFactIds"], ["medical_history"])
+        self.assertIn("Do not require a heavy-shoe diagnosis", captured[0]["questions"]["causeStatement"]["instructions"])
+        self.assertIn("Do not require a lighter or walking shoe",
+                      captured[0]["questions"]["lightweightForWalking"]["instructions"])
+        self.assertIn("already-shared use", captured[0]["questions"]["routineMatchExplanation"]["instructions"])
+        self.assertIn("chưa được xác minh", state["scenario"]["actualCause"])
+        self.assertNotIn("PRIVATE", json.dumps(captured))
+
     async def test_quality_labels_use_ordinary_thresholds_without_lowering_penalty_thresholds(self):
         body = decisions(disrespect={"type": "noul", "noul": .82},
                          abuse={"type": "noul", "noul": .82},
@@ -199,6 +271,132 @@ class ClassifierTests(unittest.IsolatedAsyncioTestCase):
 
 
 class WriterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_writer_receives_authored_facts_confirmation_and_bounded_memory(self):
+        captured = []
+        custom = "Chị mua mẫu Runner A giá 850 nghìn đồng."
+        plan = {**PLAN, "intent": "confirm_fact", "knownFacts": ["product_details"],
+                "requiredFactIds": ["product_details"], "confirmedFactIds": ["product_details"],
+                "factTexts": {"product_details": custom, "medical_history": "PRIVATE-MEDICAL",
+                              "realName": "PRIVATE-NAME"},
+                "dialogueMemory": {"summary": "Khách đã kể mẫu giày.",
+                                   "recentTurns": [{"turn": i, "lan": "Khách đã trả lời.",
+                                                    "audio": "PRIVATE-AUDIO"} for i in range(50)],
+                                   "runId": "PRIVATE-ID", "realName": "PRIVATE-NAME"}}
+        def handler(request):
+            captured.append(json.loads(request.content))
+            return httpx.Response(200, json=completion(custom))
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            result = await QwenSalesWriter(settings(), client=client).write(plan, "Đúng vậy không chị?", [])
+        self.assertFalse(result["fallbackUsed"], result["metadata"])
+        payload_plan = json.loads(captured[0]["messages"][1]["content"])["plan"]
+        self.assertEqual(payload_plan["answerFacts"], {"product_details": custom})
+        self.assertEqual(payload_plan["knownFacts"], {"product_details": custom})
+        self.assertEqual(payload_plan["confirmedFactIds"], ["product_details"])
+        self.assertEqual(len(payload_plan["dialogueMemory"]["recentTurns"]), 12)
+        self.assertLessEqual(len(json.dumps(payload_plan["dialogueMemory"], ensure_ascii=False)), 6000)
+        self.assertNotIn("PRIVATE", json.dumps(captured))
+
+    def test_lost_receipt_and_repeat_request_pass_but_false_possession_fails(self):
+        plan = {**PLAN, "intent": "answer_request", "knownFacts": ["receipt_status"],
+                "requiredFactIds": ["receipt_status"], "avoidReplyText": FACTS["receipt_status"]}
+        self.assertEqual(customer_text_rejections(FACTS["receipt_status"], plan), [])
+        self.assertEqual(choose_customer_line(plan), FACTS["receipt_status"])
+        self.assertIn("unallowed_fact", customer_text_rejections(FACTS["receipt_status"], PLAN))
+        for text in ("Chị vẫn có hóa đơn.", "Chị còn giữ hóa đơn.",
+                     "Chị không mất hóa đơn.", "Chị mang hóa đơn theo.", "Hóa đơn chị để ở nhà."):
+            self.assertIn("contradicted_fact", customer_text_rejections(text, plan))
+            self.assertIn("missing_required_fact", customer_text_rejections(text, plan))
+        possessed = "Chị vẫn giữ hóa đơn."
+        self.assertEqual(customer_text_rejections(possessed, {**plan, "factTexts": {"receipt_status": possessed}}), [])
+
+    def test_receipt_box_tag_and_unworn_requirements_remain_forbidden(self):
+        plan = {**PLAN, "knownFacts": ["receipt_status", "packaging_status", "shoe_condition"]}
+        for text in ("Chị chỉ được đổi nếu có hóa đơn.",
+                     "Chị phải có hóa đơn để đổi giày.",
+                     "Chị cần có biên lai mới được đổi.",
+                     "Chị được đổi nếu giày còn hộp.",
+                     "Chị được đổi nếu giày còn nguyên tem.",
+                     "Chị được đổi nếu giày chưa mang."):
+            self.assertIn("policy_or_instruction", customer_text_rejections(text, plan), text)
+        self.assertEqual(customer_text_rejections(FACTS["packaging_status"], plan), [])
+        self.assertEqual(customer_text_rejections(FACTS["shoe_condition"], plan), [])
+        packaging = "Chị còn giữ hộp và tem giày."
+        self.assertEqual(customer_text_rejections(packaging, {**plan, "factTexts": {"packaging_status": packaging}}), [])
+
+    def test_custom_facts_override_defaults_without_licensing_fabrications(self):
+        custom = "Chị chỉ đi bộ vào cuối tuần."
+        plan = {**PLAN, "intent": "answer_request", "allowedNewFacts": ["walking_routine"],
+                "requiredFactIds": ["walking_routine"], "factTexts": {"walking_routine": custom}}
+        self.assertEqual(fact_sentence(["walking_routine"], plan["factTexts"]), custom)
+        self.assertEqual(customer_text_rejections(custom, plan), [])
+        self.assertEqual(choose_customer_line(plan), custom)
+        self.assertIn("missing_required_fact", customer_text_rejections(FACTS["walking_routine"], plan))
+        for fact, text in (("product_details", "Chị mua mẫu Runner A giá tám trăm nghìn đồng."),
+                           ("fit_condition", "Chị mang giày cỡ 38."),
+                           ("medical_history", "Chị bị viêm khớp ở chân."),
+                           ("medical_history", "Chị không có bệnh ở chân.")):
+            self.assertIn("unsupported_detail", customer_text_rejections(text, {
+                **PLAN, "allowedNewFacts": [fact], "requiredFactIds": [fact]}), text)
+        product = "Chị mua mẫu Runner A giá 850 nghìn đồng."
+        self.assertEqual(customer_text_rejections(product, {**PLAN, "knownFacts": ["product_details"],
+                        "requiredFactIds": ["product_details"], "factTexts": {"product_details": product}}), [])
+        budget = "Lần trước chị nói ngân sách 1.500.000 đồng; chị chưa xác định khoản chi thêm cho lần đổi này."
+        self.assertEqual(customer_text_rejections(budget, {**PLAN, "knownFacts": ["budget"],
+                        "requiredFactIds": ["budget"], "factTexts": {"budget": budget}}), [])
+        purchase = "Chị mua đôi này ở tiệm mình hai ngày trước."
+        self.assertEqual(customer_text_rejections(purchase, {**PLAN, "knownFacts": ["purchase_history"],
+                        "factTexts": {"purchase_history": purchase}, "requiredFactIds": ["purchase_history"]}), [])
+
+    def test_unknown_answers_and_confirmation_fallback_remain_plain(self):
+        for fact in ("product_details", "budget", "packaging_status", "medical_history"):
+            plan = {**PLAN, "intent": "answer_request", "allowedNewFacts": [fact], "requiredFactIds": [fact]}
+            line = choose_customer_line(plan)
+            self.assertEqual(line, FACTS[fact])
+            self.assertEqual(customer_text_rejections(line, plan), [])
+        custom = "Chị đi bộ khoảng một giờ vào cuối tuần."
+        plan = {**PLAN, "intent": "confirm_fact", "knownFacts": ["walking_routine"],
+                "confirmedFactIds": ["walking_routine"], "factTexts": {"walking_routine": custom}}
+        line = choose_customer_line(plan)
+        self.assertEqual(line, custom)
+        self.assertNotIn("đã nói", line)
+        self.assertEqual(customer_text_rejections(line, plan), [])
+        self.assertIn("missing_required_fact", customer_text_rejections("Chị hiểu rồi em.", plan))
+
+    async def test_offline_failure_preserves_physical_deferral(self):
+        from app.sales_customer_lines import DEFERRAL_LINES
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(503))) as client:
+            plan = {**PLAN, "intent": "raise_concern", "requiredContent": ["physical_deferral"]}
+            result = await QwenSalesWriter(settings(), client=client).write(plan, "Chị đưa giày cho em.", [])
+            self.assertTrue(result["fallbackUsed"])
+            self.assertEqual(customer_text_rejections(result["customerText"], plan), [])
+            self.assertIn("không mang", result["customerText"])
+        self.assertIn("missing_required_content", customer_text_rejections("Chị đưa giày cho em xem nhé.", plan))
+        self.assertEqual(customer_text_rejections(
+            "Hôm nay chị chưa mang giày theo, hôm khác chị mang lại. Nhưng chị vẫn chưa hiểu sao đôi này làm chị đau.", plan), [])
+        # Force every deferral variant into the repetition window: the
+        # exhausted result must still contain the required deferral.
+        exhausted = select_customer_line({**plan, "concern": None, "avoidReplyText": DEFERRAL_LINES[0],
+                                          "avoidReplyTexts": list(DEFERRAL_LINES[1:])})
+        self.assertNotIn("missing_required_content", customer_text_rejections(exhausted["text"], plan))
+
+    def test_lan_never_performs_a_physical_action(self):
+        plan = {**PLAN, "intent": "raise_concern"}
+        for text in ("Chị đưa giày cho em đây.", "Chị sẽ mang thử đôi mới, xem có vừa chân không đã.",
+                     "Chị thử ngay ở đây nhé.", "Chị đồng ý thử đôi mới."):
+            self.assertIn("physical_action", customer_text_rejections(text, plan), text)
+        for text in ("Hôm khác chị mang lại rồi thử luôn.", "Chị đồng ý thử đôi mới khi chị mang giày lại.",
+                     "Chị cần được thử đôi mới cho chắc trước khi quyết định đổi."):
+            self.assertNotIn("physical_action", customer_text_rejections(text, plan), text)
+
+    def test_proposals_cannot_become_completed_inspection_trial_or_diagnosis(self):
+        for text in ("Chị thấy em đã kiểm tra giày rồi.",
+                     "Chị đã thử đôi mới và thấy rất êm.",
+                     "Chị nghe kết quả kiểm tra cho thấy giày bị lỗi.",
+                     "Chị mang thử đôi mới rồi, chị thấy vừa chân."):
+            self.assertIn("unsupported_completion", customer_text_rejections(text, PLAN), text)
+        self.assertIn("unsupported_detail", customer_text_rejections("Chị bị viêm khớp nên đau chân.", PLAN))
+        self.assertIn("unsupported_detail", customer_text_rejections("Giày bị lỗi sản xuất nên chị đau chân.", PLAN))
+
     async def test_repeated_followup_is_rewritten_and_records_attempt_rejections(self):
         previous = "Đổi cho chị thì được, nhưng em định kiểm tra đôi giày này thế nào?"
         revised = "Chị đã nghe em đề nghị đổi giày. Trước khi quyết định, em còn muốn hỏi chị điều gì?"
@@ -347,7 +545,8 @@ class WriterTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("wrong_purchase_period", customer_text_rejections(f"Chị mua đôi giày này {days} ngày trước.", PLAN))
         for clause in ("có hóa đơn", "còn tem", "còn nguyên tem", "chưa sử dụng", "chưa dùng", "chưa mang"):
             self.assertIn("policy_or_instruction", customer_text_rejections(f"Chị yên tâm vì em sẽ đổi nếu giày {clause}.", PLAN))
-        self.assertTrue(validate_customer_text("Chị mua đôi giày này ba ngày trước.", PLAN))
+        self.assertTrue(validate_customer_text("Chị mua đôi giày này ba ngày trước.",
+                                              {**PLAN, "knownFacts": ["purchase_history"]}))
         self.assertTrue(validate_customer_text("Chị hiểu em nói được đổi trong bảy ngày.", PLAN))
 
     def test_negated_forbidden_and_contradictory_facts_are_rejected(self):

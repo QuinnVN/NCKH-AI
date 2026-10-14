@@ -123,7 +123,7 @@ class AIServerManager:
         self._hybrid_enabled = self._environment.get("LLM_USE_AMD_HYBRID", "").strip().lower() in {
             "1", "true", "yes", "on"
         }
-        self._sales_pipeline_mode = self._environment.get("SALES_PIPELINE_MODE", "legacy").strip().lower()
+        self._pipeline_mode = self._environment.get("PIPELINE_MODE", "legacy").strip().lower()
         self._processes: dict[AIServerName, asyncio.subprocess.Process] = {}
         self._startup_timeout = _positive_float(
             self._environment, "AI_SERVER_START_TIMEOUT_SECONDS", 180.0
@@ -187,7 +187,7 @@ class AIServerManager:
 
     def _names(self, target: AIServerTarget) -> tuple[AIServerName, ...]:
         if target == "all":
-            if self._sales_pipeline_mode == "openrouter":
+            if self._pipeline_mode == "openrouter":
                 return ("supertonic",)
             return ("hybrid" if self._hybrid_enabled else "llama", "supertonic")
         return (target,)

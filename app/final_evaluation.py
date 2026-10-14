@@ -203,16 +203,8 @@ def load_system_prompt() -> str:
     return prompt
 
 
-def build_text_field_messages(
-    *, field: str, instruction: str, facts: Mapping[str, Any], max_characters: int
-) -> list[dict[str, str]]:
-    """Ask the model for one prose value, never a document or a number."""
-    payload = {
-        "field": field,
-        "instruction": instruction,
-        "facts": facts,
-        "maxCharacters": max_characters,
-    }
+def build_assessment_messages(payload: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Ask the model for every prose value of one assessment in a single JSON document."""
     return [
         {"role": "system", "content": load_system_prompt()},
         {

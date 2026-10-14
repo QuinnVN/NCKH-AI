@@ -34,7 +34,7 @@ DISCLOSABLE_FACTS = {1: frozenset(), 2: frozenset({"walking_routine", "fit_condi
 TRUST_STATES = frozenset({"restored", "partially_restored", "lost"})
 CUSTOMER_RATINGS = frozenset({"bad", "considering", "good"})
 DETERMINISTIC_ENDINGS = frozenset({"manager_escalation", "maintained_unauthorized_promise"})
-OPENING_COMPLAINT = "Em ơi, chị muốn đổi đôi giày này. Chị mới mua ở đây ba ngày trước, nhưng mang vào thì bị đau chân. Lần trước em tư vấn đôi này phù hợp với chị nên chị khá thất vọng."
+OPENING_COMPLAINT = "Em ơi, chị muốn đổi đôi giày chị mới mua ở đây ba ngày trước. Mang vào thì chị bị đau chân. Lần trước em tư vấn đôi đó phù hợp với chị nên chị khá thất vọng."
 MANDATORY_CHALLENGE = "Nhưng lần trước em cũng tư vấn đôi này phù hợp với chị. Làm sao chị biết lần này sẽ không gặp vấn đề tương tự?"
 UNAUTHORIZED_PROMISE_CHALLENGE = "Chị không thể nhận lời hứa như vậy. Em có thể nói rõ cách kiểm tra đôi giày phù hợp hơn không?"
 THINKING_MORE_RESPONSE = "Ok chị sẽ suy nghĩ thêm"
@@ -223,8 +223,10 @@ class ReturningSessionRequest(BaseModel):
     session_id: str | None = Field(default=None, alias="sessionId", max_length=128)
     part1_attempt_id: str | None = Field(default=None, alias="part1AttemptId", max_length=128)
     run_id: str | None = Field(default=None, alias="runId", max_length=128)
+    customer_id: str | None = Field(default=None, alias="customerId", max_length=128)
+    continues_part1_customer: bool | None = Field(default=None, alias="continuesPart1Customer")
 
-    @field_validator("session_id", "part1_attempt_id")
+    @field_validator("session_id", "part1_attempt_id", "customer_id")
     @classmethod
     def valid_id(cls, value: str | None) -> str | None:
         if value is not None and ATTEMPT_ID_PATTERN.fullmatch(value) is None:
@@ -476,6 +478,9 @@ class ReturningSessionStore:
         part1_attempt_id: str | None = None,
         run_id: str | None = None,
         participant_name: str | None = None,
+        *,
+        customer_id: str | None = None,
+        continues_part1_customer: bool | None = None,
     ) -> dict[str, Any]:
         session_id = session_id or uuid4().hex
         _safe(session_id)
@@ -483,11 +488,13 @@ class ReturningSessionStore:
             self.directory.mkdir(parents=True, exist_ok=True)
             session = self._read_unlocked(session_id)
             if session is not None:
+                # Validate and bind in a copy. A rejected context must not leave
+                # partially associated IDs or facts behind on disk.
+                session = copy.deepcopy(session)
                 if part1_attempt_id and session.get("part1AttemptId") not in (None, part1_attempt_id):
                     raise ValueError("session is linked to another Part 1 attempt")
                 if part1_attempt_id and session.get("part1AttemptId") is None:
                     session["part1AttemptId"] = part1_attempt_id
-                    self._save_unlocked(session)
                 if run_id and session.get("runId") not in (None, run_id):
                     placeholder_run = session.get("runId") == session.get("sessionId")
                     has_turn_state = bool(
@@ -496,20 +503,46 @@ class ReturningSessionStore:
                     )
                     if placeholder_run and not has_turn_state and session.get("status") == "active":
                         session["runId"] = run_id
-                        self._save_unlocked(session)
                     else:
                         raise ValueError("session is linked to another run")
                 if run_id and session.get("runId") is None:
                     session["runId"] = run_id
-                    self._save_unlocked(session)
                 if participant_name and session.get("participantName") is None:
                     session["participantName"] = participant_name
-                    self._save_unlocked(session)
-                return session
+                self._bind_customer_context(session, customer_id, continues_part1_customer)
+                return self._save_unlocked(session)
             session = {"sessionId": session_id, "runId": run_id, "part1AttemptId": part1_attempt_id, "participantName": participant_name, "phase": 1, "acceptedTurnCount": 0, "goodResponseCount": 0, "badResponseCount": 0, "missingReturnPolicyCount": 0, "policyViolations": [], "silenceCount": 0, "turnIds": [], "turns": [], "completedTurns": {}, "pendingTurns": {}, "openingComplaint": OPENING_COMPLAINT, "status": "active", "trustState": None, "createdAtUtc": _now(), "updatedAtUtc": _now()}
             from app.sales_rubric import initialize
             initialize(session, get_settings())
+            self._bind_customer_context(session, customer_id, continues_part1_customer)
             return self._save_unlocked(session)
+
+    def _bind_customer_context(self, session, customer_id, continues_part1_customer):
+        identity = session.get("customerIdentity") or {"customerId": "Lan", "continuesPart1Customer": True}
+        changed = ((customer_id is not None and customer_id != identity["customerId"])
+                   or (continues_part1_customer is not None
+                       and continues_part1_customer != identity["continuesPart1Customer"]))
+        if changed and (session.get("turns") or session.get("pendingTurns") or session.get("turnCheckpoints")):
+            raise ValueError("cannot change customer identity after dialogue has started")
+        if continues_part1_customer is False and session.get("customerMemory") is not None:
+            raise ValueError("Part 2 must continue the Part 1 customer")
+        if customer_id is not None:
+            identity["customerId"] = customer_id
+        if continues_part1_customer is not None:
+            identity["continuesPart1Customer"] = continues_part1_customer
+        if session.get("customerMemory", {}).get("priorSaleLinked") and changed:
+            raise ValueError("session is already linked to a customer context")
+        session["customerIdentity"] = identity
+        if session.get("customerMemory", {}).get("priorSaleLinked"):
+            return
+        attempt_id = session.get("part1AttemptId")
+        if identity["continuesPart1Customer"] and attempt_id and session.get("customerMemory"):
+            from app.sales_persuasion import SalesAttemptStore
+            from app.sales_memory import link_prior_sale
+            attempt = SalesAttemptStore(self.directory)._read(attempt_id)
+            if attempt is None:
+                raise ValueError("Part 1 context is not available")
+            link_prior_sale(session, attempt)
 
     async def get(self, session_id: str) -> dict[str, Any] | None:
         async with self._lock:
@@ -599,6 +632,10 @@ class ReturningSessionStore:
         session.update(turns=[], turnIds=[], completedTurns={}, pendingTurns={}, turnCheckpoints={}, shadowAssessments={}, shadowState={},
             assessmentReviewDecisions={}, assessmentReviewMetadata={}, assessmentResolvedReviewItems=[], diagnosticsDeleted=True,
             diagnosticsDeletedAtUtc=_now(), diagnosticDeletionAudit={"deletedFiles": count, "atUtc": _now()})
+        session.pop("customerMemory", None)
+        for entry in session.get("evidenceLedger", []):
+            entry.pop("factTexts", None)
+            entry.pop("dialogueMemory", None)
         self._save_unlocked(session)
         return count
 
@@ -1589,7 +1626,7 @@ async def _record_shadow(session_id: str, result: dict, store: ReturningSessionS
             if not shadow:
                 from types import SimpleNamespace
                 shadow = {"phase": 1, "policyViolations": [], "investigationEvidence": [], "status": "active"}
-                initialize(shadow, SimpleNamespace(sales_pipeline_mode="openrouter"))
+                initialize(shadow, SimpleNamespace(pipeline_mode="openrouter"))
             classified = await asyncio.wait_for(classifier.classify(result.get("transcript", ""), {
                 "objective": shadow["phase"], "knownFacts": shadow.get("investigationEvidence", []),
                 "unresolvedPromiseTypes": shadow.get("unresolvedPromises", [])}),
@@ -1769,24 +1806,32 @@ async def complete_session(session_id: str, request: CompletionRequest, *, store
             raise RuntimeError("diagnostics_deleted")
         if session.get("score") is not None and session.get("customerRating") in CUSTOMER_RATINGS:
             return session
-        criterion_scores = analysis.criterion_scores
-        raw_score = criterion_scores.apology_and_policy_remedy + criterion_scores.adaptability_and_deescalation
-        violations = session.get("policyViolations", [])
-        violation_count = len(violations) if isinstance(violations, list) else 0
-        policy_violation_penalty = min(raw_score, violation_count * 10)
-        score = raw_score - policy_violation_penalty
-        good_count = int(session.get("goodResponseCount", 0))
-        bad_count = int(session.get("badResponseCount", 0))
-        customer_rating, trust_state = _count_outcome(good_count, bad_count)
-        if good_count == bad_count == 0 and (
-            session.get("trustState") == "lost" or session.get("silenceCount", 0) >= 2
-        ):
-            customer_rating, trust_state = "bad", "lost"
-        final_customer_text = _final_customer_response(session, good_count, bad_count)
-        analysis_data = analysis.model_dump(by_alias=True)
-        analysis_data["criterionScores"] = criterion_scores.model_dump(by_alias=True)
-        session.update({"status": "finished", "completionId": request.completion_id, "completionReason": request.reason, "completionStatus": "completed", "assessmentStatus": "completed", **analysis_data, "rawScore": raw_score, "policyViolationPenalty": policy_violation_penalty, "score": score, "customerRating": customer_rating, "trustState": trust_state, "finalCustomerText": final_customer_text})
+        session.update({"status": "finished", "completionId": request.completion_id, "completionReason": request.reason,
+                        "completionStatus": "completed", "assessmentStatus": "completed",
+                        **legacy_completed_outcome(session, analysis)})
         return await store.save(session)
+
+
+def legacy_completed_outcome(session: Mapping[str, Any], analysis: TrustAnalysis) -> dict[str, Any]:
+    """Score fields a legacy session gets from one whole-dialogue analysis."""
+    criterion_scores = analysis.criterion_scores
+    raw_score = criterion_scores.apology_and_policy_remedy + criterion_scores.adaptability_and_deescalation
+    violations = session.get("policyViolations", [])
+    violation_count = len(violations) if isinstance(violations, list) else 0
+    policy_violation_penalty = min(raw_score, violation_count * 10)
+    good_count = int(session.get("goodResponseCount", 0))
+    bad_count = int(session.get("badResponseCount", 0))
+    customer_rating, trust_state = _count_outcome(good_count, bad_count)
+    if good_count == bad_count == 0 and (
+        session.get("trustState") == "lost" or session.get("silenceCount", 0) >= 2
+    ):
+        customer_rating, trust_state = "bad", "lost"
+    analysis_data = analysis.model_dump(by_alias=True)
+    analysis_data["criterionScores"] = criterion_scores.model_dump(by_alias=True)
+    return {**analysis_data, "rawScore": raw_score, "policyViolationPenalty": policy_violation_penalty,
+            "score": raw_score - policy_violation_penalty, "customerRating": customer_rating,
+            "trustState": trust_state,
+            "finalCustomerText": _final_customer_response(session, good_count, bad_count)}
 
 
 def public_session(session: Mapping[str, Any]) -> dict[str, Any]:
@@ -1805,6 +1850,7 @@ def public_session(session: Mapping[str, Any]) -> dict[str, Any]:
     result.pop("lunaDeadlineSeconds", None)
     result.pop("lunaArbitrationEnabled", None)
     result.pop("arbitratorVersion", None)
+    result.pop("customerMemory", None)
     from app.sales_rubric import remaining
     result["maxTurns"] = session.get("maxTurns", MAX_TURNS)
     result["remainingTurns"] = remaining(session)

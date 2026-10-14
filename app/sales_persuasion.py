@@ -796,7 +796,7 @@ class FallbackSalesAssessor:
 def build_sales_part1_assessor(service: LLMService | None, settings: Settings | None = None) -> SalesAssessor:
     settings = settings or get_settings()
     local = LLMSalesAssessor(service)
-    if settings.openrouter_api_key:
+    if settings.pipeline_mode == "openrouter":
         return FallbackSalesAssessor(OpenRouterSalesAssessor(settings), local)
     return local
 

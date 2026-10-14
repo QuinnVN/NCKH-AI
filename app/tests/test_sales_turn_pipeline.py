@@ -20,15 +20,18 @@ from app.sales_concerns import FACT_QUESTIONS, GOOD_LABELS, score_ledger, score_
 from app.sales_customer_lines import (ACTION_LINES, CLARIFY_LINES, CONCERN_LINES, ENDING_LINES, GENERIC_LINES,
                                       REPEATED_LINES, fact_sentence)
 from app.sales_openrouter import FACTS, customer_text_rejections
+from app.sales_openrouter import RUBRIC_VERSION
+from app.sales_memory import QUESTION_FACTS as MEMORY_QUESTIONS
 from app.sales_pipeline import complete, process_turn
 from app.sales_rescore import rescore_directory, write_report
 from app.sales_returning_customer import CompletionRequest, ReturningSessionStore
 from app.sales_rubric import BAD_TURN_LABELS, VIOLATIONS
+from app.tests.sales_fixtures import write_part1
 from app.tests.test_sales_pipeline_api import classification
 from app.tests.test_sales_returning_customer import FakeTranscriber, request
 
 FIXTURES = Path(__file__).parent / "fixtures" / "sales_v3_regression_labels.json"
-SETTINGS = SimpleNamespace(sales_pipeline_mode="openrouter", sales_max_turns=8, sales_luna_arbitration_enabled=False,
+SETTINGS = SimpleNamespace(pipeline_mode="openrouter", sales_max_turns=8, sales_luna_arbitration_enabled=False,
                            sales_jev_timeout_seconds=2, sales_writer_timeout_seconds=2)
 
 
@@ -73,8 +76,9 @@ class TurnPipelineHarness(unittest.IsolatedAsyncioTestCase):
 
     async def new_session(self, session_id):
         self.session_id = session_id
+        attempt = write_part1(self.directory, session_id, "run-" + session_id)
         with patch("app.sales_returning_customer.get_settings", return_value=SETTINGS):
-            await self.store.create_or_resume(session_id, run_id="run-" + session_id)
+            await self.store.create_or_resume(session_id, attempt, run_id="run-" + session_id)
 
     async def turn(self, *true, uncertain=()):
         self.index += 1
@@ -98,7 +102,7 @@ class CustomerStateTests(TurnPipelineHarness):
         self.assertIn("gót chân", turn["customerText"])
         self.assertEqual(turn["activeObjective"], 1)
         plan = self.writer.plans[-1]
-        self.assertEqual((plan["intent"], plan["concern"], plan["missingPart"]), ("raise_concern", 1, "acknowledgment"))
+        self.assertEqual((plan["intent"], plan["concern"], plan["missingPart"]), ("raise_concern", 1, "problem_question"))
         self.assertEqual(plan["customerDisposition"], "receptive")
 
     async def test_unheard_concern_escalates_then_ends_in_stalemate_without_manager(self):
@@ -120,31 +124,32 @@ class CustomerStateTests(TurnPipelineHarness):
 
     async def test_skills_count_in_any_order_and_the_displayed_objective_catches_up(self):
         turns = [await self.turn("exchangeOffer", "exchangeConditions"),
-                 await self.turn("walkingQuestion"), await self.turn("fitQuestion"),
+                 await self.turn("walkingRecall"), await self.turn("fitQuestion"),
                  await self.turn("acknowledgment", "openQuestion"),
                  await self.turn("causeStatement"),
                  await self.turn("lightweightForWalking", "fitOrWalkTrial")]
-        self.assertEqual([turn["activeObjective"] for turn in turns], [1, 1, 1, 2, 3, 4])
-        self.assertEqual([turn["objectiveCompleted"] for turn in turns], [False, False, False, True, True, True])
-        self.assertEqual(self.writer.plans[-1]["intent"], "trust_challenge")
-        self.assertFalse(turns[-1]["conversationComplete"])
-        last = await self.turn("originalSaleResponsibility", "routineMatchExplanation", "fitOrWalkTrial")
-        self.assertEqual(last["endingReason"], "objectives_completed")
+        # A diagnostic question shows Lan she is heard; the apology is not a gate.
+        self.assertEqual([turn["activeObjective"] for turn in turns], [1, 2, 2, 2, 3, 3])
+        self.assertEqual([turn["objectiveCompleted"] for turn in turns], [False, True, False, False, True, False])
+        self.assertEqual(turns[-1]["endingReason"], "objectives_completed")
+        self.assertNotEqual(self.writer.plans[-1]["intent"], "trust_challenge")
         final = await self.complete()
-        self.assertEqual((final["score"], final["trustState"]), (100, "restored"))
-        self.assertTrue(all(final[flag] for flag in ("emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding")))
+        self.assertEqual((final["score"], final["trustState"]), (80, "restored"))
+        self.assertTrue(all(final[flag] for flag in ("emotionalHandling", "causeIdentification", "solutionSuitability")))
+        self.assertFalse(final["trustRebuilding"])
 
-    async def test_cause_and_solution_only_count_after_the_needed_facts_are_known(self):
+    async def test_part1_needs_let_cause_and_solution_count_without_asking_again(self):
         await self.turn("acknowledgment", "openQuestion")
         early = await self.turn("causeStatement", "lightweightForWalking", "fitOrWalkTrial")
-        self.assertEqual(early["playerResponseRating"], "neutral")
-        self.assertEqual(set((await self.state())["rubricComponents"]), {"acknowledgment"})
-        await self.turn("walkingQuestion", "preferenceQuestion")
-        cause = await self.turn("causeStatement")
-        self.assertEqual(cause["playerResponseRating"], "good")
-        self.assertEqual(cause["activeObjective"], 3)
+        self.assertEqual(early["playerResponseRating"], "good")
+        self.assertEqual(early["activeObjective"], 3)
         self.assertEqual(set((await self.state())["rubricComponents"]),
-                         {"acknowledgment", "use_question", "fit_question", "cause"})
+                         {"acknowledgment", "open_question", "cause", "lightweight", "trial"})
+        # Re-asking what Part 1 already told earns nothing; recalling it does.
+        await self.turn("walkingQuestion")
+        self.assertNotIn("use_question", (await self.state())["rubricComponents"])
+        await self.turn("walkingRecall")
+        self.assertIn("use_question", (await self.state())["rubricComponents"])
 
     async def test_lan_says_she_already_answered_only_when_every_asked_fact_is_known(self):
         await self.turn("painLocationQuestion")
@@ -206,7 +211,10 @@ class RegressionFixtureTests(TurnPipelineHarness):
                     self.assertIn("pain_location", results[asked[0]]["disclosedFactIds"])
                 if session_id.startswith("1c6d"):
                     raised = [(plan["concern"], plan["missingPart"], plan["hintLevel"]) for plan in self.writer.plans]
-                    self.assertIn((1, "acknowledgment", 2), raised)
+                    # The open question clears concern 1 without an apology;
+                    # the dialogue then stalls on the missing cause.
+                    self.assertNotIn("acknowledgment", [part for _, part, _ in raised])
+                    self.assertIn((2, "cause", 2), raised)
                     self.assertEqual(results[-1]["endingReason"], "stalemate")
                     self.assertGreater(results[-1]["remainingTurns"], 0)
                 if session_id.startswith("6de0"):
@@ -216,7 +224,7 @@ class RegressionFixtureTests(TurnPipelineHarness):
                                      (4, "exchange_accepted", 4))
                     final = await self.complete()
                     self.assertEqual((final["score"], final["trustState"], final["resolutionAccepted"]),
-                                     (20, "partially_restored", True))
+                                     (30, "partially_restored", True))
                     self.assertFalse(final["causeIdentification"])
 
 
@@ -239,19 +247,21 @@ class InvariantTests(TurnPipelineHarness):
                 rng = random.Random(seed)
                 self.writer = PlanWriter(rng.choice(("fallback", "fallback", "repeat", "fail")))
                 await self.new_session(f"p{seed}")
-                spoken, known, previous_objective = [], set(), 1
+                spoken, known, previous_objective = [], set((await self.state())["investigationEvidence"]), 1
                 for _ in range(8):
                     true, uncertain = self.random_labels(rng)
                     result = await self.turn(*true, uncertain=uncertain)
                     self.writer.previous = result["customerText"]
                     # 1. No committed line repeats one of the last three.
-                    self.assertFalse(repeats_recent(result["customerText"], spoken), result["customerText"])
+                    validation_plan = {**self.writer.plans[-1], "avoidReplyTexts": spoken[-3:]}
+                    self.assertNotIn("repeated_reply", customer_text_rejections(result["customerText"], validation_plan), result["customerText"])
                     spoken.append(result["customerText"])
                     # 2. An unknown fact asked in a turn that is not bad is answered now.
-                    asked = [fact for label, fact in FACT_QUESTIONS if label in true and fact not in known]
+                    asked = [fact for label, fact in (*MEMORY_QUESTIONS, *FACT_QUESTIONS)
+                             if label in true and fact not in known]
                     if asked and result["playerResponseRating"] != "bad":
                         self.assertIn(asked[0], result["disclosedFactIds"])
-                    known |= set(result["disclosedFactIds"])
+                    known |= set(result["disclosedFactIds"]) | set(result.get("volunteeredFactIds", []))
                     # 3. Unity's progression rule always holds.
                     objective = result["activeObjective"]
                     self.assertIn(objective - previous_objective, (0, 1))
@@ -302,7 +312,7 @@ class OfflineRescoreTests(TurnPipelineHarness):
         legacy = {"sessionId": "legacy", "pipelineMode": "legacy", "completedTurns": {}, "turns": []}
         (self.directory / "sales-session-legacy.json").write_text(json.dumps(legacy), encoding="utf-8")
         before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in self.directory.iterdir() if path.is_file()}
-        report = rescore_directory(self.directory, "sales-rubric-v3")
+        report = rescore_directory(self.directory, RUBRIC_VERSION)
         after = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in self.directory.iterdir() if path.is_file()}
         self.assertEqual(before, after)
         records = {item["sessionId"]: item for item in report["sessions"]}

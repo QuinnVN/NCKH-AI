@@ -70,6 +70,29 @@ class RoutingTests(unittest.TestCase):
 
 
 class AdapterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_linked_customer_uses_bounded_facts_and_cause_for_completion_arbitration(self):
+        captured = []
+        def handler(req):
+            captured.append(json.loads(req.content))
+            return httpx.Response(200, json={"model": LUNA_MODEL, "choices": [{
+                "finish_reason": "stop", "message": {"content": json.dumps({
+                    "causeStatement": {"status": "false", "evidence": ""},
+                    "lightweightForWalking": {"status": "false", "evidence": ""}})}}]})
+        settings = replace(get_settings(), openrouter_api_key="test-secret")
+        context = {"knownFacts": ["walking_routine"], "factTexts": {
+            "walking_routine": "Chị chạy bộ mỗi sáng.", "receipt_status": "PRIVATE-UNSHARED"},
+            "dialogueMemory": {"priorSaleLinked": True, "runId": "PRIVATE-RUN",
+                               "actions": {"inspection": "requested"}}}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            await LunaSalesArbitrator(settings, client=client).adjudicate("Em xin kiểm tra giày.", context,
+                                                                      ("causeStatement", "lightweightForWalking"))
+        data = json.loads(captured[0]["messages"][1]["content"])
+        self.assertEqual(data["scenario"]["facts"], {"walking_routine": "Chị chạy bộ mỗi sáng."})
+        self.assertIn("Do not require a heavy-shoe diagnosis", data["questions"]["causeStatement"])
+        self.assertIn("Do not require a lighter or walking shoe", data["questions"]["lightweightForWalking"])
+        self.assertEqual(data["dialogue_memory"]["actions"]["inspection"], "requested")
+        self.assertNotIn("PRIVATE", json.dumps(captured))
+
     async def call(self, body, requested=("abuse", "refusesRemedy"), model=LUNA_MODEL, finish="stop"):
         with patch.dict("os.environ", {}, clear=True):
             settings = replace(get_settings(), openrouter_api_key="test-secret")

@@ -138,7 +138,7 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _safe_sync_error(error: Exception) -> str:
+def safe_sync_error(error: Exception) -> str:
     message = re.sub(r"(mongodb(?:\+srv)?://[^:/\s]+:)[^@\s]+@", r"\1<redacted>@", str(error), flags=re.IGNORECASE)
     return message[:500]
 
@@ -162,7 +162,7 @@ def is_test_participant(name: Any) -> bool:
             and " ".join(unicodedata.normalize("NFC", name).split()).casefold() == TEST_PARTICIPANT_NAME)
 
 
-def _atomic_json(path: Path, value: Mapping[str, Any]) -> None:
+def atomic_json(path: Path, value: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary: Path | None = None
     try:
@@ -464,6 +464,121 @@ def project_sales_part2(session: Mapping[str, Any]) -> dict[str, Any]:
             "completedAtUtc": session.get("updatedAtUtc")}
 
 
+def _is_int(value: Any, low: int, high: int | None = None) -> bool:
+    return (isinstance(value, int) and not isinstance(value, bool)
+            and low <= value and (high is None or value <= high))
+
+
+def completion_problem(draft: Mapping[str, Any], *, published: bool = False) -> str | None:
+    """Why a draft cannot become a published aggregate, or None when it can.
+
+    A producer may declare required result/transcript fields in the fragment
+    contract. Missing values intentionally keep the draft local instead of
+    publishing a partial aggregate. With ``published`` an existing aggregate is
+    checked for structure only: records published before the current scoring
+    and review rules stay valid.
+    """
+    data = draft.get("data", {})
+    required = draft.get("requiredFields", [])
+    if not isinstance(data, Mapping):
+        return "result data is not an object"
+    if not isinstance(required, list):
+        return "requiredFields is not a list"
+    missing = [field for field in required if field not in data or data[field] is None]
+    if missing:
+        return "missing required result fields: " + ", ".join(sorted(missing))
+    empty = [field for field in required if field in {"patientResults", "cases", "turns"} and not data[field]]
+    if empty:
+        return "required result lists are empty: " + ", ".join(sorted(empty))
+    game_id = draft.get("gameId")
+    if game_id == "clinic" and "patientResults" in required and not published:
+        fields = {"patientId", "sicknessName", "severity", "bedIndex", "resolution",
+                  "actionableAtUtc", "resolvedAtUtc", "resolutionDurationSeconds", "scoreDelta", "scoreTotal"}
+        if any(not fields.issubset(set(item)) for item in data["patientResults"] if isinstance(item, Mapping)):
+            return "a clinic patient result is incomplete"
+    if game_id == "doctor" and "cases" in required and not published:
+        fields = {"caseId", "selectedQuestionsJson", "notesJson", "scoreDelta", "scoreTotal", "caseSubmittedAtUtc"}
+        if any(not fields.issubset(set(item)) for item in data["cases"] if isinstance(item, Mapping)):
+            return "a doctor case result is incomplete"
+    if game_id == "lawyer" and "lawyer" in required:
+        lawyer = data.get("lawyer")
+        if not isinstance(lawyer, Mapping) or not lawyer.get("transcript") and lawyer.get("completionStatus") != "completed":
+            return "lawyer result has no transcript and is not completed"
+        if not isinstance(lawyer.get("criterionScores"), Mapping) or lawyer.get("rawScore") is None or lawyer.get("finalScore") is None:
+            return "lawyer result has no scores"
+    if game_id == "sale" and "part2" in required:
+        return _sales_completion_problem(data, published)
+    return None
+
+
+def _sales_completion_problem(data: Mapping[str, Any], published: bool) -> str | None:
+    part1 = data.get("part1")
+    part2 = data.get("part2")
+    if not isinstance(part2, Mapping):
+        return "sales part 2 result is not an object"
+    if not published and part2.get("assessmentStatus") in {"pending", "needs-review"}:
+        return f"sales part 2 assessmentStatus is {part2['assessmentStatus']}"
+    part1_fields = {
+        "attemptId", "selectedShoeId", "bestFitShoeId", "transcript",
+        "score", "feedbackVi", "recordingAtUtc", "assessmentCompletedAtUtc",
+    }
+    if not isinstance(part1, Mapping) or not part1_fields.issubset(set(part1)):
+        return "sales part 1 result is incomplete"
+    if published:
+        return _published_sales_problem(data, part2)
+    if not part1.get("attemptId") or not part1.get("selectedShoeId") or not part1.get("bestFitShoeId"):
+        return "sales part 1 result has no attempt or shoe selection"
+    if part1.get("transcript") is None or part1.get("score") is None or part1.get("feedbackVi") is None:
+        return "sales part 1 result has no transcript, score or feedback"
+    if not part1.get("recordingAtUtc") or not part1.get("assessmentCompletedAtUtc"):
+        return "sales part 1 result has no recording or assessment time"
+    flags = {"emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding"}
+    if not part2.get("trustState") or not part2.get("completionReason") or not flags.issubset(set(part2)):
+        return "sales part 2 result has no completed outcome"
+    score = part2.get("score")
+    if not _is_int(score, 0, 100):
+        return "sales part 2 score must be an integer from 0 through 100"
+    criterion_scores = part2.get("criterionScores")
+    if part2.get("customerRating") not in {"bad", "considering", "good"} or not isinstance(criterion_scores, Mapping):
+        return "sales part 2 rating or criterion scores are invalid"
+    criterion_values = (criterion_scores.get("apologyAndPolicyRemedy"),
+                        criterion_scores.get("adaptabilityAndDeescalation"))
+    if not all(_is_int(value, 0, 50) for value in criterion_values):
+        return "sales part 2 criterion scores must be integers from 0 through 50"
+    criterion_total = sum(criterion_values)
+    raw_score = part2.get("rawScore", criterion_total)
+    if not _is_int(raw_score, 0) or raw_score != criterion_total:
+        return f"sales part 2 raw score ({raw_score}) does not match criterion total ({criterion_total})"
+    penalty = part2.get("policyViolationPenalty", 0)
+    if not _is_int(penalty, 0, raw_score):
+        return "sales part 2 policy violation penalty is invalid"
+    if raw_score - penalty != score:
+        return (f"sales part 2 score ({score}) does not match penalty-adjusted "
+                f"score ({raw_score} - {penalty} = {raw_score - penalty})")
+    turns = data.get("turns", [])
+    accepted_turn_count = part2.get("acceptedTurnCount")
+    if not isinstance(turns, list) or not _is_int(accepted_turn_count, 0) or len(turns) < accepted_turn_count:
+        return "sales turns are incomplete"
+    if any(not isinstance(turn, Mapping) or not turn.get("turnId") or turn.get("transcript") is None for turn in turns):
+        return "a sales turn has no turnId or transcript"
+    return None
+
+
+def _published_sales_problem(data: Mapping[str, Any], part2: Mapping[str, Any]) -> str | None:
+    flags = {"emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding"}
+    if not part2.get("trustState") or not part2.get("completionReason") or not flags.issubset(set(part2)):
+        return "sales part 2 result has no completed outcome"
+    if not _is_int(part2.get("score"), 0, 100):
+        return "sales part 2 score must be an integer from 0 through 100"
+    if part2.get("customerRating") not in {"bad", "considering", "good"} or not isinstance(part2.get("criterionScores"), Mapping):
+        return "sales part 2 rating or criterion scores are invalid"
+    turns = data.get("turns", [])
+    accepted_turn_count = part2.get("acceptedTurnCount")
+    if not isinstance(turns, list) or not _is_int(accepted_turn_count, 0) or len(turns) < accepted_turn_count:
+        return "sales turns are incomplete"
+    return None
+
+
 class RunResultStore:
     """Atomic local drafts and finalized results with idempotent fragments."""
 
@@ -505,7 +620,7 @@ class RunResultStore:
                      "participantSessionId": participant.session_id, "gameId": game_id,
                      "status": "draft", "startedAtUtc": started_at_utc or self.clock(),
                      "data": {}, "fragments": {}, "updatedAtUtc": self.clock()}
-            _atomic_json(self._path(run_id, ".draft.json"), draft)
+            atomic_json(self._path(run_id, ".draft.json"), draft)
             return draft
 
     async def accept_fragment(self, fragment: Mapping[str, Any], *, participant: Participant | None = None) -> dict[str, Any]:
@@ -588,7 +703,7 @@ class RunResultStore:
             if fragment.get("complete") is True:
                 draft["completionRequested"] = True
             draft["updatedAtUtc"] = self.clock()
-            _atomic_json(self._path(run_id, ".draft.json"), draft)
+            atomic_json(self._path(run_id, ".draft.json"), draft)
             if draft.get("completionRequested") and self._ready_to_finalize(draft):
                 return await self._finalize_unlocked(draft)
             return draft
@@ -614,85 +729,7 @@ class RunResultStore:
 
     @staticmethod
     def _ready_to_finalize(draft: Mapping[str, Any]) -> bool:
-        data = draft.get("data", {})
-        required = draft.get("requiredFields", [])
-        if not isinstance(data, Mapping):
-            return False
-        # A producer may declare required result/transcript fields in the
-        # fragment contract.  Missing values intentionally keep the draft
-        # local instead of publishing a partial aggregate.
-        if not all(field in data and data[field] is not None for field in required):
-            return False
-        if any(field in {"patientResults", "cases", "turns"} and not data[field] for field in required):
-            return False
-        game_id = draft.get("gameId")
-        if game_id == "clinic" and "patientResults" in required:
-            fields = {"patientId", "sicknessName", "severity", "bedIndex", "resolution",
-                      "actionableAtUtc", "resolvedAtUtc", "resolutionDurationSeconds", "scoreDelta", "scoreTotal"}
-            if any(not fields.issubset(set(item)) for item in data["patientResults"] if isinstance(item, Mapping)):
-                return False
-        if game_id == "doctor" and "cases" in required:
-            fields = {"caseId", "selectedQuestionsJson", "notesJson", "scoreDelta", "scoreTotal", "caseSubmittedAtUtc"}
-            if any(not fields.issubset(set(item)) for item in data["cases"] if isinstance(item, Mapping)):
-                return False
-        if game_id == "lawyer" and "lawyer" in required:
-            lawyer = data.get("lawyer")
-            if not isinstance(lawyer, Mapping) or not lawyer.get("transcript") and lawyer.get("completionStatus") != "completed":
-                return False
-            if not isinstance(lawyer.get("criterionScores"), Mapping) or lawyer.get("rawScore") is None or lawyer.get("finalScore") is None:
-                return False
-        if game_id == "sale" and "part2" in required:
-            part1 = data.get("part1")
-            part2 = data.get("part2")
-            if isinstance(part2, Mapping) and part2.get("assessmentStatus") in {"pending", "needs-review"}:
-                return False
-            part1_fields = {
-                "attemptId", "selectedShoeId", "bestFitShoeId", "transcript",
-                "score", "feedbackVi", "recordingAtUtc",
-                "assessmentCompletedAtUtc",
-            }
-            flags = {"emotionalHandling", "causeIdentification", "solutionSuitability", "trustRebuilding"}
-            if not isinstance(part1, Mapping) or not part1_fields.issubset(set(part1)):
-                return False
-            if not part1.get("attemptId") or not part1.get("selectedShoeId") or not part1.get("bestFitShoeId"):
-                return False
-            if part1.get("transcript") is None or part1.get("score") is None or part1.get("feedbackVi") is None:
-                return False
-            if not part1.get("recordingAtUtc") or not part1.get("assessmentCompletedAtUtc"):
-                return False
-            score = part2.get("score") if isinstance(part2, Mapping) else None
-            criterion_scores = part2.get("criterionScores") if isinstance(part2, Mapping) else None
-            valid_ratings = {"bad", "considering", "good"}
-            if not isinstance(part2, Mapping) or not part2.get("trustState") or not part2.get("completionReason") or not flags.issubset(set(part2)):
-                return False
-            if not isinstance(score, int) or isinstance(score, bool) or not 0 <= score <= 100:
-                return False
-            if part2.get("customerRating") not in valid_ratings or not isinstance(criterion_scores, Mapping):
-                return False
-            criterion_values = (criterion_scores.get("apologyAndPolicyRemedy"), criterion_scores.get("adaptabilityAndDeescalation"))
-            if any(not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 50 for value in criterion_values):
-                return False
-            criterion_total = sum(criterion_values)
-            raw_score = part2.get("rawScore", criterion_total)
-            penalty = part2.get("policyViolationPenalty", 0)
-            if not isinstance(raw_score, int) or isinstance(raw_score, bool) or raw_score != criterion_total:
-                return False
-            if not isinstance(penalty, int) or isinstance(penalty, bool) or not 0 <= penalty <= raw_score:
-                return False
-            if raw_score - penalty != score:
-                return False
-            turns = data.get("turns", [])
-            if not isinstance(turns, list):
-                return False
-            accepted_turn_count = part2.get("acceptedTurnCount")
-            if not isinstance(accepted_turn_count, int) or accepted_turn_count < 0:
-                return False
-            if len(turns) < accepted_turn_count:
-                return False
-            for turn in turns:
-                if not isinstance(turn, Mapping) or not turn.get("turnId") or turn.get("transcript") is None:
-                    return False
-        return True
+        return completion_problem(draft) is None
 
     async def finalize(self, run_id: str) -> dict[str, Any]:
         async with self._lock:
@@ -715,9 +752,9 @@ class RunResultStore:
                   "gameId": draft["gameId"], "status": "completed",
                   "startedAtUtc": draft["startedAtUtc"], "completedAtUtc": self.clock(),
                   "data": draft.get("data", {})}
-        _atomic_json(self._path(draft["runId"], ".json"), result)
+        atomic_json(self._path(draft["runId"], ".json"), result)
         draft["status"] = "finalized"
-        _atomic_json(self._path(draft["runId"], ".draft.json"), draft)
+        atomic_json(self._path(draft["runId"], ".draft.json"), draft)
         await self._schedule_sync_unlocked(result)
         return result
 
@@ -728,7 +765,7 @@ class RunResultStore:
         if is_test_participant(aggregate.get("participantName")):
             sidecar.update(synchronized=False, skipped="test participant", updatedAtUtc=self.clock())
         if sidecar.get("synchronized") or sidecar.get("skipped") or self.mongo is None:
-            _atomic_json(self._path(aggregate["runId"], ".sync.json"), sidecar)
+            atomic_json(self._path(aggregate["runId"], ".sync.json"), sidecar)
             return
         # The first automatic attempt happens immediately.  Delayed attempts
         # are explicitly driven by retry_due, avoiding an unbounded task loop.
@@ -744,10 +781,10 @@ class RunResultStore:
         except Exception as exc:  # sanitize all raw driver errors
             sidecar["attemptCount"] = int(sidecar.get("attemptCount", 0)) + 1
             delay = 5 if sidecar["attemptCount"] == 1 else 30 if sidecar["attemptCount"] == 2 else None
-            sidecar.update(synchronized=False, lastError=_safe_sync_error(exc), updatedAtUtc=self.clock(),
+            sidecar.update(synchronized=False, lastError=safe_sync_error(exc), updatedAtUtc=self.clock(),
                           nextAttemptAtUtc=(datetime.now(timezone.utc).timestamp() + delay if delay else None))
             ok = False
-        _atomic_json(self._path(aggregate["runId"], ".sync.json"), sidecar)
+        atomic_json(self._path(aggregate["runId"], ".sync.json"), sidecar)
         return ok
 
     async def retry_due(self) -> int:
@@ -802,7 +839,7 @@ class RunResultStore:
                     return
                 draft["status"] = "aborted"
                 draft["updatedAtUtc"] = self.clock()
-                _atomic_json(self._path(run_id, ".draft.json"), draft)
+                atomic_json(self._path(run_id, ".draft.json"), draft)
 
     async def recover_completed(self, run_id: str) -> dict[str, Any] | None:
         """Finalize a run only when its stored result proves completion."""
@@ -826,7 +863,7 @@ class RunResultStore:
                 draft["completionRequested"] = True
         if not draft.get("completionRequested") or not self._ready_to_finalize(draft):
             return None
-        _atomic_json(self._path(draft["runId"], ".draft.json"), draft)
+        atomic_json(self._path(draft["runId"], ".draft.json"), draft)
         return await self._finalize_unlocked(draft)
 
     async def abort_unfinished(self) -> int:
@@ -842,7 +879,7 @@ class RunResultStore:
                 if draft and draft.get("status") == "draft":
                     draft["status"] = "aborted"
                     draft["updatedAtUtc"] = self.clock()
-                    _atomic_json(path, draft)
+                    atomic_json(path, draft)
                     count += 1
         return count
 

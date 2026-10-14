@@ -1,11 +1,16 @@
-"""Small OpenAI-compatible client for the selected local language model."""
+"""Small OpenAI-compatible client for the language model selected by PIPELINE_MODE."""
 
 from collections.abc import Mapping
+import re
 from typing import Any
 
 import httpx
 
 from app.config import Settings, get_settings
+from app.final_evaluation_openrouter import FINAL_EVALUATION_MODEL
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+NO_THINK_PATTERN = re.compile(r"\s*/no_think\s*$")
 
 
 class LLMServiceError(RuntimeError):
@@ -79,6 +84,7 @@ class LLMService:
                     "The language-model generation options are invalid.", status_code=422
                 )
             payload.update(options)
+        self._prepare_payload(payload)
 
         self.request_count += 1
         try:
@@ -119,6 +125,9 @@ class LLMService:
         self.last_error = None
         return content.strip()
 
+    def _prepare_payload(self, payload: dict[str, Any]) -> None:
+        """Adjust the OpenAI-compatible payload for the concrete provider."""
+
     @staticmethod
     def _valid_message(message: object) -> bool:
         if not isinstance(message, Mapping):
@@ -134,3 +143,44 @@ class LLMService:
 
     async def close(self) -> None:
         await self.client.aclose()
+
+
+class OpenRouterLLMService(LLMService):
+    """DeepSeek V4.1 Flash through OpenRouter, behind the local LLMService contract."""
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        super().__init__(settings)
+        self.base_url = OPENROUTER_BASE_URL
+        self.model = FINAL_EVALUATION_MODEL
+        self.provider = "openrouter"
+        self._api_key = self.settings.openrouter_api_key
+        if self._api_key:
+            self.client.headers["Authorization"] = f"Bearer {self._api_key}"
+
+    @property
+    def configured(self) -> bool:
+        return bool(self._api_key)
+
+    def _prepare_payload(self, payload: dict[str, Any]) -> None:
+        # Local Qwen prompts disable thinking with /no_think; OpenRouter uses a request flag.
+        payload.pop("reasoning_effort", None)
+        payload["reasoning"] = {"enabled": False}
+        payload["messages"] = [
+            {**message, "content": NO_THINK_PATTERN.sub("", message["content"])}
+            for message in payload["messages"]
+        ]
+        # Prefer availability: any provider, but only ones honouring every sent parameter
+        # when a JSON schema is requested.
+        provider: dict[str, Any] = {"data_collection": "allow"}
+        if "response_format" in payload:
+            provider["require_parameters"] = True
+        payload["provider"] = provider
+
+
+def create_llm_service(settings: Settings | None = None) -> LLMService:
+    """Return the OpenRouter service in openrouter mode, otherwise the local LLM."""
+
+    settings = settings or get_settings()
+    if settings.pipeline_mode == "openrouter":
+        return OpenRouterLLMService(settings)
+    return LLMService(settings)

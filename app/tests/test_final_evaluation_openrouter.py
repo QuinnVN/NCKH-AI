@@ -39,6 +39,23 @@ class FinalEvaluationOpenRouterTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('models', body)
         self.assertNotIn('response_format', body)
 
+    async def test_forwards_json_schema_only_to_providers_that_enforce_it(self):
+        sent = []
+        def respond(request):
+            sent.append(json.loads(request.content))
+            return httpx.Response(200, json=completion('{"headline":"Nhận xét."}'))
+        response_format = {"type": "json_schema", "json_schema": {
+            "name": "final_evaluation_text", "strict": True,
+            "schema": {"type": "object", "properties": {"headline": {"type": "string"}},
+                       "required": ["headline"], "additionalProperties": False}}}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            writer = FinalEvaluationOpenRouter("test-secret", client=client)
+            text = await writer.generate([{"role": "user", "content": "Dữ kiện."}],
+                                         options={"response_format": response_format})
+        self.assertEqual(json.loads(text), {"headline": "Nhận xét."})
+        self.assertEqual(sent[0]['response_format'], response_format)
+        self.assertEqual(sent[0]['provider'], {'data_collection': 'deny', 'require_parameters': True})
+
     async def test_retries_temporary_rate_limit_once(self):
         responses = iter([httpx.Response(429, headers={'retry-after': '0'}), httpx.Response(200, json=completion())])
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda _: next(responses))) as client:

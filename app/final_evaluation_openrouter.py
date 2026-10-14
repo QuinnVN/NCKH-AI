@@ -67,6 +67,10 @@ class FinalEvaluationOpenRouter:
             "max_tokens": controls.get("max_tokens", 1024),
             "stream": False,
         }
+        if "response_format" in controls:
+            # Route only to providers that enforce the JSON schema instead of ignoring it.
+            payload["response_format"] = controls["response_format"]
+            payload["provider"]["require_parameters"] = True
         for attempt in range(2):
             try:
                 response = await self.client.post(

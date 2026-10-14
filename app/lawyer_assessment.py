@@ -602,6 +602,27 @@ def _bounded_assessment_facts(
     )[:limit]
 
 
+def restart_penalty_percent(record: Mapping[str, Any]) -> int:
+    return 50 if int(record.get("interviewRestartCount", 0)) > 3 else 0
+
+
+def assessment_fields(record: Mapping[str, Any], assessment: LawyerCriterionAssessment) -> dict[str, Any]:
+    """Score fields a completed lawyer record gets from one assessment."""
+    penalty_percent = restart_penalty_percent(record)
+    return {
+        "criteria": {
+            "evidenceUse": assessment.evidence_use,
+            "logicalConnections": assessment.logical_connections,
+            "conclusionFidelity": assessment.conclusion_fidelity,
+            "clarityAndPersuasiveness": assessment.clarity_and_persuasiveness,
+        },
+        "rawScore": assessment.raw_score,
+        "restartPenaltyPercent": penalty_percent,
+        "finalScore": assessment.raw_score * (1.0 - penalty_percent / 100.0),
+        "feedbackVi": assessment.feedback_vi,
+    }
+
+
 async def process_lawyer_attempt(
     round_id: str,
     *,
@@ -628,9 +649,7 @@ async def process_lawyer_attempt(
                     "clarityAndPersuasiveness": 0,
                 },
                 rawScore=0,
-                restartPenaltyPercent=(
-                    50 if int(record.get("interviewRestartCount", 0)) > 3 else 0
-                ),
+                restartPenaltyPercent=restart_penalty_percent(record),
                 finalScore=0.0,
                 feedbackVi="Không phát hiện lời bào chữa trong bản ghi âm.",
                 error=None,
@@ -653,10 +672,6 @@ async def process_lawyer_attempt(
             )
 
         assessment = await assessor.assess(record, transcript)
-        raw_score = assessment.raw_score
-        restart_count = int(record.get("interviewRestartCount", 0))
-        penalty_percent = 50 if restart_count > 3 else 0
-        final_score = raw_score * (1.0 - penalty_percent / 100.0)
         language_model = None
         service = getattr(assessor, "service", None)
         if service is not None:
@@ -670,16 +685,7 @@ async def process_lawyer_attempt(
             status="completed",
             assessmentStatus="completed",
             transcript=transcript,
-            criteria={
-                "evidenceUse": assessment.evidence_use,
-                "logicalConnections": assessment.logical_connections,
-                "conclusionFidelity": assessment.conclusion_fidelity,
-                "clarityAndPersuasiveness": assessment.clarity_and_persuasiveness,
-            },
-            rawScore=raw_score,
-            restartPenaltyPercent=penalty_percent,
-            finalScore=final_score,
-            feedbackVi=assessment.feedback_vi,
+            **assessment_fields(record, assessment),
             speechModel=speech_model,
             languageModel=language_model,
             error=None,

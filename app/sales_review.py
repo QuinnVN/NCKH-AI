@@ -138,7 +138,8 @@ async def resolve_review(session: dict, store, arbitrator=None) -> dict:
                 context = {"objective": turn.get("objectiveActiveDuringTurn", prior.get("objective")),
                            "knownFacts": prior.get("factsKnownBefore", []),
                            "unresolvedPromiseTypes": prior.get("unresolvedPromiseTypesBefore", []),
-                           "history": session["turns"][max(0, index - 3):index]}
+                           "history": session["turns"][max(0, index - 3):index],
+                           "factTexts": prior.get("factTexts", {}), "dialogueMemory": prior.get("dialogueMemory", {})}
                 adjudicated = await service.adjudicate(turn.get("transcript", ""), context, requested)
                 valid, rejected = validate_decisions(turn.get("transcript", ""), requested, adjudicated.get("labels", {}))
                 decisions.setdefault(turn_id, {}).update({name: value for name, value in valid.items() if value["status"] in ("true", "false")})

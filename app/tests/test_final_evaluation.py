@@ -4,7 +4,7 @@ from app.final_evaluation import (
     DIMENSION_IDS,
     FinalAssessment,
     FinalEvaluationOutputError,
-    build_text_field_messages,
+    build_assessment_messages,
     parse_score_field,
     parse_text_field,
 )
@@ -104,12 +104,11 @@ class FinalEvaluationContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             FinalAssessment.model_validate(answer)
 
-    def test_text_prompt_requests_one_value_and_no_json(self):
-        messages = build_text_field_messages(field="finalEvaluation.headline",
-            instruction="Viết một câu.", facts={"scoreCalculatedByBackend": 75}, max_characters=200)
-        self.assertIn('"field":"finalEvaluation.headline"', messages[1]["content"])
+    def test_assessment_prompt_requests_one_json_document(self):
+        messages = build_assessment_messages({"finalEvaluation": {"facts": {"scoreCalculatedByBackend": 75}}})
+        self.assertIn('"scoreCalculatedByBackend":75', messages[1]["content"])
         self.assertTrue(messages[1]["content"].endswith("/no_think"))
-        self.assertIn("Không trả JSON", messages[0]["content"])
+        self.assertIn("đúng một đối tượng JSON theo JSON schema", messages[0]["content"])
         self.assertIn("Không đưa nguyên văn các chuỗi như `scoreDelta`", messages[0]["content"])
         self.assertIn("`doctor` và `clinic` là hai phần của cùng một trải nghiệm Bác sĩ", messages[0]["content"])
 

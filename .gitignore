@@ -205,7 +205,7 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
-# Runtime lawyer defense recordings
+# Runtime recordings
 /recordings/
 
 # Local model exports and generated runtime files

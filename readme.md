@@ -33,10 +33,17 @@ The liveness endpoint is `GET /api/health`. It always reports `status: "ok"` whe
 
 ## HTTP API
 
-Sales returning-customer sessions also support an opt-in OpenRouter pipeline.
-Inject `OPENROUTER_API_KEY` into this backend and choose `SALES_PIPELINE_MODE`
-as `legacy`, `shadow`, or `openrouter` for newly created sessions. The default
-is `legacy`. Jev recognizes acts, backend rules score them, Qwen writes Lan's
+`PIPELINE_MODE` selects the language model for every LLM feature: `legacy`
+(default) or `shadow` uses the local LLM configured by `LLM_*`, while
+`openrouter` uses `deepseek/deepseek-v4.1-flash` through OpenRouter (inject
+`OPENROUTER_API_KEY` into this backend). This covers game chat, career
+assessment, Lawyer scoring, Sales Part 1 and Part 2, the console smoke tests,
+the final-evaluation CLI and the repair script. OpenRouter requests disable
+reasoning, strip the local `/no_think` hint, allow any provider including ones
+that collect data, and require schema support whenever a JSON schema is sent.
+
+Sales returning-customer sessions also use the mode for newly created sessions:
+in `openrouter` mode, Jev recognizes acts, backend rules score them, Qwen writes Lan's
 planned response, and Supertonic remains local. Existing sessions preserve
 their frozen versions. New sessions use v3, in which Lan reacts to customer concerns and one ledger scorer decides every rating and result ([verification](docs/verification/sales-customer-state-v3-2026-10-05.md)). See [Sales v2 verification and rollout](docs/verification/sales-openrouter-v2.md)
 for retry behavior, rubric, independent review tooling and remaining live checks.
@@ -114,7 +121,7 @@ This endpoint accepts up to 28 categorized questionnaire dimensions, then uses Q
 
 Unity opens one authenticated connection to `WS /ws/ctrl`. The token can be supplied as the `Authorization: Bearer <token>` header or the `token=<token>` query parameter. A newer connection replaces the older one, and pending commands belonging to the old connection fail rather than accepting an ACK from the wrong client.
 
-The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, `sale`, and `tutorial`. For a gameplay scene, the backend sends `load_scene`, waits for a `ready` acknowledgement, then sends `start_scene` and waits for a `running` acknowledgement. Clinic and Doctor load acknowledgements can also report `running` when the scene has already started automatically; the follow-up start command remains idempotent. Standby requires only `load_scene`. The console also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai setup`, `ai setup stt`, or `ai setup supertonic` to install speech dependencies. Use `ai start`, `ai status`, `ai stop`, or `ai restart` with `all`, `llama`, `hybrid`, or `supertonic` to manage local model services. With `SALES_PIPELINE_MODE=openrouter`, `all` selects only Supertonic. In `legacy` or `shadow` mode, `all` selects the LLM runtime chosen by `LLM_USE_AMD_HYBRID`, together with Supertonic. Explicit targets still select the named service in every mode. The remaining commands are `status` and `exit`. The first command is:
+The operator console accepts `set_game <scene_id>`, where the scene catalog is `standby`, `clinic`, `doctor`, `lawyer`, `sale`, and `tutorial`. For a gameplay scene, the backend sends `load_scene`, waits for a `ready` acknowledgement, then sends `start_scene` and waits for a `running` acknowledgement. Clinic and Doctor load acknowledgements can also report `running` when the scene has already started automatically; the follow-up start command remains idempotent. Standby requires only `load_scene`. The console also accepts `reset <scene_id|all>` for gameplay scenes. `reset standby` is rejected, and `all` is only valid for reset. Use `test_llm` to send a fixed smoke-test prompt to the configured language model and print either its response or a safe failure message. Use `ai setup`, `ai setup stt`, or `ai setup supertonic` to install speech dependencies. Use `ai start`, `ai status`, `ai stop`, or `ai restart` with `all`, `llama`, `hybrid`, or `supertonic` to manage local model services. With `PIPELINE_MODE=openrouter`, `all` selects only Supertonic. In `legacy` or `shadow` mode, `all` selects the LLM runtime chosen by `LLM_USE_AMD_HYBRID`, together with Supertonic. Explicit targets still select the named service in every mode. The remaining commands are `status` and `exit`. The first command is:
 
 ```json
 {
@@ -195,9 +202,9 @@ All settings are optional. Defaults are local-only and safe for a developer work
 | `MONGODB_DATABASE` | `desmap` | MongoDB database for completed aggregates. |
 | `MONGODB_RESULTS_COLLECTION` | `game_results` | MongoDB collection for completed aggregates. |
 | `OPENROUTER_API_KEY` | unset | Private OpenRouter key used by the final-evaluation writer and Sales v2 adapters. |
-| `FINAL_EVALUATION_MAX_PROMPT_CHARS` | `16000` | Maximum system prompt plus facts for one generated text field. |
-| `FINAL_EVALUATION_MAX_TOKENS` | `1024` | Completion limit for one generated text field, bounded to 128–2,048. |
-| `FINAL_EVALUATION_REQUEST_TIMEOUT_SECONDS` | `45` | Timeout for each OpenRouter request, bounded to 5–120 seconds. |
+| `FINAL_EVALUATION_MAX_PROMPT_CHARS` | `60000` | Maximum system prompt plus facts for the single structured-output request of one participant. |
+| `FINAL_EVALUATION_MAX_TOKENS` | `12000` | Completion limit for the JSON document holding every prose field, bounded to 1,024–32,000. |
+| `FINAL_EVALUATION_REQUEST_TIMEOUT_SECONDS` | `180` | Timeout for each OpenRouter request, bounded to 5–600 seconds. |
 | `LAWYER_DIAGNOSTIC_TOKEN` | unset | Token required by the detailed Lawyer diagnostic result endpoint. |
 | `LLAMA_SERVER_BIN` | `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe` | Unified llama.cpp executable used by local backend tasks when hybrid mode is off. |
 | `AI_SERVER_START_TIMEOUT_SECONDS` | `180` | Time allowed for each managed server to open its local port. |
@@ -240,7 +247,7 @@ Run the interactive CLI:
 .\.venv\Scripts\python.exe .\scripts\generate_final_evaluation.py
 ```
 
-The CLI sends final-assessment writing requests directly to OpenRouter with `deepseek/deepseek-v4.1-flash` and reasoning disabled. Configure `OPENROUTER_API_KEY` in the backend process or this repository's `.env`; the key is never sent to the browser. No local model or Python HTTP backend needs to be running for this CLI. `LLM_BASE_URL`, `LLM_MODEL`, `LLM_USE_AMD_HYBRID`, and the old `FINAL_EVALUATION_LLM_MODEL` / `FINAL_EVALUATION_LLM_START_TIMEOUT_SECONDS` settings do not control it. The old `--no-start-llm` option is accepted as a no-op for command compatibility.
+With `PIPELINE_MODE=openrouter`, the CLI sends final-assessment writing requests directly to OpenRouter with `deepseek/deepseek-v4.1-flash` and reasoning disabled. Configure `OPENROUTER_API_KEY` in the backend process or this repository's `.env`; the key is never sent to the browser. No local model or Python HTTP backend needs to be running for this CLI. In `legacy` or `shadow` mode it uses the local LLM from `LLM_*` instead, which must already be running. The old `FINAL_EVALUATION_LLM_MODEL` / `FINAL_EVALUATION_LLM_START_TIMEOUT_SECONDS` settings do not control it. The old `--no-start-llm` option is accepted as a no-op for command compatibility.
 
 The OpenRouter adapter retries a temporary rate limit or provider/network failure once, with at most a three-second delay. Authentication and credit failures return safe error messages. Invalid or truncated completions stop generation before any incomplete assessment is saved. Provider safety annotations are removed from participant text, and providers are restricted to routes that deny data collection. No other model is silently substituted. Existing validated text-field repair and career-evidence checks still apply.
 
@@ -284,7 +291,7 @@ From the interactive console, start the local services selected by the pipeline 
 ai start
 ```
 
-With `SALES_PIPELINE_MODE=openrouter`, `ai start` starts only Supertonic, even when `LLM_USE_AMD_HYBRID=true`. Other simulations still use their configured local LLM; start it explicitly with `ai start hybrid` or `ai start llama` when needed, and use the same explicit target to inspect or stop it. In `legacy` or `shadow` mode, with hybrid mode off, `ai start` opens llama.cpp and Supertonic in separate Windows console windows. With hybrid mode on, it loads `Qwen3-4B-Hybrid` into the already installed Lemonade service with a 16K context; `ai stop` unloads that model but leaves Lemonade running. Supertonic listens on `127.0.0.1:7788`. Use `ai status`, `ai stop`, or `ai restart` to inspect or control the services selected by the pipeline mode. Restart the backend after changing the pipeline mode. A failed Supertonic launch does not stop an LLM that already started.
+With `PIPELINE_MODE=openrouter`, `ai start` starts only Supertonic, even when `LLM_USE_AMD_HYBRID=true`, because every LLM feature uses OpenRouter. Explicit targets such as `ai start hybrid` or `ai start llama` still work. In `legacy` or `shadow` mode, with hybrid mode off, `ai start` opens llama.cpp and Supertonic in separate Windows console windows. With hybrid mode on, it loads `Qwen3-4B-Hybrid` into the already installed Lemonade service with a 16K context; `ai stop` unloads that model but leaves Lemonade running. Supertonic listens on `127.0.0.1:7788`. Use `ai status`, `ai stop`, or `ai restart` to inspect or control the services selected by the pipeline mode. Restart the backend after changing the pipeline mode. A failed Supertonic launch does not stop an LLM that already started.
 
 The llama executable path comes from `LLAMA_SERVER_BIN`. If that variable is unset, the manager derives `%LOCALAPPDATA%\Microsoft\WindowsApps\llama.exe`. The manager uses llama.cpp's `-hf` option, so the first run may download `Qwen/Qwen3-4B-GGUF:Q4_K_M`. The backend sends `LLM_MODEL` (default `qwen3-4b`) as the OpenAI-compatible model field in this mode.
 

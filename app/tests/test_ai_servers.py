@@ -104,7 +104,7 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
         manager = AIServerManager(root=self.root, environment={
             **self.environment,
             "LLM_USE_AMD_HYBRID": "true",
-            "SALES_PIPELINE_MODE": "openrouter",
+            "PIPELINE_MODE": "openrouter",
         })
         command = parse_ai_command("ai start")
         with (
@@ -128,7 +128,7 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
                     manager = AIServerManager(root=self.root, environment={
                         **self.environment,
                         "LLM_USE_AMD_HYBRID": hybrid,
-                        "SALES_PIPELINE_MODE": mode,
+                        "PIPELINE_MODE": mode,
                     })
                     expected = (("supertonic",) if mode.strip().lower() == "openrouter"
                                 else ("hybrid" if hybrid == "true" else "llama", "supertonic"))
@@ -140,7 +140,7 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
         manager = AIServerManager(root=self.root, environment={
             **self.environment,
             "LLM_USE_AMD_HYBRID": "true",
-            "SALES_PIPELINE_MODE": "openrouter",
+            "PIPELINE_MODE": "openrouter",
         })
         with (
             patch.object(manager, "_hybrid_health", new=AsyncMock()) as health,
@@ -163,7 +163,7 @@ class AIServerManagerTests(unittest.IsolatedAsyncioTestCase):
         manager = AIServerManager(root=self.root, environment={
             **self.environment,
             "LLM_USE_AMD_HYBRID": "false",
-            "SALES_PIPELINE_MODE": "openrouter",
+            "PIPELINE_MODE": "openrouter",
         })
         with (
             patch.object(manager, "_port_is_available", side_effect=[True, False]),
