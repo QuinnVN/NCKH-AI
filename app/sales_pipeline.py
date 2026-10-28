@@ -117,7 +117,8 @@ def plan_reply(before: Mapping, state: dict, result: dict, labels: Mapping) -> d
 
 
 
-async def process_turn(session_id, request, *, store, transcriber, classifier=None, writer=None, arbitrator=None):
+async def process_turn(session_id, request, *, store, transcriber, classifier=None, writer=None, arbitrator=None,
+                       responder=None):
     from app.sales_returning_customer import _now, _turn_record, _LOCKS
     async with _LOCKS.setdefault(session_id, asyncio.Lock()):
         state = await store.get(session_id)
@@ -147,6 +148,11 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
         try:
             if not supports_versions(state):
                 raise RuntimeError("pipeline_version_unsupported")
+            adaptive_enabled = state.get("adaptiveDialogue") is not None
+            if adaptive_enabled:
+                from app.sales_adaptive import supported as adaptive_supported
+                if not adaptive_supported(state):
+                    raise RuntimeError("pipeline_version_unsupported")
             path = store._turn_path(session_id, request.turn_id)
             # All-zero PCM is a device/upload failure, never player silence.
             with wave.open(io.BytesIO(audio), "rb") as source:
@@ -255,6 +261,17 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
                                                      "rejectedCandidates": selection["rejectedCandidates"]})
                 await save_checkpoint()
             candidate, decision, plan = checkpoint["candidate"], checkpoint["decision"], checkpoint["plan"]
+            if adaptive_enabled and "written" not in checkpoint:
+                # One paid model stage. Its record and reply are checkpointed
+                # together, so a retried turn never repeats the request.
+                from app.sales_adaptive import run_adaptive_turn
+                adaptive = await run_adaptive_turn(state, candidate, decision, plan, labels, transcript, responder=responder)
+                checkpoint.update(adaptive=adaptive["record"], written=adaptive["written"], writtenAtUtc=_now())
+                await save_checkpoint()
+            adaptive_record = checkpoint.get("adaptive") if adaptive_enabled else None
+            if adaptive_record and adaptive_record.get("softClose"):
+                from app.sales_adaptive import apply_soft_close
+                candidate, decision = apply_soft_close(state, candidate, decision)
             if "written" not in checkpoint:
                 written = {"customerText": plan["fallbackText"], "metadata": {}, "fallbackUsed": True}
                 writer_started = time.monotonic()
@@ -284,7 +301,8 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
                 checkpoint.update(written=written, writtenAtUtc=_now())
                 await save_checkpoint()
             written = checkpoint["written"]
-            volunteered = remember_volunteered_facts(candidate, plan, written["customerText"], request.turn_id)
+            volunteered = remember_volunteered_facts(candidate, (adaptive_record or {}).get("memoryPlan") or plan,
+                                                     written["customerText"], request.turn_id)
             rating = decision["turnQuality"] if any(label.get("noul") is not None or label.get("source") == "luna"
                                                     for label in labels.values()) else None
             arbitration_error = (checkpoint.get("arbitration") or {}).get("metadata", {}).get("errorCode")
@@ -307,6 +325,11 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
                           volunteeredFactIds=volunteered,
                           policyViolations=[event["code"] for event in candidate.get("policyViolations", []) if event["turnId"] == request.turn_id],
                           processingDurationSeconds=time.monotonic() - started, createdAtUtc=_now())
+            if adaptive_record:
+                result["adaptiveAction"] = dict(adaptive_record["output"], source=adaptive_record["source"],
+                                                fallbackReason=adaptive_record["fallbackReason"],
+                                                legacyIntent=adaptive_record.get("legacyIntent"),
+                                                version=adaptive_record["version"])
             def commit(current):
                 # Copy only gameplay mutations; never restore deleted diagnostics.
                 keys = ("phase", "assessmentStatus", "clarificationCount", "clarificationIssue", "clarificationIssues", "rubricComponents",
@@ -326,6 +349,11 @@ async def process_turn(session_id, request, *, store, transcriber, classifier=No
                 # The scored entry is the one evaluate() appended; scoring later
                 # replays exactly this record.
                 current.setdefault("evidenceLedger", []).append(copy.deepcopy(candidate["evidenceLedger"][-1]))
+                if adaptive_record:
+                    # Action memory changes only with the committed reply.
+                    from app.sales_adaptive import next_memory
+                    current["adaptiveMemory"] = next_memory(current.get("adaptiveMemory"), adaptive_record,
+                                                            candidate.get("dialogueTurnCount", 0))
                 current.get("turnCheckpoints", {}).pop(request.turn_id, None)
             _, result = await store.finalize_turn(session_id, request.turn_id, result, commit)
             return result

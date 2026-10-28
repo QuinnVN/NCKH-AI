@@ -1851,6 +1851,8 @@ def public_session(session: Mapping[str, Any]) -> dict[str, Any]:
     result.pop("lunaArbitrationEnabled", None)
     result.pop("arbitratorVersion", None)
     result.pop("customerMemory", None)
+    result.pop("adaptiveMemory", None)
+    result.pop("adaptiveDialogue", None)
     from app.sales_rubric import remaining
     result["maxTurns"] = session.get("maxTurns", MAX_TURNS)
     result["remainingTurns"] = remaining(session)

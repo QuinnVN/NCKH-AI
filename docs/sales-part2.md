@@ -4,6 +4,8 @@
 
 New sessions can opt into the Sales-only OpenRouter pipeline, currently v3.1. Jev recognizes independent player acts, backend evidence rules own progression and assessment, Qwen writes Lan's response from an approved plan, and local Supertonic speaks committed text. The rollout default remains legacy. Shadow mode observes Jev without changing legacy gameplay.
 
+An opt-in adaptive Lan dialogue (`SALES_ADAPTIVE_DIALOGUE_ENABLED`, default off) lets one Qwen request choose Lan's reaction, continue/close and wording within code-owned fact, policy and ending limits; scoring is unchanged. See [adaptive dialogue](sales-adaptive-dialogue.md).
+
 ### Customer facts and Part 1 continuity in v3.1
 
 Unity's returning-customer scenario sends `customerId` and `continuesPart1Customer=true` with the Part 1 attempt and run IDs. The backend inherits needs, the original budget and purchased product only when the attempt belongs to the same customer, session and run. A distinct-customer scenario sets the flag to false. Omitted flags preserve the existing identity on resume and default to false for a new API session. Linking or changing identity after dialogue has started is rejected; rejected requests leave the saved session unchanged.

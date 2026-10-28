@@ -78,6 +78,9 @@ def initialize(session: dict, settings: Any) -> None:
                        arbitratorVersion=ARBITRATOR_VERSION)
         from app.sales_memory import initialize_memory
         initialize_memory(session)
+        if getattr(settings, "sales_adaptive_dialogue_enabled", False) is True:
+            from app.sales_adaptive import frozen_config
+            session["adaptiveDialogue"] = frozen_config(settings)
     else:
         session.update(pipelineVersion="sales-legacy-v1", rubricVersion="sales-legacy-v1",
                        scenarioVersion="returning-shoes-v1", questionSetVersion="sales-local-v1",

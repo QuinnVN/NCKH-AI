@@ -100,6 +100,13 @@ class Settings:
     sales_part1_timeout_seconds: float = 30.0
     sales_openrouter_data_collection: str = "deny"
     sales_openrouter_zdr: bool = False
+    # Opt-in adaptive Lan dialogue (app/sales_adaptive.py). Frozen per session at
+    # creation; the legacy writer keeps its 220-token, reasoning-off request.
+    sales_adaptive_dialogue_enabled: bool = False
+    sales_adaptive_reasoning: str = "off"
+    sales_adaptive_max_tokens: int = 4096
+    sales_adaptive_reasoning_max_tokens: int = 1024
+    sales_adaptive_timeout_seconds: float = 45.0
 
 
 def get_settings() -> Settings:
@@ -199,4 +206,9 @@ def get_settings() -> Settings:
         sales_part1_timeout_seconds=_env_float("SALES_PART1_TIMEOUT_SECONDS", 30.0, minimum=1.0, maximum=120.0),
         sales_openrouter_data_collection=("allow" if os.environ.get("SALES_OPENROUTER_DATA_COLLECTION", "deny").strip().lower() == "allow" else "deny"),
         sales_openrouter_zdr=_env_bool("SALES_OPENROUTER_ZDR"),
+        sales_adaptive_dialogue_enabled=_env_bool("SALES_ADAPTIVE_DIALOGUE_ENABLED"),
+        sales_adaptive_reasoning=("on" if os.environ.get("SALES_ADAPTIVE_REASONING", "off").strip().lower() == "on" else "off"),
+        sales_adaptive_max_tokens=_env_int("SALES_ADAPTIVE_MAX_TOKENS", 4096, minimum=256, maximum=65536),
+        sales_adaptive_reasoning_max_tokens=_env_int("SALES_ADAPTIVE_REASONING_MAX_TOKENS", 1024, minimum=0, maximum=32768),
+        sales_adaptive_timeout_seconds=_env_float("SALES_ADAPTIVE_TIMEOUT_SECONDS", 45.0, minimum=1.0, maximum=120.0),
     )
